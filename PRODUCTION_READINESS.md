@@ -51,7 +51,45 @@ Snapshot: 2026-11-21, branch `feat/landscape-16x9` (base `main` @ `567e63c`).
 | 19 | Channel authentication | VERIFIED earlier (3 private uploads), not in Actions |
 | 20 | Controlled upload after authorization | NOT EXECUTED — needs owner approval |
 
-## 3. Honest assessment
+## 3. Character animation audit (evidence-based)
+
+`studio/characters/rig_base.py` is a real rig foundation: `JointNode` world matrices,
+Cairo draw primitives (ellipse, capsule), easing functions (`ease_in_out_quad`,
+`spring_overshoot`, `ease_out_bounce`) and a `Viseme` enum. `ChikuRig.update_pose()` drives
+`blink_t`, `eyebrow_tilt`, `eyebrow_y`, `viseme`, `mouth_open`.
+
+| Capability | Status | Evidence |
+| --- | --- | --- |
+| Reusable rigs | **PARTIAL** | One class per character (`ChikuRig`, `GappuRig`); no shared parameter schema, no data-driven character definitions |
+| Facial expressions | **PARTIAL** | Pose presets, no expression blend tree or FACS-style channels |
+| Eye + eyebrow movement | **PARTIAL** | `blink_t` cycles on a 3.2 s timer, `eyebrow_tilt`/`eyebrow_y` are settable; no saccades, no gaze targets |
+| Mouth shapes / lip-sync | **PARTIAL — pseudo-sync** | `mouth_open = abs(sin(t*14)) * intensity`: a periodic wave, **not** driven by the TTS phonemes or audio |
+| Body gestures | **PARTIAL** | Pose presets only (`update_pose(pose, t, …)`), no procedural arm IK |
+| Walk / run cycles | **NOT FOUND** | no locomotion module in `studio/` |
+| Emotional reactions | **PARTIAL** | pose + easing primitives exist; no reaction library, no anticipation/settle |
+| Character interactions | **NOT FOUND** | no two-character blocking or eye-line system |
+| Animated environments | **PARTIAL** | `studio/background.py` + repo scene backgrounds; no layered parallax rig |
+| Appearance consistency | **VERIFIED (4 episodes)** | same rig across `natkhat-haveli-e1…e4`, reviewed in frames; no automated metric |
+| Characters in 16:9 long-form | **NOT IMPLEMENTED** | `grep -cE "draw_(face|eye|mouth|character)" factory/media/landscape_renderer.py` → **0** |
+
+The directive's §E target (professional 2D character animation) is therefore **not met**;
+today's landscape output is motion graphics, and Natkhat's mouth movement is a sine wave.
+
+## 4. Publishing-readiness audit
+
+| Area | Status | Evidence |
+| --- | --- | --- |
+| OAuth per channel | **IMPLEMENTED** | `uploader/credentials.py` reads `YT_<PREFIX>_*` (client id/secret/refresh token), `oauth.py` refreshes, `ScopeError`/`OAuthError` are typed failures |
+| Channel identity check | **VERIFIED** | `WrongChannelError` + `--confirm-channel` comparison; 3 live uploads verified the right channels in an earlier session |
+| Duplicate prevention | **VERIFIED** | `ledger.py` stores `video_sha256`/`metadata_sha256`, `assert_no_duplicate()`, `DuplicateUploadError` stops repeats |
+| Unknown state hard stop | **VERIFIED** | `UploadStateUnknown` exists for a lost response, so the run stops instead of re-uploading |
+| Transient-error retry | **IMPLEMENTED, PARTIALLY VERIFIED** | `uploader/retry.py::retry_call(attempts=3, retry_after)` used by `router.py`; `youtube.py` marks 429/5xx `retryable=True`, handles resumable `308`. No test forces a 500 and asserts the retry actually fires |
+| Quota handling | **RISK** | no `quotaExceeded` mapping found in `errors.py`; if all three channels share one Google Cloud project, the 100 uploads/day quota is shared (3/day is fine, but a retry storm is not) |
+| Refresh-token longevity | **UNKNOWN — owner action** | in OAuth "Testing" mode refresh tokens expire after 7 days; status of the three credentials is unverified. Must be "In production" or refreshed by a human |
+| Secrets in Actions | **BLOCKED** | `YT_<PREFIX>_*` not provisioned; `gh api …/actions/secrets` returns 403 for the token in use |
+| Scheduling / public release | **DISABLED BY DESIGN** | `FACTORY_ALLOW_UPLOAD`, `FACTORY_ALLOW_SCHEDULE`, private-by-default, Natkhat `madeForKids` forced |
+
+## 5. Honest assessment
 
 The factory can produce and inspect real videos locally, for both aspect ratios, with
 passing technical QC. It cannot yet run unattended in the cloud: the production workflows

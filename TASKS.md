@@ -97,6 +97,19 @@ Status markers: `[ ]` todo, `[~]` in progress, `[x]` done.
 - [x] **T29. Broadcast loudness** — −26.53 → −14.15 LUFS, true peak −1.24 dBTP,
   LRA 2.0, duration preserved to 9 ms, sidechain ducking, 4 new tests.
 
+## P1b — Character animation (NOT MET, planned)
+
+- [ ] **T30. Data-driven character schema** — character definitions as data, one rig
+  renderer, shared expression/gesture channel names (`rig_base.py` is the seed).
+- [ ] **T31. Real lip-sync** — replace `abs(sin(t*14))` with visemes driven by narration
+  timing / phoneme estimates; verify against the SRT word times.
+- [ ] **T32. Eye system** — saccades, gaze targets, blink with variance (not a fixed timer).
+- [ ] **T33. Locomotion** — walk/run cycles with contact/passing/up poses and foot planting.
+- [ ] **T34. Reaction library** — anticipation, impact, settle, with the existing easing set.
+- [ ] **T35. Two-character blocking** — eye-line, overlap, and shared framing.
+- [ ] **T36. Layered parallax environments.**
+- [ ] **T37. Characters in the 16:9 renderer** — currently zero character drawing.
+
 ## P4b — Long-form 16:9 engine (branch `feat/landscape-16x9`)
 
 - [x] **T24. Native 1920x1080 composition profile** — `landscape_renderer.py`, 116.5 s

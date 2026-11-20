@@ -39,6 +39,17 @@ stage now ducks the bed with `sidechaincompress` and applies a two-pass *linear*
 Verified on the real episode: **−14.15 LUFS, −1.24 dBTP, LRA 2.0**, audio/video length
 delta 9 ms, remix 15.5 s. Tests: `tests/factory/test_audio.py` (4).
 
+### Pull-request merge order (reviewed 2026-11-21)
+
+| PR | Branch | Files | Mergeable | Touches `produce.yml` |
+| --- | --- | --- | --- | --- |
+| #2 | `fix/runner-install-robustness` | 1 (`.github/workflows/produce.yml`) | MERGEABLE | yes |
+| #3 | `feat/landscape-16x9` | 14 (`factory/`, `content/`, `tests/`, docs) | MERGEABLE | **no** |
+
+They are disjoint, so there is no conflict either way. Recommended order: **#2 first**
+(it fixes the runner install that T12 needs), then **#3**. Both stay unmerged until the
+owner approves.
+
 ### Exact next actions (in order)
 
 1. Owner approval → merge PR #2 **first**, then PR #3 (no file overlap; PR #2 touches only
