@@ -96,43 +96,100 @@ def make_bed(
     return output_path
 
 
+LOUDNESS_TARGET = {"I": -14.0, "TP": -1.5, "LRA": 11.0}
+
+
+def measure_loudness(path: Path | str) -> dict[str, float]:
+    """EBU R128 integrated loudness, true peak and loudness range of a file."""
+
+    from ..util import run
+
+    result = run(
+        [
+            "ffmpeg", "-hide_banner", "-nostats", "-i", str(path), "-vn",
+            "-af", f"loudnorm=I={LOUDNESS_TARGET['I']}:TP={LOUDNESS_TARGET['TP']}:LRA={LOUDNESS_TARGET['LRA']}:print_format=json",
+            "-f", "null", "-",
+        ],
+        timeout=300,
+        check=False,
+    )
+    text = result.stderr
+    block = text[text.rfind("{") : text.rfind("}") + 1] if "{" in text else ""
+    data: dict[str, float] = {}
+    if block:
+        import json as _json
+
+        try:
+            raw = _json.loads(block)
+            data = {
+                "integrated_lufs": float(raw.get("input_i", "nan")),
+                "true_peak_dbtp": float(raw.get("input_tp", "nan")),
+                "lra_lu": float(raw.get("input_lra", "nan")),
+                "threshold_lufs": float(raw.get("input_thresh", "nan")),
+            }
+        except (ValueError, TypeError):
+            data = {}
+    return data
+
+
 def mix_narration(
     narration_path: Path | str,
     bed_path: Path | str,
     output_path: Path | str,
     duration: float,
+    *,
+    normalize: bool = True,
+    bed_gain: float = 0.22,
 ) -> Path:
+    """Mix narration over the bed with ducking, then normalise to -14 LUFS.
+
+    The music bed is side-chain compressed by the narration instead of sitting at a
+    fixed low volume, so words stay clear without the bed disappearing. Loudness is
+    applied as a *linear* gain from a measured pass, which preserves the exact duration
+    and therefore A/V sync; the result is trimmed/padded to ``duration`` as a guard.
+    """
+
     from ..util import run
 
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    fade_out = max(0.0, duration - 1.2)
+    raw_path = output_path.with_name(f"{output_path.stem}_raw.wav")
+
+    filter_complex = (
+        "[0:a]aresample=44100,aformat=sample_fmts=fltp:channel_layouts=stereo,asplit=2[nar][key];"
+        f"[1:a]volume={bed_gain},afade=t=in:st=0:d=0.9,"
+        f"afade=t=out:st={max(0.0, duration - 1.2):.2f}:d=1.0[bed];"
+        "[bed][key]sidechaincompress=threshold=0.045:ratio=9:attack=6:release=280:makeup=1[duck];"
+        "[nar][duck]amix=inputs=2:duration=first:dropout_transition=2,"
+        "alimiter=limit=0.97:level=disabled[a]"
+    )
     run(
         [
-            "ffmpeg",
-            "-y",
-            "-i",
-            str(narration_path),
-            "-i",
-            str(bed_path),
-            "-filter_complex",
-            (
-                f"[1:a]volume=0.14,afade=t=in:st=0:d=0.8,"
-                f"afade=t=out:st={fade_out:.2f}:d=1.0[bg];"
-                "[0:a][bg]amix=inputs=2:duration=first:dropout_transition=2[a]"
-            ),
-            "-map",
-            "[a]",
-            "-ac",
-            "2",
-            "-ar",
-            "44100",
-            "-c:a",
-            "aac",
-            "-b:a",
-            "192k",
-            str(output_path),
+            "ffmpeg", "-y", "-i", str(narration_path), "-i", str(bed_path),
+            "-filter_complex", filter_complex,
+            "-map", "[a]", "-ac", "2", "-ar", "44100", "-c:a", "pcm_s16le",
+            str(raw_path),
         ],
-        timeout=120,
+        timeout=300,
     )
+
+    chain = f"atrim=0:{duration:.3f},apad,atrim=0:{duration:.3f}"
+    if normalize:
+        measured = measure_loudness(raw_path)
+        if measured and measured.get("integrated_lufs") not in (None, float("nan")):
+            chain += (
+                f",loudnorm=I={LOUDNESS_TARGET['I']}:TP={LOUDNESS_TARGET['TP']}:LRA={LOUDNESS_TARGET['LRA']}"
+                f":measured_I={measured['integrated_lufs']}:measured_TP={measured['true_peak_dbtp']}"
+                f":measured_LRA={measured['lra_lu']}:measured_thresh={measured['threshold_lufs']}"
+                ":linear=true:print_format=summary"
+            )
+    run(
+        [
+            "ffmpeg", "-y", "-i", str(raw_path), "-af", chain,
+            "-ac", "2", "-ar", "44100", "-c:a", "aac", "-b:a", "192k",
+            "-movflags", "+faststart", str(output_path),
+        ],
+        timeout=300,
+    )
+    raw_path.unlink(missing_ok=True)
     return output_path

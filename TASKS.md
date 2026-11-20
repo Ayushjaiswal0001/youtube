@@ -92,6 +92,11 @@ Status markers: `[ ]` todo, `[~]` in progress, `[x]` done.
   Turning on `publishAt` scheduling requires `FACTORY_ALLOW_SCHEDULE=1` plus human
   sign-off; changing default privacy requires editing `channels/*.json`.
 
+## P3b — Audio loudness (branch `feat/landscape-16x9`)
+
+- [x] **T29. Broadcast loudness** — −26.53 → −14.15 LUFS, true peak −1.24 dBTP,
+  LRA 2.0, duration preserved to 9 ms, sidechain ducking, 4 new tests.
+
 ## P4b — Long-form 16:9 engine (branch `feat/landscape-16x9`)
 
 - [x] **T24. Native 1920x1080 composition profile** — `landscape_renderer.py`, 116.5 s

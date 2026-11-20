@@ -16,7 +16,7 @@ Snapshot: 2026-11-21, branch `feat/landscape-16x9` (base `main` @ `567e63c`).
 | Long-form pipeline 16:9 | **PARTIALLY VERIFIED** | One real 116.5 s render inspected on 12 frames + contact sheet. Quality is motion-graphics grade, not character animation |
 | Plan generation (topic banks) | **VERIFIED** | `factory plan new`, 6 topics/channel, duplicate + exhaustion guards tested |
 | Natkhat series continuity | **VERIFIED** | Order guard raises on unpublished predecessor; rollover to `natkhat-jungle` unit-tested |
-| Audio mixing / narration | **VERIFIED** (locally) | mean −29.2 dB, peak −11.4 dB, no silence > 1 s, procedural bed present |
+| Audio mixing / narration | **VERIFIED** (locally) | −14.15 LUFS / −1.24 dBTP / LRA 2.0 after the loudness fix, sidechain ducking, duration preserved to 9 ms, 4 CI tests |
 | Subtitles | **VERIFIED** (locally) | 52 cues, word-accurate text, timings from Edge-TTS word boundaries |
 | Technical QC gate | **VERIFIED** | geometry, codec, duration, loudness, title/tags/description, thumbnail, SRT checks; failures block publish |
 | Visual/editorial QC | **PARTIALLY VERIFIED** | Human frame inspection only; no automated visual scoring, no character-consistency metric |
@@ -41,7 +41,7 @@ Snapshot: 2026-11-21, branch `feat/landscape-16x9` (base `main` @ `567e63c`).
 | 5 | Academic 16:9 | NOT IMPLEMENTED (no long plan authored yet) |
 | 6 | Natkhat 16:9 | NOT IMPLEMENTED (Hindi long-form composition absent) |
 | 7 | Frames/contact sheets inspected | VERIFIED (9:16 and 16:9) |
-| 8 | Audio quality | VERIFIED locally |
+| 8 | Audio quality | VERIFIED locally — EBU R128 measured at −14.15 LUFS, 4 automated tests |
 | 9 | Subtitles | VERIFIED locally |
 | 10 | Character consistency | PARTIALLY VERIFIED (same rigs across 4 Natkhat episodes; no metric) |
 | 11–15 | Runner deps (Edge-TTS, Chrome, ffmpeg, PyCairo) | PARTIALLY VERIFIED — PyCairo/ffmpeg/Chrome install provable in logs, full render not |

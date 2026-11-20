@@ -13,7 +13,7 @@ Read this block first; it is the exact state another agent needs.
 | PR #2 | OPEN, unmerged, 1 commit `2a810f0`, runner-install hardening. **Leave untouched until the owner approves.** |
 | Workflows | `ci.yml` active; `produce.yml` active but reusable-only; the three `produce-*` are `disabled_manually` |
 | Secrets | `YT_<PREFIX>_*` NOT provisioned → any `upload: true` dispatch will skip the upload with a warning |
-| Tests | `python -m pytest tests -q` → **92 passed**; `python -m unittest discover -s tests` → 50 passed |
+| Tests | `python -m pytest tests -q` → **96 passed**; `python -m unittest discover -s tests` → 50 passed |
 | Shorts plans | 13 plans intact (5 nexus, 5 academic, 3 natkhat), history/state untouched |
 | Long-form plan | `content/longform/nexus-node.json` → `long-nexus-power-grid`, rendered (see below) |
 | Publishing actions this session | **none** — no upload, no ledger write, no schedule enabled |
@@ -31,10 +31,19 @@ Body/caption collision; ghosting chapter cards; chapter kicker falling back to b
 chapter cards firing on every line; motifs bleeding outside the plate; `find_plan` unable
 to resolve a long-form plan; `load_plans_for` mixing formats.
 
+### Audio (fixed after the first landscape render)
+
+First mix measured **−26.53 LUFS** — inaudible next to normal YouTube content. The mix
+stage now ducks the bed with `sidechaincompress` and applies a two-pass *linear*
+`loudnorm` (I=−14, TP=−1.5, LRA=11) followed by an exact-duration trim/pad.
+Verified on the real episode: **−14.15 LUFS, −1.24 dBTP, LRA 2.0**, audio/video length
+delta 9 ms, remix 15.5 s. Tests: `tests/factory/test_audio.py` (4).
+
 ### Exact next actions (in order)
 
-1. Owner approval → merge PR #2, then dispatch `produce-nexus-node.yml` with `upload: false`
-   to complete T12 (runner render, Edge-TTS egress, Chrome overlays).
+1. Owner approval → merge PR #2 **first**, then PR #3 (no file overlap; PR #2 touches only
+   `.github/workflows/produce.yml`). Then dispatch `produce-nexus-node.yml` with
+   `upload: false` to complete T12 (runner render, Edge-TTS egress, Chrome overlays).
 2. Provision `YT_NEXUS_NODE_*`, `YT_ACADEMIC_BIOHACKER_*`, `YT_NATKHAT_TOONS_*` (T15).
 3. Durable state: replace cache-only persistence with a real store (T14).
 4. Author an Academic 16:9 plan and a Hindi 16:9 profile to close acceptance tests 5–6.

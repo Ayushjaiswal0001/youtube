@@ -72,6 +72,28 @@ Defects found by inspection and fixed during this pass:
 5. Dense motifs (grid/chip) bled outside the plate → motifs render on their own layer and
    are masked to the panel.
 
+## 3b. Loudness remediation (measured)
+
+The produced mix was far too quiet for YouTube (which normalises toward −14 LUFS):
+
+| Reading | Before | After the fix |
+| --- | --- | --- |
+| Integrated loudness | **−26.53 LUFS** | **−14.15 LUFS** |
+| True peak | −11.44 dBTP | −1.24 dBTP (ceiling −1.5 target, ≤ −1.0 hard limit) |
+| Loudness range (LRA) | 2.10 LU | 2.00 LU |
+| A/V duration | video 116.4667 s / audio 116.4480 s | video 116.4667 s / audio 116.4580 s |
+
+`factory/media/music.py` now mixes with `sidechaincompress` (bed ducked by narration)
+plus a two-pass **linear** `loudnorm` to I=−14, TP=−1.5, LRA=11, then trims/pads to the
+exact episode duration so sync cannot drift. Remix cost: **15.5 s**; re-muxing the
+existing video with `-c:v copy` took seconds and preserved the picture bit-exactly.
+
+Four new tests (`tests/factory/test_audio.py`) assert the target loudness, the quiet-input
+lift, duration preservation and NaN-free measurement. Full suite: **96 passed**.
+
+Not verified: subjective narration clarity by ear; ducking depth is only proven by the
+loudness/duration measurements, not by a listening test.
+
 ## 4. Not yet executed
 
 | Test | Status |

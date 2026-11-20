@@ -149,3 +149,11 @@ frames; five composition defects were found and fixed during that inspection.
 
 Not verified: any runner execution of this pipeline, Edge-TTS egress on a runner, and
 upload of a long-form video.
+
+### Audio loudness fix (same branch)
+
+Measured the produced episode with EBU R128: **−26.53 LUFS / −11.44 dBTP / LRA 2.10**,
+i.e. roughly 12 LU below YouTube's normalisation target. `mix_narration` now applies
+side-chain ducking and a two-pass linear `loudnorm` to −14 LUFS with an exact-duration
+trim, so sync cannot drift. Re-measured on the re-muxed artifact: **−14.15 LUFS /
+−1.24 dBTP / LRA 2.00**, A/V delta 9 ms. Four tests added; suite **96 passed**.

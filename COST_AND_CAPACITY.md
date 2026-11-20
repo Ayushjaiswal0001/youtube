@@ -11,6 +11,7 @@ no GPU), not extrapolated from vendor claims.
 | --- | --- | --- |
 | Narration (Edge-TTS, 11 lines, network) | ~1 min | `audio/` finalised `00:59:44` after launch `~00:58:50` |
 | Frame render + x264 encode (3 494 frames) | **~7 min 45 s** | `video.mp4` finalised `01:07:33` |
+| Loudness measurement + normalise + remix | 15.5 s (measured separately) | `measure_loudness` + `mix_narration` on the real episode |
 | Thumbnail + SRT + QC | included above | outputs timestamped with the video |
 | **Total wall clock** | **≈ 8 min 45 s** | 4.5× real time |
 | CPU time | single process, ~full one core for drawing + x264 | — |
@@ -62,3 +63,19 @@ daily 3×long target can be claimed.
    substitute voices.
 4. **Frame rendering is CPU-bound and single-process.** Parallel scene rendering
    (per-scene workers, then concat) is the obvious 3–4× win for long-form.
+
+## 5. Render throughput model (from measured frames, not guesses)
+
+Measured: 3 494 frames of 1920x1080 in ~465 s → **7.5 frames/s**, i.e. **≈4.0× real time**.
+
+| Target | Frames | Est. render time (this laptop) | Est. runner time (1.5–2.5×) |
+| --- | --- | --- | --- |
+| 60 s Short (9:16) | 1 800 | ~4 min | 6–10 min |
+| 2 min 16:9 | 3 600 | ~8 min | 12–20 min |
+| 5 min 16:9 | 9 000 | ~20 min | 30–50 min |
+| 10 min 16:9 | 18 000 | ~40 min | 60–100 min |
+
+Only the 2-minute case has actually been rendered end to end. The others are arithmetic
+from the measured frame rate and **must be confirmed by real renders** before any daily
+target is claimed. Disk per 2-minute episode: 7.6 MB video + 20.6 MB bed + ~3 MB audio;
+a 10-minute episode projects to ~40 MB of artifacts.
