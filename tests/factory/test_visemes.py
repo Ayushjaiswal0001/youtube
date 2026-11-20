@@ -272,6 +272,21 @@ class BoundarySidecarTests(unittest.TestCase):
             loaded = engine._load_boundaries(audio)
             self.assertEqual(loaded, boundaries)
 
+    def test_synthetic_sidecar_is_not_treated_as_real_timing(self) -> None:
+        import tempfile
+        from pathlib import Path as _Path
+
+        from studio.audio.tts_engine import TTSEngine
+
+        with tempfile.TemporaryDirectory() as tmp:
+            engine = TTSEngine(output_dir=_Path(tmp))
+            audio = _Path(tmp) / "line_narrator.mp3"
+            audio.write_bytes(b"x" * 2048)
+            engine._save_boundaries(audio, "एक पंक्ति", 2.0,
+                                    [{"text": "एक पंक्ति", "start": 0.0, "end": 2.0}],
+                                    synthetic=True)
+            self.assertIsNone(engine._load_boundaries(audio))
+
     def test_corrupt_sidecar_is_ignored(self) -> None:
         import tempfile
         from pathlib import Path as _Path

@@ -13,7 +13,7 @@ Read this block first; it is the exact state another agent needs.
 | PR #2 | OPEN, unmerged, 1 commit `2a810f0`, runner-install hardening. **Leave untouched until the owner approves.** |
 | Workflows | `ci.yml` active; `produce.yml` active but reusable-only; the three `produce-*` are `disabled_manually` |
 | Secrets | `YT_<PREFIX>_*` NOT provisioned → any `upload: true` dispatch will skip the upload with a warning |
-| Tests | `python -m pytest tests -q` → **136 passed**; `python -m unittest discover -s tests` → 50 passed |
+| Tests | `python -m pytest tests -q` → **168 passed**; `python -m unittest discover -s tests` → 50 passed |
 | Shorts plans | 13 plans intact (5 nexus, 5 academic, 3 natkhat), history/state untouched |
 | Long-form plan | `content/longform/nexus-node.json` → `long-nexus-power-grid`, rendered (see below) |
 | Publishing actions this session | **none** — no upload, no ledger write, no schedule enabled |
@@ -49,6 +49,28 @@ delta 9 ms, remix 15.5 s. Tests: `tests/factory/test_audio.py` (4).
 They are disjoint, so there is no conflict either way. Recommended order: **#2 first**
 (it fixes the runner install that T12 needs), then **#3**. Both stay unmerged until the
 owner approves.
+
+### Character schema (T30)
+
+Characters are data, not modules. `content/characters/chiku.json` and `gappu.json` hold
+identity, anchor, palette, proportions, timing profile, feature flags and mouth config;
+`studio/characters/schema.py` validates them strictly (`SchemaError` with a readable
+message) and caches the result. Both rigs read `self.schema` / `self.prop` / `self.timing`.
+
+Rules that matter when editing:
+- Palette keys listed in `REQUIRED_PALETTE`, proportions in `REQUIRED_PROPORTIONS`
+  (`arm_shift`, `hand_rx`, `brow_ctrl_x`, `brow_anchor_x`, `head_draw_y`, …), timing in
+  `REQUIRED_TIMING` are **all mandatory**; adding a key means adding it to that tuple.
+- `Timing` owns blink (period/duration/phase), breathing (rate/phase/amplitude), sway and
+  tail. Rigs must not hard-code those numbers again.
+- Goldens: `tests/factory/goldens/*.png` + `manifest.json` are SHA-256 hashes of frames from
+  the pre-schema rigs. `tests/factory/test_character_schema.py` re-renders them; a pixel
+  change fails the suite. Re-capture them **only** for an intentional art change, and say so.
+- `_save_boundaries(..., synthetic=True)` marks the invented whole-line fallback; such a
+  sidecar is ignored on reload, otherwise a cached line would silently lose real sentence
+  windows (this bug was found and fixed during T30).
+- Archetype-level drawing that is still code: tail bezier, hair tuft, vest curves,
+  whiskers, spectacles, bowtie. Positions are data; shapes are not yet (T30b).
 
 ### Viseme lip-sync (T31b)
 

@@ -6,38 +6,46 @@ import math
 from typing import Optional, Tuple
 import cairo
 from studio.characters.mouth import draw_mouth
+from studio.characters.schema import CharacterSchema, load_schema
 from studio.characters.rig_base import (
     JointNode, Viseme, draw_ellipse, draw_capsule,
     ease_in_out_quad, ease_out_bounce
 )
 
-# Gappu Character Palette
-COLOR_FUR = (0.45, 0.55, 0.65, 1.0)       # #748DA6 Slate-Blue Cartoon Fur
-COLOR_FUR_LIGHT = (0.82, 0.88, 0.94, 1.0) # Light blue/white tummy
-COLOR_EAR_INNER = (0.98, 0.79, 0.85, 1.0) # Soft Pink Inner Ear
-COLOR_NOSE = (0.95, 0.50, 0.65, 1.0)      # Cute Pink Nose
-COLOR_BOWTIE = (0.18, 0.80, 0.44, 1.0)    # #2ECC71 Lime Green Bowtie
-COLOR_GLASSES = (0.15, 0.18, 0.22, 1.0)   # Dark frame
-COLOR_GLASS_TINT = (0.88, 0.96, 1.0, 0.35)
-COLOR_EYE_WHITE = (1.0, 1.0, 1.0, 1.0)
-COLOR_PUPIL = (0.10, 0.12, 0.15, 1.0)
-COLOR_SHADOW = (0.1, 0.1, 0.15, 0.25)
-COLOR_OUTLINE = (0.18, 0.18, 0.22, 1.0)
+# Palette, proportions and timings are data: content/characters/gappu.json
+GAPPU_SCHEMA: CharacterSchema = load_schema("gappu")
+
+COLOR_FUR = GAPPU_SCHEMA.color("fur")
+COLOR_FUR_LIGHT = GAPPU_SCHEMA.color("fur_light")
+COLOR_EAR_INNER = GAPPU_SCHEMA.color("inner_ear")
+COLOR_NOSE = GAPPU_SCHEMA.color("nose")
+COLOR_BOWTIE = GAPPU_SCHEMA.color("bowtie")
+COLOR_GLASSES = GAPPU_SCHEMA.color("glasses")
+COLOR_GLASS_TINT = GAPPU_SCHEMA.color("glass_tint")
+COLOR_EYE_WHITE = GAPPU_SCHEMA.color("eye_white")
+COLOR_PUPIL = GAPPU_SCHEMA.color("pupil")
+COLOR_TAIL = GAPPU_SCHEMA.color("tail")
+COLOR_SHADOW = GAPPU_SCHEMA.color("shadow")
+COLOR_OUTLINE = GAPPU_SCHEMA.color("outline")
 
 
 class GappuRig:
     """Reusable 2D skeletal rig for Gappu the Mouse."""
 
-    def __init__(self, x: float = 0.0, y: float = 0.0, scale: float = 0.75):
-        self.x = x
-        self.y = y
-        self.scale = scale
-        self.facing = -1.0  # -1.0 faces left toward Chiku, 1.0 faces right
+    def __init__(self, x: float | None = None, y: float | None = None,
+                 scale: float | None = None, schema: CharacterSchema | None = None):
+        self.schema = schema or GAPPU_SCHEMA
+        self.prop = self.schema.proportions
+        self.timing = self.schema.timing
+        self.x = self.schema.anchor["x"] if x is None else x
+        self.y = self.schema.anchor["y"] if y is None else y
+        self.scale = self.schema.anchor["scale"] if scale is None else scale
+        self.facing = self.schema.anchor["facing"]  # -1.0 faces left toward Chiku
 
-        # Joint Nodes
-        self.root = JointNode("root", local_x=x, local_y=y)
-        self.torso = JointNode("torso", parent=self.root, local_y=-150)
-        self.head = JointNode("head", parent=self.torso, local_y=-120)
+        # Joint Nodes (geometry from the character schema)
+        self.root = JointNode("root", local_x=self.x, local_y=self.y)
+        self.torso = JointNode("torso", parent=self.root, local_y=self.prop.torso_y)
+        self.head = JointNode("head", parent=self.torso, local_y=self.prop.head_joint_y)
 
         # Facial & Gestural State
         self.blink_t = 0.0
@@ -60,20 +68,11 @@ class GappuRig:
     def update_pose(self, pose: str, t: float, is_talking: bool = False, phoneme_intensity: float = 0.5,
                     lipsync: object | None = None, timeline: object | None = None):
         """Update Gappu's joints based on time and pose."""
-        # Idle breathing
-        breath = math.sin(t * 3.0 + 1.0) * 3.0
-        self.torso.local_y = -150 + breath
-        self.torso.local_rot = math.sin(t * 1.2) * 0.02
-
-        # Blinking (every 4.0s)
-        blink_cycle = ((t + 1.2) % 4.0)
-        if blink_cycle < 0.15:
-            self.blink_t = math.sin((blink_cycle / 0.15) * math.pi)
-        else:
-            self.blink_t = 0.0
-
-        # Gentle tail twitch
-        self.tail_wave = math.sin(t * 3.5) * 0.3
+        # Breathing / sway / blink / tail come from the schema's timing profile
+        self.torso.local_y = self.prop.torso_y + self.timing.breath(t)
+        self.torso.local_rot = self.timing.sway(t)
+        self.blink_t = self.timing.blink(t)
+        self.tail_wave = self.timing.tail(t)
 
         # Talking mouth animation: narration envelope when available, sine fallback.
         if is_talking:
@@ -161,14 +160,16 @@ class GappuRig:
         cr.scale(self.scale * self.facing, self.scale)
 
         # 1. Shadow
+        P = self.prop
         shadow_scale = max(0.5, 1.0 - abs(self.jump_y) / 80.0)
-        draw_ellipse(cr, 0, 0, 75 * shadow_scale, 20 * shadow_scale,
-                     fill_color=(0.1, 0.1, 0.15, 0.25 * shadow_scale))
+        draw_ellipse(cr, 0, 0, P.shadow_rx * shadow_scale, P.shadow_ry * shadow_scale,
+                     fill_color=(COLOR_SHADOW[0], COLOR_SHADOW[1], COLOR_SHADOW[2],
+                                 COLOR_SHADOW[3] * shadow_scale))
 
         # 2. Long Thin Mouse Tail
         cr.save()
         cr.translate(20, -110)
-        cr.set_source_rgba(0.95, 0.65, 0.75, 1.0)  # pinkish mouse tail
+        cr.set_source_rgba(*COLOR_TAIL)  # pinkish mouse tail
         cr.set_line_width(8)
         cr.set_line_cap(cairo.LINE_CAP_ROUND)
         cr.move_to(0, 0)
@@ -187,20 +188,22 @@ class GappuRig:
 
         # 3. Feet
         # Left Foot
-        draw_ellipse(cr, -24, -10, 22, 14, fill_color=COLOR_EAR_INNER, stroke_color=COLOR_OUTLINE, stroke_width=3.5)
+        draw_ellipse(cr, -P.leg_attach_x, P.leg_attach_y, P.foot_rx, P.foot_ry,
+                     fill_color=COLOR_EAR_INNER, stroke_color=COLOR_OUTLINE, stroke_width=3.5)
         # Right Foot
-        draw_ellipse(cr, 24, -10, 22, 14, fill_color=COLOR_EAR_INNER, stroke_color=COLOR_OUTLINE, stroke_width=3.5)
+        draw_ellipse(cr, P.leg_attach_x, P.leg_attach_y, P.foot_rx, P.foot_ry,
+                     fill_color=COLOR_EAR_INNER, stroke_color=COLOR_OUTLINE, stroke_width=3.5)
 
         # 4. Plump Pear-shaped Torso
         cr.save()
-        cr.translate(0, self.torso.local_y + 80)
+        cr.translate(0, self.torso.local_y + P.torso_draw_offset)
         cr.rotate(self.torso.local_rot)
 
         # Body base
-        draw_ellipse(cr, 0, 0, 56, 68, fill_color=COLOR_FUR, stroke_color=COLOR_OUTLINE, stroke_width=4)
+        draw_ellipse(cr, 0, 0, P.torso_rx, P.torso_ry, fill_color=COLOR_FUR, stroke_color=COLOR_OUTLINE, stroke_width=4)
 
         # Light tummy patch
-        draw_ellipse(cr, 0, 8, 36, 48, fill_color=COLOR_FUR_LIGHT)
+        draw_ellipse(cr, 0, P.muzzle_y, P.muzzle_rx, P.muzzle_ry, fill_color=COLOR_FUR_LIGHT)
 
         # Cute Lime-Green Bowtie
         cr.save()
@@ -224,18 +227,18 @@ class GappuRig:
         # 5. Arms
         # Left Arm
         cr.save()
-        cr.translate(-42, -25)
+        cr.translate(-P.arm_attach_x, P.arm_attach_y)
         cr.rotate(self.arm_l_angle)
-        draw_capsule(cr, 0, 0, -18, 55, 12, fill_color=COLOR_FUR, stroke_color=COLOR_OUTLINE, stroke_width=3.5)
-        draw_ellipse(cr, -18, 60, 12, 11, fill_color=COLOR_EAR_INNER, stroke_color=COLOR_OUTLINE, stroke_width=3.5)
+        draw_capsule(cr, 0, 0, -P.arm_shift, P.arm_len, P.arm_r, fill_color=COLOR_FUR, stroke_color=COLOR_OUTLINE, stroke_width=3.5)
+        draw_ellipse(cr, -P.arm_shift, P.arm_len + 5, P.hand_rx, P.hand_ry, fill_color=COLOR_EAR_INNER, stroke_color=COLOR_OUTLINE, stroke_width=3.5)
         cr.restore()
 
         # Right Arm
         cr.save()
-        cr.translate(42, -25)
+        cr.translate(P.arm_attach_x, P.arm_attach_y)
         cr.rotate(self.arm_r_angle)
-        draw_capsule(cr, 0, 0, 18, 55, 12, fill_color=COLOR_FUR, stroke_color=COLOR_OUTLINE, stroke_width=3.5)
-        draw_ellipse(cr, 18, 60, 12, 11, fill_color=COLOR_EAR_INNER, stroke_color=COLOR_OUTLINE, stroke_width=3.5)
+        draw_capsule(cr, 0, 0, P.arm_shift, P.arm_len, P.arm_r, fill_color=COLOR_FUR, stroke_color=COLOR_OUTLINE, stroke_width=3.5)
+        draw_ellipse(cr, P.arm_shift, P.arm_len + 5, P.hand_rx, P.hand_ry, fill_color=COLOR_EAR_INNER, stroke_color=COLOR_OUTLINE, stroke_width=3.5)
         cr.restore()
 
         # 6. Head & Face
@@ -245,14 +248,14 @@ class GappuRig:
 
         # Big Cute Mouse Ears!
         # Left Ear
-        draw_ellipse(cr, -62, -45, 38, 44, fill_color=COLOR_FUR, stroke_color=COLOR_OUTLINE, stroke_width=4)
-        draw_ellipse(cr, -62, -45, 26, 32, fill_color=COLOR_EAR_INNER)
+        draw_ellipse(cr, -P.ear_x, P.ear_y, P.ear_rx, P.ear_ry, fill_color=COLOR_FUR, stroke_color=COLOR_OUTLINE, stroke_width=4)
+        draw_ellipse(cr, -P.ear_x, P.ear_y, P.ear_inner_rx, P.ear_inner_ry, fill_color=COLOR_EAR_INNER)
         # Right Ear
-        draw_ellipse(cr, 62, -45, 38, 44, fill_color=COLOR_FUR, stroke_color=COLOR_OUTLINE, stroke_width=4)
-        draw_ellipse(cr, 62, -45, 26, 32, fill_color=COLOR_EAR_INNER)
+        draw_ellipse(cr, P.ear_x, P.ear_y, P.ear_rx, P.ear_ry, fill_color=COLOR_FUR, stroke_color=COLOR_OUTLINE, stroke_width=4)
+        draw_ellipse(cr, P.ear_x, P.ear_y, P.ear_inner_rx, P.ear_inner_ry, fill_color=COLOR_EAR_INNER)
 
         # Head Base
-        draw_ellipse(cr, 0, -10, 58, 52, fill_color=COLOR_FUR, stroke_color=COLOR_OUTLINE, stroke_width=4)
+        draw_ellipse(cr, 0, P.head_center_y, P.head_rx, P.head_ry, fill_color=COLOR_FUR, stroke_color=COLOR_OUTLINE, stroke_width=4)
 
         # Whiskers!
         cr.set_source_rgba(*COLOR_OUTLINE)
@@ -265,15 +268,16 @@ class GappuRig:
         cr.move_to(25, 16); cr.line_to(72, 22); cr.stroke()
 
         # Pink Mouse Nose
-        draw_ellipse(cr, 0, 8, 11, 8, fill_color=COLOR_NOSE, stroke_color=COLOR_OUTLINE, stroke_width=2.5)
+        draw_ellipse(cr, 0, P.nose_y, P.nose_rx, P.nose_ry, fill_color=COLOR_NOSE, stroke_color=COLOR_OUTLINE, stroke_width=2.5)
 
         # Mouth
-        draw_mouth(cr, self.viseme, self.mouth_open, anchor_y=22, size=0.82, stroke_width=3.0)
+        draw_mouth(cr, self.viseme, self.mouth_open, anchor_y=self.schema.mouth.anchor_y,
+                   size=self.schema.mouth.size, stroke_width=self.schema.mouth.stroke_width)
 
         # Eyes
-        for eye_x in [-20, 20]:
+        for eye_x in [-P.eye_x, P.eye_x]:
             cr.save()
-            cr.translate(eye_x, -16)
+            cr.translate(eye_x, P.eye_y)
             if self.blink_t > 0.8:
                 cr.set_source_rgba(*COLOR_OUTLINE)
                 cr.set_line_width(3.0)
@@ -281,9 +285,11 @@ class GappuRig:
                 cr.curve_to(-4, 4, 4, 4, 10, 0)
                 cr.stroke()
             else:
-                eye_h = 18 * (1.0 - self.blink_t)
-                draw_ellipse(cr, 0, 0, 14, eye_h, fill_color=COLOR_EYE_WHITE, stroke_color=COLOR_OUTLINE, stroke_width=3.0)
-                draw_ellipse(cr, self.look_x * 4, self.look_y * 3, 8, 10 * (1.0 - self.blink_t), fill_color=COLOR_PUPIL)
+                eye_h = P.eye_ry * (1.0 - self.blink_t)
+                draw_ellipse(cr, 0, 0, P.eye_rx, eye_h, fill_color=COLOR_EYE_WHITE, stroke_color=COLOR_OUTLINE, stroke_width=3.0)
+                draw_ellipse(cr, self.look_x * self.schema.mouth.pupil_x_range,
+                             self.look_y * self.schema.mouth.pupil_y_range,
+                             P.pupil_rx, P.pupil_ry * (1.0 - self.blink_t), fill_color=COLOR_PUPIL)
                 draw_ellipse(cr, -3 + self.look_x * 4, -3 + self.look_y * 3, 3, 3, fill_color=(1.0, 1.0, 1.0, 0.9))
             cr.restore()
 
@@ -310,15 +316,15 @@ class GappuRig:
         cr.restore()
 
         # Eyebrows above glasses
-        for is_right, eb_x in [(False, -21), (True, 21)]:
+        for is_right, eb_x in [(False, -P.brow_anchor_x), (True, P.brow_anchor_x)]:
             cr.save()
-            cr.translate(eb_x, -42 + self.eyebrow_y)
+            cr.translate(eb_x, P.brow_y + self.eyebrow_y)
             rot = self.eyebrow_tilt if not is_right else -self.eyebrow_tilt
             cr.rotate(rot)
             cr.set_source_rgba(*COLOR_OUTLINE)
             cr.set_line_width(3.5)
-            cr.move_to(-11, 0)
-            cr.curve_to(-4, -3, 4, -3, 11, 0)
+            cr.move_to(-P.brow_rx, 0)
+            cr.curve_to(-P.brow_ctrl_x, -P.brow_ctrl_y, P.brow_ctrl_x, -P.brow_ctrl_y, P.brow_rx, 0)
             cr.stroke()
             cr.restore()
 

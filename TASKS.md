@@ -99,7 +99,7 @@ Status markers: `[ ]` todo, `[~]` in progress, `[x]` done.
 
 ## P1b — Character animation (NOT MET, planned)
 
-- [ ] **T30. Data-driven character schema** — character definitions as data, one rig
+- [x] **T30. Data-driven character schema** — character definitions as data, one rig
   renderer, shared expression/gesture channel names (`rig_base.py` is the seed).
 - [x] **T31a. Audio-driven lip-sync** — `studio/characters/lipsync.py`; rigs follow the
   narration envelope instead of a 14 Hz sine. 10 tests, full Natkhat episode re-rendered

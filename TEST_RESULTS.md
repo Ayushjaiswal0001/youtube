@@ -145,6 +145,28 @@ sentence window (snapped to the voiced region), so a syllable can be early or la
 roughly one unit — median unit length ≈ 100 ms. True phoneme accuracy is not claimed and is
 not obtainable from this TTS backend.
 
+## 3e. Character schema (T30) — measured
+
+Characters are now defined by data (`content/characters/{chiku,gappu}.json`) validated by
+`studio/characters/schema.py`. Both rigs read palette, proportions, timing profile, anchor,
+feature flags and mouth configuration from that file.
+
+| Check | Result |
+| --- | --- |
+| Schema tests | **31 passed** (`tests/factory/test_character_schema.py`), full suite **168 passed** |
+| Validation rules | missing field, unknown archetype, unsupported version, missing colour, colour outside 0..1, missing/non-numeric proportion, missing/zero timing, unknown feature, bad anchor, missing file, unknown id (lists available), invalid JSON |
+| Render parity — isolated rigs | **8/8 frames byte-identical** (SHA-256) to the pre-schema goldens: Chiku idle / excited_jump / shocked_freeze / talking, Gappu idle / excited_jump / embarrassed_smile / talking |
+| Render parity — episode | `natkhat-haveli-e1` re-rendered: **187/187 scene-1 frames bit-identical**, 660/961 frames identical overall, **min PSNR 49.0 dB**, none below 40 dB |
+| Why 301 frames differ | all of them fall inside scenes 2–3 (frames 187–529), the two scenes whose narration MP3 was deliberately re-synthesised to restore real sentence boundaries. Audio MD5 differs (`bd31e6…` vs `85168f…`), so the *input* changed, not the drawing. Scene 1 and scenes 4–5 (untouched audio) are bit-identical |
+| Data-driven construction | 3 variant characters built from modified dicts (recolour+biger head, tiny head, bigger mouth) render and **differ** from the base character — no code change needed |
+| Backward compatibility | `ChikuRig(x=380, y=1450, scale=1.35)` and `GappuRig()` behave as before; legacy `COLOR_*` module constants survive, now sourced from JSON |
+| Lip-sync regression | T31a envelope path and T31b timeline path both re-tested through the schema-driven rigs |
+
+**Remaining hard-coded geometry (documented, not hidden):** tail bezier control points, hair
+tuft, vest curves, whiskers, spectacles and bowtie are archetype-level drawing routines; their
+*positions* come from the schema but their *shape* is code. Moving those curves into data is
+T30b.
+
 ## 4. Not yet executed
 
 | Test | Status |

@@ -38,10 +38,16 @@ class TTSEngine:
         return audio_path.with_suffix(".boundaries.json")
 
     def _save_boundaries(self, audio_path: Path, text: str, duration: float,
-                         boundaries: List[Dict[str, Any]]) -> None:
-        """Persist sentence timing next to the cached audio so lip-sync can reuse it."""
+                         boundaries: List[Dict[str, Any]], synthetic: bool = False) -> None:
+        """Persist sentence timing next to the cached audio so lip-sync can reuse it.
+
+        ``synthetic`` marks the whole-line fallback we invent when the service gave us no
+        timing. It is kept for diagnostics but *not* treated as real timing on reload,
+        otherwise a cached line would silently lose the sentence windows it once had.
+        """
         try:
-            payload = {"text": text, "duration": duration, "boundaries": boundaries}
+            payload = {"text": text, "duration": duration, "boundaries": boundaries,
+                       "synthetic": synthetic}
             self._boundaries_path(audio_path).write_text(
                 json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8"
             )
@@ -55,6 +61,8 @@ class TTSEngine:
         try:
             payload = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
+            return None
+        if payload.get("synthetic"):
             return None
         boundaries = payload.get("boundaries")
         if isinstance(boundaries, list) and boundaries:
@@ -126,7 +134,7 @@ class TTSEngine:
             cached = self._load_boundaries(out_path)
             if cached is None:
                 cached = [{"text": text, "start": 0.0, "end": duration}]
-                self._save_boundaries(out_path, text, duration, cached)
+                self._save_boundaries(out_path, text, duration, cached, synthetic=True)
             return {
                 "audio_path": str(out_path),
                 "speaker": speaker,

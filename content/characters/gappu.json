@@ -1,0 +1,171 @@
+{
+  "schema_version": 1,
+  "id": "gappu",
+  "display_name": "Gappu",
+  "archetype": "mouse",
+  "voice": "gappu",
+  "anchor": {
+    "x": 780.0,
+    "y": 1450.0,
+    "scale": 1.12,
+    "facing": -1.0
+  },
+  "features": [
+    "whiskers",
+    "spectacles",
+    "bowtie",
+    "tail"
+  ],
+  "palette": {
+    "fur": [
+      0.45,
+      0.55,
+      0.65,
+      1.0
+    ],
+    "fur_light": [
+      0.82,
+      0.88,
+      0.94,
+      1.0
+    ],
+    "muzzle": [
+      0.82,
+      0.88,
+      0.94,
+      1.0
+    ],
+    "inner_ear": [
+      0.98,
+      0.79,
+      0.85,
+      1.0
+    ],
+    "nose": [
+      0.95,
+      0.5,
+      0.65,
+      1.0
+    ],
+    "bowtie": [
+      0.18,
+      0.8,
+      0.44,
+      1.0
+    ],
+    "glasses": [
+      0.15,
+      0.18,
+      0.22,
+      1.0
+    ],
+    "glass_tint": [
+      0.88,
+      0.96,
+      1.0,
+      0.35
+    ],
+    "eye_white": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "pupil": [
+      0.1,
+      0.12,
+      0.15,
+      1.0
+    ],
+    "shadow": [
+      0.1,
+      0.1,
+      0.15,
+      0.25
+    ],
+    "outline": [
+      0.18,
+      0.18,
+      0.22,
+      1.0
+    ],
+    "tail": [
+      0.95,
+      0.65,
+      0.75,
+      1.0
+    ]
+  },
+  "proportions": {
+    "head_center_y": -10.0,
+    "head_rx": 58.0,
+    "head_ry": 52.0,
+    "eye_x": 20.0,
+    "eye_y": -16.0,
+    "eye_rx": 14.0,
+    "eye_ry": 18.0,
+    "pupil_rx": 8.0,
+    "pupil_ry": 10.0,
+    "brow_y": -42.0,
+    "brow_rx": 11.0,
+    "brow_ry": 3.0,
+    "muzzle_rx": 36.0,
+    "muzzle_ry": 48.0,
+    "muzzle_y": 8.0,
+    "nose_y": 8.0,
+    "nose_rx": 11.0,
+    "nose_ry": 8.0,
+    "ear_x": 62.0,
+    "ear_y": -45.0,
+    "ear_rx": 38.0,
+    "ear_ry": 44.0,
+    "ear_inner_rx": 26.0,
+    "ear_inner_ry": 32.0,
+    "torso_y": -150.0,
+    "torso_rx": 56.0,
+    "torso_ry": 68.0,
+    "arm_attach_x": 42.0,
+    "arm_attach_y": -25.0,
+    "arm_len": 55.0,
+    "arm_r": 12.0,
+    "leg_attach_x": 24.0,
+    "leg_attach_y": -10.0,
+    "leg_len": 0.0,
+    "leg_r": 22.0,
+    "shadow_rx": 75.0,
+    "shadow_ry": 20.0,
+    "head_joint_y": -120.0,
+    "torso_draw_offset": 80.0,
+    "arm_shift": 18.0,
+    "hand_rx": 12.0,
+    "hand_ry": 11.0,
+    "foot_rx": 22.0,
+    "foot_ry": 14.0,
+    "head_draw_y": 0.0,
+    "brow_ctrl_x": 4.0,
+    "brow_ctrl_y": 3.0,
+    "brow_anchor_x": 21.0
+  },
+  "timing": {
+    "blink_period": 4.0,
+    "blink_duration": 0.15,
+    "blink_phase": 1.2,
+    "breath_rate": 3.0,
+    "breath_phase": 1.0,
+    "breath_amplitude": 3.0,
+    "sway_rate": 1.2,
+    "sway_amplitude": 0.02,
+    "tail_rate": 3.5,
+    "tail_amplitude": 0.3,
+    "idle_arm_rate": 2.0
+  },
+  "mouth": {
+    "anchor_y": 22.0,
+    "size": 0.82,
+    "stroke_width": 3.0,
+    "eye_pupil_range": [
+      4.0,
+      3.0
+    ]
+  }
+}
