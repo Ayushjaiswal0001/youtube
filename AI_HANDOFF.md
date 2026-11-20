@@ -50,6 +50,25 @@ They are disjoint, so there is no conflict either way. Recommended order: **#2 f
 (it fixes the runner install that T12 needs), then **#3**. Both stay unmerged until the
 owner approves.
 
+### Performance layer (T34)
+
+`studio/characters/performance.py` — dialogue → beats → per-frame accents.
+
+- `Beat(at, kind, strength)`; kinds: `nod shake lean_in recoil chuckle bounce blink widen
+  point_beat`. `PerformanceTrack.accent_at(t)` returns an `Accent`.
+- `Accent.on_body(BodyState)` and `Accent.on_face(EyeState)` are **additive**; an empty accent
+  returns the inputs unchanged, which is what keeps the golden frames valid.
+- `plan_performance(dialogue, duration, speaker, seed)`: questions widen the listener and tilt
+  the speaker, `!` recoils the listener and bounces the speaker, plain statements nod, commas
+  are soft beats, sentences over 4.5 s earn a weight shift. Thinned to **6 beats max** and
+  **0.55 s minimum gap** after jitter.
+- `FACTORY_NO_PERFORMANCE=1` disables the layer (A/B renders and emergency off switch).
+- `python -m tools.report_performance <episode_dir>` prints the beat table and the share of
+  frames each character is animated.
+- Trap: the plan is built from `total_duration` (narration + 0.5 s), so recomputing beats with
+  the narration duration alone gives different times. The QA tool reads the rendered scene
+  durations for exactly this reason.
+
 ### Shape data (T30b)
 
 `content/characters/*.json` → `shapes` → `studio/characters/shapes.py`. Five kinds:

@@ -240,6 +240,26 @@ interpreted by `studio/characters/shapes.py`.
 | Validation | unknown shape kind, unknown path command, wrong argument count, non-numeric coordinate, bad `[x, y]`, wave length mismatch, colour missing from the palette and missing archetype-required shapes all raise a readable `SchemaError` |
 | Still code | spectacles (lenses, glints, bridge), ear/hand/foot placement (already proportions), and the muzzle mask |
 
+## 3j. Performance layer (T34) — measured
+
+Reaction beats derived from the spoken line: the listener nods, recoils or widens; the
+speaker bounces on a shout and tilts on a question.
+
+| Check | Result |
+| --- | --- |
+| Unit tests | 33 in `tests/factory/test_performance.py`; suite **259 passed** |
+| Beats in `natkhat-haveli-e1` | **23 beats** across 5 scenes; coverage 2.6 %–27.3 % of frames |
+| Determinism | the same scene rendered twice is byte-identical (sha256 of the MP4) |
+| Scope (frame level, codec-independent) | every frame **before** the first beat is byte-identical to the render with the layer off; frames inside a beat differ |
+| Scope (video level) | with vs without, first differing frame 89 vs first beat at frame 94 — the nine frames of lead-in are x264 lookahead, which is why the frame-level test above is the authoritative check |
+| Body actually moves | eye-centroid x shifts **241.3 → 218.8 px** at t=1.10 s during a recoil, and matches within 0.2 px at t=0.80 s and t=1.60 s |
+| Render | `natkhat-haveli-e1` 1080×1920, 961 frames, 32.066 s, 3 581 961 B, `qc_ok: true` |
+| Kill switch | `FACTORY_NO_PERFORMANCE=1` reproduces the pre-T34 frames exactly, used for the A/B |
+
+Honest caveat: the first A/B attempt compared two build directories whose TTS caches held
+**different narration MP3s** (md5 `850cab55…` vs `1c673ef3…`), so that comparison was
+contaminated and discarded. The numbers above come from renders sharing one audio file.
+
 ## 4. Not yet executed
 
 | Test | Status |

@@ -116,6 +116,12 @@ Status markers: `[ ]` todo, `[~]` in progress, `[x]` done.
   coverage (78 frames) so pose geometry can no longer change silently. Open: the tail
   bezier, hair tuft, vest panels, whiskers, spectacles and bowtie are still drawing code
   with literal coordinates; their positions come from the schema, their shapes do not.
+- [x] **T34. Reaction beats from dialogue** — `studio/characters/performance.py`: listener
+  nods / recoils / widens at sentence ends, speaker bounces on a shout, weight shift in long
+  sentences; 33 tests; 23 beats measured in `natkhat-haveli-e1`; `FACTORY_NO_PERFORMANCE=1`
+  kill switch; `tools/report_performance.py` QA report.
+- [ ] **T35. Character-to-character interaction** — contact reactions (hand-off, grab),
+  shared attention on an object, and dialogue-driven gestures beyond nodding.
 - [x] **T33. Locomotion** — walk/run cycles with contact/passing/up poses and foot planting.
 - [ ] **T34. Reaction library** — anticipation, impact, settle, with the existing easing set.
 - [ ] **T35. Two-character blocking** — eye-line, overlap, and shared framing.

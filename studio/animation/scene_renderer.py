@@ -5,6 +5,7 @@ and mixes dialogue audio, sound effects, and background music with FFmpeg.
 """
 
 import math
+import os
 import subprocess
 import zlib
 from pathlib import Path
@@ -22,6 +23,12 @@ from studio.characters.gaze import (
 )
 from studio.characters.lipsync import VisemeTrack
 from studio.characters.locomotion import MotionController, motions_for
+from studio.characters.performance import (
+    PerformanceFace,
+    PerformancePlan,
+    PerformanceTrack,
+    plan_performance,
+)
 from studio.characters.visemes import VisemeTimeline
 from studio.animation.background import BackgroundRenderer
 from studio.animation.camera import Camera
@@ -180,8 +187,25 @@ class SceneRenderer:
             motions_for(scene_data, "gappu")[0], duration=total_duration,
             seed=_seed_for(story_id, scene_num, "gappu", "motion"), facing=gappu.facing)
 
-        chiku.attach_face(chiku_face)
-        gappu.attach_face(gappu_face)
+        # Performance layer (T34): reaction beats derived from the spoken line, so the
+        # listener nods and recoils instead of standing in an authored pose for the whole
+        # scene. An empty plan leaves every frame exactly as it was.
+        # FACTORY_NO_PERFORMANCE=1 disables the layer, which is how the A/B render that
+        # proves this layer only adds motion is produced, and the switch to pull if the
+        # beats ever look wrong in a real episode.
+        if os.environ.get("FACTORY_NO_PERFORMANCE"):
+            plan = PerformancePlan()
+        else:
+            plan = plan_performance(dialogue, duration=total_duration, speaker=speaker,
+                                    seed=_seed_for(story_id, scene_num, "performance"))
+        chiku_perf = PerformanceTrack(plan.for_character("chiku"), total_duration)
+        gappu_perf = PerformanceTrack(plan.for_character("gappu"), total_duration)
+        if plan.chiku or plan.gappu:
+            print(f"[Render] Scene {scene_num}: performance beats "
+                  f"chiku={len(plan.chiku)} gappu={len(plan.gappu)}")
+
+        chiku.attach_face(PerformanceFace(chiku_face, chiku_perf))
+        gappu.attach_face(PerformanceFace(gappu_face, gappu_perf))
 
         # Mix the audio bed first so the video encoder can mux it directly.
         sfx_path = self.sfx_lib.get_sfx(sfx_name)
@@ -294,12 +318,14 @@ class SceneRenderer:
 
                 cr.save()
                 camera.apply(cr, t)
-                chiku.update_pose(chiku_pose, t, is_talking=chiku_talking, phoneme_intensity=0.8,
-                                  lipsync=lipsync_track, timeline=viseme_timeline,
-                                  body=chiku_motion.state_at(t))
-                gappu.update_pose(gappu_pose, t, is_talking=gappu_talking, phoneme_intensity=0.7,
-                                  lipsync=lipsync_track, timeline=viseme_timeline,
-                                  body=gappu_motion.state_at(t))
+                chiku.update_pose(
+                    chiku_pose, t, is_talking=chiku_talking, phoneme_intensity=0.8,
+                    lipsync=lipsync_track, timeline=viseme_timeline,
+                    body=chiku_perf.accent_at(t).on_body(chiku_motion.state_at(t)))
+                gappu.update_pose(
+                    gappu_pose, t, is_talking=gappu_talking, phoneme_intensity=0.7,
+                    lipsync=lipsync_track, timeline=viseme_timeline,
+                    body=gappu_perf.accent_at(t).on_body(gappu_motion.state_at(t)))
                 chiku.face_state_at(t)
                 gappu.face_state_at(t)
 
