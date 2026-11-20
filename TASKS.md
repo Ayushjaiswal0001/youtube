@@ -120,7 +120,10 @@ Status markers: `[ ]` todo, `[~]` in progress, `[x]` done.
   nods / recoils / widens at sentence ends, speaker bounces on a shout, weight shift in long
   sentences; 33 tests; 23 beats measured in `natkhat-haveli-e1`; `FACTORY_NO_PERFORMANCE=1`
   kill switch; `tools/report_performance.py` QA report.
-- [ ] **T35. Character-to-character interaction** — contact reactions (hand-off, grab),
+- [x] **T35. Camera direction and lens** — `CameraDirector` styles (close-ups that actually
+  frame their subject, push-in, pull-out, drift), background overscan so a panned frame is
+  never bare, and a lens vignette; 13 tests.
+- [ ] **T35b. Character-to-character interaction** — contact reactions (hand-off, grab),
   shared attention on an object, and dialogue-driven gestures beyond nodding.
 - [x] **T33. Locomotion** — walk/run cycles with contact/passing/up poses and foot planting.
 - [ ] **T34. Reaction library** — anticipation, impact, settle, with the existing easing set.

@@ -31,8 +31,10 @@ from studio.characters.performance import (
 )
 from studio.characters.visemes import VisemeTimeline
 from studio.animation.background import BackgroundRenderer
-from studio.animation.camera import Camera
-from studio.animation.effects import draw_sparkle, draw_dust_puff, draw_exclamation_pop
+from studio.animation.camera import Camera, CameraDirector
+from studio.animation.effects import (
+    draw_sparkle, draw_dust_puff, draw_exclamation_pop, draw_vignette,
+)
 from studio.audio.sfx_library import SFXLibrary
 
 
@@ -124,12 +126,9 @@ class SceneRenderer:
         sfx_name = scene_data.get("sfx", "whoosh")
         bg_name = scene_data.get("bg", "jungle_clearing")
 
-        # Initialize Camera
+        # Camera direction (T35): a style is a short deterministic move, not a static zoom.
         camera = Camera(self.width, self.height)
-        if "zoom" in camera_style:
-            camera.zoom = 1.15
-        elif "close_up" in camera_style:
-            camera.zoom = 1.25
+        director = CameraDirector(camera_style, total_duration, (self.width, self.height))
 
         # Initialize Character Rigs
         # Chiku stands on left, Gappu on right
@@ -303,9 +302,11 @@ class SceneRenderer:
                 chiku_talking = is_dialogue_playing and (speaker == "chiku")
                 gappu_talking = is_dialogue_playing and (speaker == "gappu")
 
-                if camera_style == "medium_pan":
-                    camera.pan_x = math.sin(t * 0.4) * 30.0
-                elif camera_style == "action_shake" and (0.3 < t < 1.2):
+                camera_frame = director.state_at(t)
+                camera.zoom = camera_frame.zoom
+                camera.pan_x = camera_frame.pan_x
+                camera.pan_y = camera_frame.pan_y
+                if camera_style == "action_shake" and 0.3 < t < 1.2:
                     camera.trigger_shake(0.2)
                 camera.update(1.0 / self.fps)
 
@@ -352,9 +353,17 @@ class SceneRenderer:
                 if chiku_pose == "shocked_freeze" and t < 1.2:
                     draw_exclamation_pop(cr, 380, 1020, progress=min(1.0, t / 0.8))
 
-                chiku.draw(cr)
-                gappu.draw(cr)
+                # A close-up frames one character: drawing the other would leave a sliver
+                # of them at the frame edge, which reads as a mistake rather than a shot.
+                if director.subject != "gappu":
+                    chiku.draw(cr)
+                if director.subject != "chiku":
+                    gappu.draw(cr)
                 cr.restore()
+
+                # Lens vignette (T35): screen space, above the scene and below the
+                # subtitle band so captions keep full contrast.
+                draw_vignette(cr, self.width, self.height)
 
                 if title_surface is not None and t < 2.8:
                     alpha = min(1.0, max(0.0, (2.8 - t) / 0.6))

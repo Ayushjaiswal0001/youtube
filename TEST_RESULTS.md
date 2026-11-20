@@ -260,6 +260,25 @@ Honest caveat: the first A/B attempt compared two build directories whose TTS ca
 **different narration MP3s** (md5 `850cab55…` vs `1c673ef3…`), so that comparison was
 contaminated and discarded. The numbers above come from renders sharing one audio file.
 
+## 3k. Camera direction and vignette (T35) — measured
+
+The renderer used to set one of two fixed zooms and a slow sine pan, so `close_up_chiku`
+zoomed the middle of the frame rather than framing Chiku, and a panned frame exposed a bare
+strip where the background art ended.
+
+| Check | Result |
+| --- | --- |
+| Tests | 13 in `tests/factory/test_camera.py`; suite **274 passed** |
+| Close-up framing | the subject's face projects to **x = 540** (frame centre) and **y ≈ 806**; the partner projects to **x > 1180**, i.e. fully outside, checked numerically |
+| Partner cropping | a close-up draws only its subject, so no half-character sliver at the edge |
+| Camera maths | `project()` verified against the real cairo transform by rendering a marker and locating it (agreement within 2 px) |
+| Push-in | monotonic 1.06 → 1.70 over 0.9 s; `two_shot_zoom` 1.00 → 1.13; `wide_finish` 1.12 → 1.00 |
+| Pan safety | `medium_pan` stays within ±30 px and never jumps more than 1 px per frame |
+| Background overscan | art drawn at 1.13× so zoom/parallax cannot expose the edge; leftmost column mean is now uniform |
+| Vignette | centre pixel unchanged (255), corner 40+ levels darker, zero strength draws nothing |
+| Render | `natkhat-haveli-e1` 1080×1920, 961 frames, 32.066 s, 3 495 763 B, `qc_ok: true`, full decode clean |
+| Black frames | `blackdetect` finds none |
+
 ## 4. Not yet executed
 
 | Test | Status |

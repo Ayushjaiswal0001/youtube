@@ -50,6 +50,22 @@ They are disjoint, so there is no conflict either way. Recommended order: **#2 f
 (it fixes the runner install that T12 needs), then **#3**. Both stay unmerged until the
 owner approves.
 
+### Camera direction (T35)
+
+`studio/animation/camera.py` → `CameraDirector(style, duration, viewport)`.
+
+- Styles: `medium_pan` (drift + slight push), `two_shot`, `two_shot_zoom` (push-in),
+  `close_up_chiku`, `close_up_gappu` (ease in to 1.70 and centre the face), `wide_finish`
+  (pull-out), `action_shake`. Unknown styles fall back to `medium_pan`.
+- `state_at(t)` returns `CameraFrame(zoom, pan_x, pan_y)`; `project(x, y, frame)` mirrors the
+  cairo maths and is covered by a test that renders a marker and finds it.
+- `subject` is `"chiku"` / `"gappu"` for close-ups; the renderer then draws **only** that
+  character, because drawing the other leaves a half-body sliver at the frame edge.
+- Backgrounds are drawn with a 1.13× overscan (`BackgroundRenderer.OVERSCAN`) because the
+  camera pans and the parallax shift would otherwise expose the edge of the art.
+- `draw_vignette()` in `effects.py` runs in screen space after the characters and before the
+  subtitle band.
+
 ### Performance layer (T34)
 
 `studio/characters/performance.py` — dialogue → beats → per-frame accents.

@@ -19,6 +19,11 @@ class BackgroundRenderer:
         self.width = width
         self.height = height
 
+    # The camera pans and zooms over the background, and the parallax shift moves the art
+    # itself, so the art is drawn with an overscan margin. Without it a panned frame shows a
+    # bare strip at the edge, which the close-up camera exposed.
+    OVERSCAN = 1.13
+
     def render_by_name(self, name: str, cr: cairo.Context, t: float,
                        camera_x: float = 0.0, camera_y: float = 0.0):
         """Dispatches to the requested background renderer with safe default fallback."""
@@ -31,7 +36,12 @@ class BackgroundRenderer:
             "village_night": self.render_village_night,
         }
         render_fn = bg_map.get(name, self.render_jungle_clearing)
+        cr.save()
+        cr.translate(self.width / 2.0, self.height / 2.0)
+        cr.scale(self.OVERSCAN, self.OVERSCAN)
+        cr.translate(-self.width / 2.0, -self.height / 2.0)
         render_fn(cr, t, camera_x, camera_y)
+        cr.restore()
 
     # -------------------------------------------------------------------------
     # 1. JUNGLE CLEARING
