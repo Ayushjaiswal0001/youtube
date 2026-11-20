@@ -5,6 +5,7 @@ The smart, observant little mouse with round spectacles.
 import math
 from typing import Optional, Tuple
 import cairo
+from studio.characters.mouth import draw_mouth
 from studio.characters.rig_base import (
     JointNode, Viseme, draw_ellipse, draw_capsule,
     ease_in_out_quad, ease_out_bounce
@@ -57,7 +58,7 @@ class GappuRig:
         self.jump_y = 0.0
 
     def update_pose(self, pose: str, t: float, is_talking: bool = False, phoneme_intensity: float = 0.5,
-                    lipsync: object | None = None):
+                    lipsync: object | None = None, timeline: object | None = None):
         """Update Gappu's joints based on time and pose."""
         # Idle breathing
         breath = math.sin(t * 3.0 + 1.0) * 3.0
@@ -76,7 +77,15 @@ class GappuRig:
 
         # Talking mouth animation: narration envelope when available, sine fallback.
         if is_talking:
-            if lipsync is not None and len(lipsync):  # type: ignore[arg-type]
+            if timeline is not None and len(timeline):  # type: ignore[arg-type]
+                self.viseme = timeline.shape_at(t)  # type: ignore[union-attr]
+                envelope = lipsync.at(t) if (lipsync is not None and len(lipsync)) else 1.0  # type: ignore[union-attr]
+                if envelope <= 0.06:
+                    self.viseme = Viseme.CLOSED
+                    self.mouth_open = 0.0
+                else:
+                    self.mouth_open = timeline.scale_at(t) * (0.35 + 0.65 * envelope) * phoneme_intensity  # type: ignore[union-attr]
+            elif lipsync is not None and len(lipsync):  # type: ignore[arg-type]
                 self.mouth_open = lipsync.at(t) * phoneme_intensity  # type: ignore[union-attr]
                 self.viseme = lipsync.viseme_at(t)  # type: ignore[union-attr]
             else:
@@ -259,23 +268,7 @@ class GappuRig:
         draw_ellipse(cr, 0, 8, 11, 8, fill_color=COLOR_NOSE, stroke_color=COLOR_OUTLINE, stroke_width=2.5)
 
         # Mouth
-        cr.set_source_rgba(*COLOR_OUTLINE)
-        cr.set_line_width(3.0)
-        cr.set_line_cap(cairo.LINE_CAP_ROUND)
-        if self.viseme == Viseme.OPEN_WIDE:
-            draw_ellipse(cr, 0, 22, 14, 12 + self.mouth_open * 8,
-                         fill_color=(0.55, 0.05, 0.05, 1.0), stroke_color=COLOR_OUTLINE, stroke_width=3.0)
-            draw_ellipse(cr, 0, 26 + self.mouth_open * 4, 9, 6, fill_color=(0.95, 0.50, 0.50, 1.0))
-        elif self.viseme == Viseme.OPEN_SMALL:
-            draw_ellipse(cr, 0, 20, 10, 8 + self.mouth_open * 5,
-                         fill_color=(0.55, 0.05, 0.05, 1.0), stroke_color=COLOR_OUTLINE, stroke_width=3.0)
-        else:
-            cr.move_to(0, 14)
-            cr.line_to(0, 20)
-            cr.stroke()
-            cr.move_to(-12, 22)
-            cr.curve_to(-5, 27, 5, 27, 12, 22)
-            cr.stroke()
+        draw_mouth(cr, self.viseme, self.mouth_open, anchor_y=22, size=0.82, stroke_width=3.0)
 
         # Eyes
         for eye_x in [-20, 20]:

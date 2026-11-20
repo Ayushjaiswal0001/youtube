@@ -13,7 +13,7 @@ Read this block first; it is the exact state another agent needs.
 | PR #2 | OPEN, unmerged, 1 commit `2a810f0`, runner-install hardening. **Leave untouched until the owner approves.** |
 | Workflows | `ci.yml` active; `produce.yml` active but reusable-only; the three `produce-*` are `disabled_manually` |
 | Secrets | `YT_<PREFIX>_*` NOT provisioned → any `upload: true` dispatch will skip the upload with a warning |
-| Tests | `python -m pytest tests -q` → **106 passed**; `python -m unittest discover -s tests` → 50 passed |
+| Tests | `python -m pytest tests -q` → **136 passed**; `python -m unittest discover -s tests` → 50 passed |
 | Shorts plans | 13 plans intact (5 nexus, 5 academic, 3 natkhat), history/state untouched |
 | Long-form plan | `content/longform/nexus-node.json` → `long-nexus-power-grid`, rendered (see below) |
 | Publishing actions this session | **none** — no upload, no ledger write, no schedule enabled |
@@ -50,7 +50,26 @@ They are disjoint, so there is no conflict either way. Recommended order: **#2 f
 (it fixes the runner install that T12 needs), then **#3**. Both stay unmerged until the
 owner approves.
 
-### Lip-sync (implemented, envelope-based)
+### Viseme lip-sync (T31b)
+
+`studio/characters/visemes.py` turns narration text into a per-frame viseme timeline;
+`studio/characters/mouth.py` draws all shapes for both rigs. Rigs accept
+`lipsync=<VisemeTrack>` (amplitude) **and** `timeline=<VisemeTimeline>` (shape); the scene
+renderer builds both per scene. Silence always wins: envelope ≤ 0.06 forces `CLOSED`.
+
+Key facts to keep in mind:
+- **Edge-TTS emits only `SentenceBoundary`** for our voices — verified with a direct probe of
+  `hi-IN-MadhurNeural`, `hi-IN-SwaraNeural`, `en-US-AndrewNeural`. Do not assume word
+  timings; `tts_engine._save_boundaries()` persists whatever the service gave us.
+- Sentence windows are **snapped onto the voiced region** of the envelope before the units
+  are distributed, so line starts/ends align with real audio; inside a sentence the
+  placement is proportional.
+- `tools/report_visemes.py <episode_dir>` prints the QA table (change rate, holds,
+  articulated-voiced %). Use it after any rig change.
+- The mouth is now drawn by `mouth.py`; the old inline mouth code in `chiku.py`/`gappu.py`
+  was removed. Add new shapes in `visemes.DEFAULT_OPEN` **and** `mouth.draw_mouth`.
+
+### Envelope lip-sync (T31a)
 
 `studio/characters/lipsync.py` + wiring in `chiku.py`, `gappu.py`, `scene_renderer.py`.
 The rigs now take an optional `lipsync=VisemeTrack` argument; the scene renderer builds one

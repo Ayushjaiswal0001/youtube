@@ -33,6 +33,34 @@ class TTSEngine:
         res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=True)
         return float(res.stdout.strip())
 
+    @staticmethod
+    def _boundaries_path(audio_path: Path) -> Path:
+        return audio_path.with_suffix(".boundaries.json")
+
+    def _save_boundaries(self, audio_path: Path, text: str, duration: float,
+                         boundaries: List[Dict[str, Any]]) -> None:
+        """Persist sentence timing next to the cached audio so lip-sync can reuse it."""
+        try:
+            payload = {"text": text, "duration": duration, "boundaries": boundaries}
+            self._boundaries_path(audio_path).write_text(
+                json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8"
+            )
+        except OSError as exc:
+            print(f"  [TTS] could not persist boundaries for {audio_path.name}: {exc}")
+
+    def _load_boundaries(self, audio_path: Path) -> Optional[List[Dict[str, Any]]]:
+        path = self._boundaries_path(audio_path)
+        if not path.is_file():
+            return None
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return None
+        boundaries = payload.get("boundaries")
+        if isinstance(boundaries, list) and boundaries:
+            return boundaries
+        return None
+
     def _is_valid_audio(self, audio_path: Path) -> bool:
         """Verifies an audio file exists, has content (>500 bytes), and is readable by ffprobe."""
         if not audio_path.exists() or audio_path.stat().st_size < 500:
@@ -95,12 +123,16 @@ class TTSEngine:
         if self._is_valid_audio(out_path):
             duration = self._get_audio_duration(out_path)
             print(f"  [TTS Cache Hit] Reusing existing valid audio ({duration:.2f}s): {out_path.name}")
+            cached = self._load_boundaries(out_path)
+            if cached is None:
+                cached = [{"text": text, "start": 0.0, "end": duration}]
+                self._save_boundaries(out_path, text, duration, cached)
             return {
                 "audio_path": str(out_path),
                 "speaker": speaker,
                 "text": text,
                 "duration": duration,
-                "boundaries": [{"text": text, "start": 0.0, "end": duration}]
+                "boundaries": cached
             }
 
         # 2. Primary attempt: Edge-TTS (with retry for transient network issues)
@@ -135,6 +167,8 @@ class TTSEngine:
                 "start": 0.0,
                 "end": duration
             }]
+
+        self._save_boundaries(out_path, text, duration, boundaries)
 
         return {
             "audio_path": str(out_path),

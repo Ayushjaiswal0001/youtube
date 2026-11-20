@@ -5,6 +5,7 @@ The cheeky, energetic monkey protagonist.
 import math
 from typing import Optional, Tuple
 import cairo
+from studio.characters.mouth import draw_mouth
 from studio.characters.rig_base import (
     JointNode, Viseme, draw_ellipse, draw_capsule,
     ease_in_out_quad, ease_out_bounce, spring_overshoot
@@ -55,7 +56,7 @@ class ChikuRig:
         self.jump_y = 0.0
 
     def update_pose(self, pose: str, t: float, is_talking: bool = False, phoneme_intensity: float = 0.5,
-                    lipsync: object | None = None):
+                    lipsync: object | None = None, timeline: object | None = None):
         """Update rig joints based on procedural motion and named pose."""
         # Idle breathing / sway
         breath = math.sin(t * 3.5) * 4.0
@@ -75,7 +76,15 @@ class ChikuRig:
         # Talking mouth animation: driven by the narration envelope when a track is
         # supplied, so the mouth follows real speech instead of a fixed 14 Hz wave.
         if is_talking:
-            if lipsync is not None and len(lipsync):  # type: ignore[arg-type]
+            if timeline is not None and len(timeline):  # type: ignore[arg-type]
+                self.viseme = timeline.shape_at(t)  # type: ignore[union-attr]
+                envelope = lipsync.at(t) if (lipsync is not None and len(lipsync)) else 1.0  # type: ignore[union-attr]
+                if envelope <= 0.06:
+                    self.viseme = Viseme.CLOSED
+                    self.mouth_open = 0.0
+                else:
+                    self.mouth_open = timeline.scale_at(t) * (0.35 + 0.65 * envelope) * phoneme_intensity  # type: ignore[union-attr]
+            elif lipsync is not None and len(lipsync):  # type: ignore[arg-type]
                 self.mouth_open = lipsync.at(t) * phoneme_intensity  # type: ignore[union-attr]
                 self.viseme = lipsync.viseme_at(t)  # type: ignore[union-attr]
             else:
@@ -306,32 +315,8 @@ class ChikuRig:
         # Nose shine
         draw_ellipse(cr, -3, -10, 3, 2, fill_color=(1.0, 1.0, 1.0, 0.7))
 
-        # Mouth Lip-Sync & Expression
-        cr.set_source_rgba(*COLOR_OUTLINE)
-        cr.set_line_width(3.5)
-        cr.set_line_cap(cairo.LINE_CAP_ROUND)
-
-        if self.viseme == Viseme.OPEN_WIDE or self.viseme == Viseme.SURPRISED:
-            # Big cartoon open mouth with tongue
-            draw_ellipse(cr, 0, 12, 18, 16 + self.mouth_open * 10,
-                         fill_color=(0.55, 0.05, 0.05, 1.0), stroke_color=COLOR_OUTLINE, stroke_width=3.5)
-            # Tongue
-            draw_ellipse(cr, 0, 18 + self.mouth_open * 6, 12, 8, fill_color=(0.95, 0.45, 0.45, 1.0))
-        elif self.viseme == Viseme.OPEN_SMALL:
-            draw_ellipse(cr, 0, 10, 14, 9 + self.mouth_open * 6,
-                         fill_color=(0.55, 0.05, 0.05, 1.0), stroke_color=COLOR_OUTLINE, stroke_width=3.5)
-        elif self.viseme == Viseme.ROUND:
-            draw_ellipse(cr, 0, 10, 9, 12,
-                         fill_color=(0.55, 0.05, 0.05, 1.0), stroke_color=COLOR_OUTLINE, stroke_width=3.5)
-        else:
-            # Cute smile arc
-            cr.move_to(-18, 6)
-            cr.curve_to(-8, 18, 8, 18, 18, 6)
-            cr.stroke()
-            # Dimple tick
-            cr.move_to(17, 3)
-            cr.line_to(20, 7)
-            cr.stroke()
+        # Mouth: shape comes from the viseme timeline, amplitude from the narration.
+        draw_mouth(cr, self.viseme, self.mouth_open, anchor_y=12, size=1.0, stroke_width=3.5)
 
         cr.restore()  # restore muzzle
 

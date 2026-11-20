@@ -14,6 +14,7 @@ from studio.config import VIDEO_WIDTH, VIDEO_HEIGHT, FPS, INTERMEDIATE_DIR
 from studio.characters.chiku import ChikuRig
 from studio.characters.gappu import GappuRig
 from studio.characters.lipsync import VisemeTrack
+from studio.characters.visemes import VisemeTimeline
 from studio.animation.background import BackgroundRenderer
 from studio.animation.camera import Camera
 from studio.animation.effects import draw_sparkle, draw_dust_puff, draw_exclamation_pop
@@ -85,6 +86,14 @@ class SceneRenderer:
         bgm_path = self.sfx_lib.get_bgm()
         voice_path = Path(audio_data["audio_path"])
         lipsync_track = VisemeTrack.from_audio(voice_path, fps=self.fps)
+        dialogue_text = str(audio_data.get("text") or scene_data.get("dialogue") or "")
+        viseme_timeline = VisemeTimeline.from_text(
+            dialogue_text,
+            duration=duration,
+            fps=self.fps,
+            boundaries=audio_data.get("boundaries"),
+            envelope=lipsync_track if len(lipsync_track) else None,
+        )
         mixed_audio = INTERMEDIATE_DIR / f"scene_{scene_num:03d}_mixed.wav"
         filter_complex = (
             f"[0:a]volume=1.0[v];"
@@ -184,9 +193,9 @@ class SceneRenderer:
                 cr.save()
                 camera.apply(cr, t)
                 chiku.update_pose(chiku_pose, t, is_talking=chiku_talking, phoneme_intensity=0.8,
-                                  lipsync=lipsync_track)
+                                  lipsync=lipsync_track, timeline=viseme_timeline)
                 gappu.update_pose(gappu_pose, t, is_talking=gappu_talking, phoneme_intensity=0.7,
-                                  lipsync=lipsync_track)
+                                  lipsync=lipsync_track, timeline=viseme_timeline)
 
                 if sfx_name == "twinkle" or "\u092a\u0924\u094d\u0925\u0930" in dialogue:
                     sparkle_rot = t * 2.5

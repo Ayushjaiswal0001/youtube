@@ -116,6 +116,35 @@ make it unreliable after ~16 s. Lip-sync is proven by the rig tests and the narr
 envelope, not by a whole-episode per-frame mouth measurement. Visemes are also
 **envelope-based, not phoneme-based** — a wide vowel and a loud consonant look the same.
 
+## 3d. Viseme lip-sync (T31b) — measured
+
+Edge-TTS timing was probed directly (4 calls, 3 voices). **Only `SentenceBoundary` is
+emitted — no `WordBoundary` at all** for `hi-IN-MadhurNeural`, `hi-IN-SwaraNeural` or
+`en-US-AndrewNeural`, including a mixed Hindi/English line. Word-level timing therefore
+does not exist; viseme placement inside a sentence is a documented **proportional
+approximation**, not phoneme-level.
+
+| Check | Result |
+| --- | --- |
+| Unit tests | **30 passed** (`tests/factory/test_visemes.py`), full suite **136 passed** |
+| Shapes implemented | closed lips, neutral rest, smile, wide (E/I), teeth (F/V, sibilants), tongue (L/D/T/N), open small (schwa), open wide (A), round (O/U), surprised |
+| Scripts | Hindi Devanagari (independent vowels, matras, virama conjuncts, nukta forms, word-final schwa deletion) and Latin/English (digraphs `sh`/`ch`/`th`/`ph`, silent final `e`) |
+| Hard Hindi words | क्षत्रिय, श्रृंगार, विद्यालय, अंतर्राष्ट्रीय, ज़िम्मेदारी, लड्डू, राक्षस — all map without error |
+| Mixed line | "यह video बहुत अच्छा है, subscribe करो!" produces Hindi + English shapes and a pause |
+| Flicker control | median filter + minimum hold (70 ms) + one-frame softened transitions; merged again after silence masking |
+| Change rate | **6.2–7.1 shapes/s** per scene (speech-like; assertion bounds 1.5–12) |
+| Hold times | median **100–133 ms**, minimum speaking run **67 ms** |
+| Mouth active during voiced audio | **93.3 %** of voiced frames |
+| Onset lag vs acoustic voice (14 voiced segments) | median **0 ms**, max **67 ms** (2 frames) |
+| Boundary sidecars | `.boundaries.json` written next to cached TTS audio, reloaded on cache hit; corrupt file ignored (tested) |
+| Rendered episode | `natkhat-haveli-e1`, 32.07 s, 1080×1920, 961 frames, h264+aac, `qc_ok: true`, 10 cues |
+| Frame inspection | 32 crops at 1 fps across the whole episode show ≥6 distinct mouth shapes, closed rest between lines, no single-frame flicker |
+
+**Documented limitation:** within a sentence the sequence is spread proportionally over the
+sentence window (snapped to the voiced region), so a syllable can be early or late by up to
+roughly one unit — median unit length ≈ 100 ms. True phoneme accuracy is not claimed and is
+not obtainable from this TTS backend.
+
 ## 4. Not yet executed
 
 | Test | Status |

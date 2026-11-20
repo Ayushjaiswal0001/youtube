@@ -104,8 +104,13 @@ Status markers: `[ ]` todo, `[~]` in progress, `[x]` done.
 - [x] **T31a. Audio-driven lip-sync** — `studio/characters/lipsync.py`; rigs follow the
   narration envelope instead of a 14 Hz sine. 10 tests, full Natkhat episode re-rendered
   (`qc_ok: true`). Envelope-based.
-- [ ] **T31b. Phoneme-level visemes** — distinguish vowel shapes (round/wide) using text
-  and the Edge-TTS sentence boundaries that `tts_engine` already collects but nobody reads.
+- [x] **T31b. Viseme-based lip-sync** — `studio/characters/visemes.py` + shared
+  `studio/characters/mouth.py`: 9 mouth shapes, Devanagari + Latin mapping (conjuncts,
+  nukta, schwa deletion, digraphs), sentence-boundary windows snapped to the acoustic
+  envelope, median filter + 70 ms minimum hold + softened transitions. Boundaries now
+  persisted as `.boundaries.json` sidecars. 30 tests; measured 6.2–7.1 shapes/s, median
+  onset lag 0 ms. **Proportional, not phoneme-level** — Edge-TTS emits no word boundaries
+  (verified empirically).
 - [ ] **T32. Eye system** — saccades, gaze targets, blink with variance (not a fixed timer).
 - [ ] **T33. Locomotion** — walk/run cycles with contact/passing/up poses and foot planting.
 - [ ] **T34. Reaction library** — anticipation, impact, settle, with the existing easing set.
