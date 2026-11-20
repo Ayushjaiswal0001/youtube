@@ -1,0 +1,26 @@
+name: academic-biohacker daily
+
+# Academic Biohacker: evidence-first health science. Publishes 12:00 IST = 06:30 UTC.
+# Not yet executed on Actions - see TASKS.md T12.
+
+on:
+  schedule:
+    - cron: "30 6 * * *"
+  workflow_dispatch:
+    inputs:
+      upload:
+        description: Perform a real (private) upload after QC passes
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  produce:
+    uses: ./.github/workflows/produce.yml
+    with:
+      channel: academic-biohacker
+      secret_prefix: ACADEMIC_BIOHACKER
+      upload: ${{ inputs.upload || false }}
+    secrets: inherit

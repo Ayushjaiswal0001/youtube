@@ -1,0 +1,28 @@
+name: nexus-node daily
+
+# Nexus Node: technology / AI systems. Publishes 20:00 IST = 14:30 UTC.
+# Cron is UTC and GitHub may delay scheduled runs, so the video is published through
+# `publishAt` rather than relying on the trigger time itself.
+# Not yet executed on Actions - see TASKS.md T12.
+
+on:
+  schedule:
+    - cron: "30 14 * * *"
+  workflow_dispatch:
+    inputs:
+      upload:
+        description: Perform a real (private) upload after QC passes
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  produce:
+    uses: ./.github/workflows/produce.yml
+    with:
+      channel: nexus-node
+      secret_prefix: NEXUS_NODE
+      upload: ${{ inputs.upload || false }}
+    secrets: inherit

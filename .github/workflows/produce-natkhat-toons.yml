@@ -1,0 +1,33 @@
+name: natkhat-toons daily
+
+# Natkhat Toons: Hindi kids' stories, continuous series. Publishes 18:00 IST = 12:30 UTC.
+# Episode order is enforced: the next episode is only planned when the previous one was
+# actually uploaded, so a failed day never skips a part.
+# Not yet executed on Actions - see TASKS.md T12.
+
+on:
+  schedule:
+    - cron: "30 12 * * *"
+  workflow_dispatch:
+    inputs:
+      upload:
+        description: Perform a real (private) upload after QC passes
+        type: boolean
+        default: false
+      allow_unpublished:
+        description: Plan the next episode even if the previous one was not published
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  produce:
+    uses: ./.github/workflows/produce.yml
+    with:
+      channel: natkhat-toons
+      secret_prefix: NATKHAT_TOONS
+      upload: ${{ inputs.upload || false }}
+      allow_unpublished: ${{ inputs.allow_unpublished || false }}
+    secrets: inherit
