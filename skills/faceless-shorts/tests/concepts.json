@@ -1,0 +1,20 @@
+[
+ {"name":"science what-if (body)","brief":{"text":"What happens if you hold your breath for ten minutes?","platform":"shorts","duration":35,"resources":["gpu"]},"expect":["deep-dive","inside-out"]},
+ {"name":"science what-if, no GPU, light tone","brief":{"text":"What happens if you swallow gum? quick fun explainer"},"expect":["inside-out","deep-dive"]},
+ {"name":"unsolved mystery / true crime","brief":{"text":"The man who hijacked a plane and vanished with the money - D.B. Cooper, never solved","platform":"reels","duration":40},"expect":["night-file"]},
+ {"name":"horror storytelling","brief":{"text":"A creepy haunted lighthouse story, eerie and dark","duration":40,"resources":["gpu"]},"expect":["night-file","silhouette","cinematic-3d"]},
+ {"name":"survival how-to","brief":{"text":"What would you do if the power went out for three days? survival steps"},"expect":["stick-story"]},
+ {"name":"history event","brief":{"text":"How one bakery fire burned down London in 1666 - the Great Fire, a history short"},"expect":["paper-atlas","paper-cut","cutout"]},
+ {"name":"funny true story","brief":{"text":"A funny true story: parents mailed their daughter to grandma because of a loophole","duration":50,"resources":["gpu"]},"expect":["tall-tale","cartoon-2d","3d-cartoon"]},
+ {"name":"children's bedtime story","brief":{"text":"A gentle bedtime story for kids about a little bunny who learns to share, moral story","platform":"youtube","duration":240},"expect":["storybook","traditional-handdrawn","paper-cut","stylized-3d","pixar-inspired"]},
+ {"name":"business explainer / SaaS","brief":{"text":"B2B SaaS product explainer: how our software cuts customer onboarding cost, investor-ready","duration":45},"expect":["motion-graphics","explainer","vector-2d","kinetic-typography","animated-infographic"]},
+ {"name":"motivational reel (typography)","brief":{"text":"Motivational reel: discipline beats motivation, never give up, inspiring quote","platform":"reels","duration":20},"expect":["kinetic-typography","cinematic-reel"]},
+ {"name":"data / statistics video","brief":{"text":"Top 10 countries by GDP growth - statistics and a data ranking","duration":40},"expect":["animated-infographic","motion-graphics"]},
+ {"name":"whiteboard teaching","brief":{"text":"Explain compound interest step by step, a lesson for students","duration":60},"expect":["whiteboard","explainer","animated-infographic","inside-out"]},
+ {"name":"retro gaming nostalgia","brief":{"text":"The history of retro 8-bit arcade games, nostalgic and playful"},"expect":["pixel-art"]},
+ {"name":"explicit AI-tool request","brief":{"text":"Fantasy dragon story, I will use Runway and Kling, give me a prompt pack","wants_ai_prompts":true},"expect":["ai-assisted"]},
+ {"name":"user forces a style","brief":{"text":"What happens if you cry in space","prefer_style":"low-poly","resources":["gpu"]},"expect":["low-poly"]},
+ {"name":"space science, gpu","brief":{"text":"What happens if you fall into a black hole? awe and wonder","duration":40,"resources":["gpu"]},"expect":["deep-dive","realistic-3d","cinematic-3d"]},
+ {"name":"superhero origin comic","brief":{"text":"Original superhero origin story, dramatic action, comic style","duration":40},"expect":["comic-book","anime"]},
+ {"name":"vague input must ask","brief":{"text":"make me a video"},"expect":["__needs_clarification__"]}
+]

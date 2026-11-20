@@ -1,0 +1,111 @@
+{
+ "_about": "Hybrid rules. A hybrid = one PRIMARY style (owns palette, camera, caption look, sound) + at most ONE ACCENT (supplies a layer or element type). Check pairs with scripts/select_style.py --hybrid <a> <b>.",
+ "rules": [
+  "Exactly one primary. The primary's palette, caption style and music mood win every conflict.",
+  "At most one accent, and it may only cover one layer: characters, environment, typography, effects, or inserts.",
+  "Shared palette lock: accent elements are recoloured into the primary palette (max 6 colours total) before use.",
+  "Shared line-weight lock: outline thickness and corner roundness come from the primary.",
+  "Shared light lock: if either layer is lit, both are lit from the same direction; flat layers get a matching drop shadow.",
+  "Shared frame-rate lock: stepped styles (stop-motion, claymation, pixel-art, hand-drawn) force the whole shot to that fps; do not mix smooth and stepped motion in one shot.",
+  "Transitions between primary and accent shots must be motivated (camera move or a cut on action), never a decorative wipe.",
+  "If after a test frame the two layers look pasted together, drop the accent. Consistency beats variety."
+ ],
+ "layers": {
+  "tall-tale": {
+   "characters": "2d",
+   "environment": "3d"
+  }
+ },
+ "good_pairs": [
+  {
+   "primary": "tall-tale",
+   "accent": null,
+   "layers": "characters:2d + environment:3d",
+   "status": "native",
+   "note": "The only hybrid with a working engine."
+  },
+  {
+   "primary": "paper-atlas",
+   "accent": "kinetic-typography",
+   "layers": "typography",
+   "status": "recipe",
+   "note": "Dates and place names animate as kinetic type over cut-paper maps."
+  },
+  {
+   "primary": "motion-graphics",
+   "accent": "cinematic-reel",
+   "layers": "environment",
+   "status": "recipe",
+   "note": "Brand explainer with a dark cinematic opener."
+  },
+  {
+   "primary": "inside-out",
+   "accent": "kinetic-typography",
+   "layers": "typography",
+   "status": "recipe",
+   "note": "Captions become scene elements on the key word."
+  },
+  {
+   "primary": "comic-book",
+   "accent": "parallax",
+   "layers": "effects",
+   "status": "recipe",
+   "note": "Panels with layered depth movement."
+  },
+  {
+   "primary": "storybook",
+   "accent": "parallax",
+   "layers": "environment",
+   "status": "recipe",
+   "note": "Illustrated pages with soft depth."
+  },
+  {
+   "primary": "night-file",
+   "accent": "silhouette",
+   "layers": "characters",
+   "status": "recipe",
+   "note": "Faceless figures as pure silhouettes against lit fog."
+  },
+  {
+   "primary": "whiteboard",
+   "accent": "animated-infographic",
+   "layers": "inserts",
+   "status": "recipe",
+   "note": "Hand-drawn lesson with data inserts drawn as charts."
+  },
+  {
+   "primary": "deep-dive",
+   "accent": "inside-out",
+   "layers": "inserts",
+   "status": "recipe",
+   "note": "Flat 2D x-ray inserts inside a 3D explainer."
+  }
+ ],
+ "bad_pairs": [
+  [
+   "pixel-art",
+   "realistic-3d",
+   "resolution and fidelity clash"
+  ],
+  [
+   "watercolor",
+   "motion-graphics",
+   "soft washes fight hard geometry"
+  ],
+  [
+   "stop-motion",
+   "kinetic-typography",
+   "stepped motion vs smooth type"
+  ],
+  [
+   "claymation",
+   "comic-book",
+   "tactile volume vs flat halftone"
+  ],
+  [
+   "anime",
+   "realistic-3d",
+   "stylization levels clash"
+  ]
+ ]
+}

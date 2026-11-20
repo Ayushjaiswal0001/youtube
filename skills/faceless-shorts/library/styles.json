@@ -1,0 +1,1196 @@
+{
+ "version": 1,
+ "about": "Extensible style registry. status: native = engine + example render in styles/; adapted = recipe on a native engine, UNVERIFIED until a render passes QA (tools/qc.py); prompt-pack = prompts for user-run external tools. Add a style by appending an entry; run scripts/select_style.py --self-test.",
+ "styles": [
+  {
+   "id": "deep-dive",
+   "name": "Deep Dive 3D",
+   "family": "3d",
+   "status": "native",
+   "engine": "deep-dive",
+   "topics": [
+    "body",
+    "health",
+    "science",
+    "what-if",
+    "space",
+    "nature"
+   ],
+   "moods": [
+    "curious",
+    "awe",
+    "dramatic"
+   ],
+   "audiences": [
+    "teens",
+    "adults",
+    "general"
+   ],
+   "complexity": 4,
+   "character_need": 2,
+   "recipe": "See styles/deep-dive/STYLE.md"
+  },
+  {
+   "id": "night-file",
+   "name": "Night File 3D",
+   "family": "3d",
+   "status": "native",
+   "engine": "night-file",
+   "topics": [
+    "mystery",
+    "true-crime",
+    "horror",
+    "unsolved",
+    "conspiracy"
+   ],
+   "moods": [
+    "dark",
+    "tense",
+    "eerie"
+   ],
+   "audiences": [
+    "teens",
+    "adults"
+   ],
+   "complexity": 4,
+   "character_need": 1,
+   "recipe": "See styles/night-file/STYLE.md"
+  },
+  {
+   "id": "inside-out",
+   "name": "Inside Out (flat 2D explainer)",
+   "family": "2d",
+   "status": "native",
+   "engine": "inside-out",
+   "topics": [
+    "body",
+    "health",
+    "science",
+    "what-if",
+    "food",
+    "psychology"
+   ],
+   "moods": [
+    "curious",
+    "light",
+    "punchy"
+   ],
+   "audiences": [
+    "kids",
+    "teens",
+    "adults",
+    "general"
+   ],
+   "complexity": 2,
+   "character_need": 2,
+   "recipe": "See styles/inside-out/STYLE.md"
+  },
+  {
+   "id": "stick-story",
+   "name": "Stick Story",
+   "family": "2d",
+   "status": "native",
+   "engine": "stick-story",
+   "topics": [
+    "survival",
+    "life-hack",
+    "how-to",
+    "preparedness",
+    "what-would-you-do"
+   ],
+   "moods": [
+    "practical",
+    "light",
+    "tense"
+   ],
+   "audiences": [
+    "teens",
+    "adults",
+    "general"
+   ],
+   "complexity": 1,
+   "character_need": 2,
+   "recipe": "See styles/stick-story/STYLE.md"
+  },
+  {
+   "id": "paper-atlas",
+   "name": "Paper Atlas (cut paper + maps)",
+   "family": "stylized",
+   "status": "native",
+   "engine": "paper-atlas",
+   "topics": [
+    "history",
+    "geography",
+    "politics",
+    "economics",
+    "biography",
+    "war"
+   ],
+   "moods": [
+    "serious",
+    "nostalgic",
+    "epic"
+   ],
+   "audiences": [
+    "teens",
+    "adults",
+    "general"
+   ],
+   "complexity": 3,
+   "character_need": 1,
+   "recipe": "See styles/paper-atlas/STYLE.md"
+  },
+  {
+   "id": "tall-tale",
+   "name": "Tall Tale 3D (2D cartoons in 3D world)",
+   "family": "hybrid",
+   "status": "native",
+   "engine": "tall-tale",
+   "topics": [
+    "funny-story",
+    "true-story",
+    "con",
+    "loophole",
+    "history-funny",
+    "kids-story"
+   ],
+   "moods": [
+    "funny",
+    "warm",
+    "upbeat"
+   ],
+   "audiences": [
+    "kids",
+    "teens",
+    "adults",
+    "general"
+   ],
+   "complexity": 4,
+   "character_need": 3,
+   "recipe": "See styles/tall-tale/STYLE.md"
+  },
+  {
+   "id": "cartoon-2d",
+   "name": "Cartoon animation",
+   "family": "2d",
+   "status": "adapted",
+   "engine": "inside-out",
+   "topics": [
+    "funny-story",
+    "comedy",
+    "kids-story",
+    "animals",
+    "everyday"
+   ],
+   "moods": [
+    "funny",
+    "upbeat",
+    "light"
+   ],
+   "audiences": [
+    "kids",
+    "teens",
+    "adults",
+    "general"
+   ],
+   "complexity": 2,
+   "character_need": 3,
+   "recipe": "Inside Out engine; widen palette in lib.js C, add 2-3 exaggerated expressions (squash/stretch via K.man scale), thick ink outline on everything."
+  },
+  {
+   "id": "minimalist-character",
+   "name": "Minimalist character animation",
+   "family": "2d",
+   "status": "adapted",
+   "engine": "stick-story",
+   "topics": [
+    "life",
+    "philosophy",
+    "mental-health-light",
+    "productivity",
+    "motivation"
+   ],
+   "moods": [
+    "calm",
+    "reflective",
+    "warm"
+   ],
+   "audiences": [
+    "teens",
+    "adults",
+    "general"
+   ],
+   "complexity": 1,
+   "character_need": 2,
+   "recipe": "Stick Story engine; monochrome + one accent colour, no room details, generous negative space, slow eases."
+  },
+  {
+   "id": "whiteboard",
+   "name": "Whiteboard animation",
+   "family": "2d",
+   "status": "adapted",
+   "engine": "stick-story",
+   "topics": [
+    "education",
+    "business",
+    "finance",
+    "how-to",
+    "concept",
+    "explainer"
+   ],
+   "moods": [
+    "neutral",
+    "clear",
+    "calm"
+   ],
+   "audiences": [
+    "teens",
+    "adults",
+    "general"
+   ],
+   "complexity": 1,
+   "character_need": 1,
+   "recipe": "Stick Story engine on white #FAFAFA, black marker strokes drawn on progressively (stroke-dash reveal), 2 marker colours only."
+  },
+  {
+   "id": "vector-2d",
+   "name": "Modern 2D vector animation",
+   "family": "2d",
+   "status": "adapted",
+   "engine": "inside-out",
+   "topics": [
+    "tech",
+    "product",
+    "business",
+    "education",
+    "science"
+   ],
+   "moods": [
+    "clean",
+    "modern",
+    "upbeat"
+   ],
+   "audiences": [
+    "teens",
+    "adults",
+    "general"
+   ],
+   "complexity": 2,
+   "character_need": 1,
+   "recipe": "Inside Out engine; flat geometric shapes, 4-5 colour brand palette, rounded rectangles, no outlines on shapes."
+  },
+  {
+   "id": "cutout",
+   "name": "Cut-out animation",
+   "family": "2d",
+   "status": "adapted",
+   "engine": "paper-atlas",
+   "topics": [
+    "history",
+    "satire",
+    "folk-tale",
+    "politics",
+    "culture"
+   ],
+   "moods": [
+    "playful",
+    "nostalgic",
+    "satirical"
+   ],
+   "audiences": [
+    "teens",
+    "adults",
+    "general"
+   ],
+   "complexity": 2,
+   "character_need": 2,
+   "recipe": "Paper Atlas engine with jointed paper limbs (rotating pivots), visible paper edge shadow, slight jitter at 12 fps."
+  },
+  {
+   "id": "anime",
+   "name": "Anime-inspired animation",
+   "family": "2d",
+   "status": "adapted",
+   "engine": "inside-out",
+   "topics": [
+    "action",
+    "fantasy",
+    "drama",
+    "school",
+    "sports",
+    "motivation"
+   ],
+   "moods": [
+    "dramatic",
+    "emotional",
+    "epic"
+   ],
+   "audiences": [
+    "teens",
+    "general"
+   ],
+   "complexity": 4,
+   "character_need": 3,
+   "recipe": "Inside Out engine; add speed lines, impact frames, hold frames with limited animation, big eye highlights, dramatic zoom-ins. Original characters only, no existing franchise designs."
+  },
+  {
+   "id": "traditional-handdrawn",
+   "name": "Traditional hand-drawn animation",
+   "family": "2d",
+   "status": "adapted",
+   "engine": "inside-out",
+   "topics": [
+    "storytelling",
+    "nostalgia",
+    "kids-story",
+    "fable"
+   ],
+   "moods": [
+    "warm",
+    "nostalgic",
+    "gentle"
+   ],
+   "audiences": [
+    "kids",
+    "general"
+   ],
+   "complexity": 4,
+   "character_need": 3,
+   "recipe": "Inside Out engine; wobbly line (per-frame vertex jitter at 12 fps), pencil texture, imperfect colour fill offset from line."
+  },
+  {
+   "id": "frame-by-frame",
+   "name": "Frame-by-frame animation",
+   "family": "2d",
+   "status": "adapted",
+   "engine": "inside-out",
+   "topics": [
+    "art",
+    "experimental",
+    "music",
+    "abstract"
+   ],
+   "moods": [
+    "expressive",
+    "raw"
+   ],
+   "audiences": [
+    "teens",
+    "adults"
+   ],
+   "complexity": 4,
+   "character_need": 2,
+   "recipe": "Render at 12 fps with deliberate per-frame redraw variance (line boil). Expensive to author; use only when the brief asks for it."
+  },
+  {
+   "id": "stylized-3d",
+   "name": "Stylized 3D animation",
+   "family": "3d",
+   "status": "adapted",
+   "engine": "tall-tale",
+   "topics": [
+    "kids-story",
+    "adventure",
+    "fantasy",
+    "everyday"
+   ],
+   "moods": [
+    "warm",
+    "playful",
+    "vivid"
+   ],
+   "audiences": [
+    "kids",
+    "general"
+   ],
+   "complexity": 4,
+   "character_need": 3,
+   "recipe": "Tall Tale 3D engine: saturated palette, rounded 3D sets, characters stay 2D cut-outs (a fully 3D-modelled character rig is not available in this skill)."
+  },
+  {
+   "id": "pixar-inspired",
+   "name": "Pixar-inspired aesthetic (original characters)",
+   "family": "3d",
+   "status": "adapted",
+   "engine": "tall-tale",
+   "topics": [
+    "kids-story",
+    "emotional",
+    "family",
+    "adventure"
+   ],
+   "moods": [
+    "warm",
+    "emotional",
+    "whimsical"
+   ],
+   "audiences": [
+    "kids",
+    "general"
+   ],
+   "complexity": 5,
+   "character_need": 3,
+   "recipe": "Tall Tale 3D engine: warm key light + cool fill, soft bloom, shallow depth of field, big-eyed original characters, rounded props. Never copy existing characters or designs."
+  },
+  {
+   "id": "low-poly",
+   "name": "Low-poly 3D animation",
+   "family": "3d",
+   "status": "adapted",
+   "engine": "deep-dive",
+   "topics": [
+    "tech",
+    "gaming",
+    "nature",
+    "space",
+    "abstract"
+   ],
+   "moods": [
+    "calm",
+    "modern",
+    "playful"
+   ],
+   "audiences": [
+    "teens",
+    "adults",
+    "general"
+   ],
+   "complexity": 3,
+   "character_need": 1,
+   "recipe": "Deep Dive engine with flatShading materials, no textures, 6-8 colour palette, simple directional light, no bloom."
+  },
+  {
+   "id": "clay-3d",
+   "name": "Clay-like 3D animation",
+   "family": "3d",
+   "status": "adapted",
+   "engine": "deep-dive",
+   "topics": [
+    "food",
+    "kids-story",
+    "comedy",
+    "product"
+   ],
+   "moods": [
+    "playful",
+    "tactile",
+    "warm"
+   ],
+   "audiences": [
+    "kids",
+    "teens",
+    "adults",
+    "general"
+   ],
+   "complexity": 3,
+   "character_need": 2,
+   "recipe": "Deep Dive engine; soft roughness 0.9, fingerprint-noise bump map, rounded geometry, slightly low 12 fps stepped motion."
+  },
+  {
+   "id": "realistic-3d",
+   "name": "Realistic 3D visualization",
+   "family": "3d",
+   "status": "adapted",
+   "engine": "deep-dive",
+   "topics": [
+    "science",
+    "medicine",
+    "engineering",
+    "space",
+    "architecture"
+   ],
+   "moods": [
+    "serious",
+    "awe",
+    "clinical"
+   ],
+   "audiences": [
+    "adults",
+    "general"
+   ],
+   "complexity": 5,
+   "character_need": 1,
+   "recipe": "Deep Dive engine with physically based materials, HDR environment, shadows at 2048+, shallow DoF. Needs a GPU for sane render times."
+  },
+  {
+   "id": "cinematic-3d",
+   "name": "Cinematic 3D animation",
+   "family": "3d",
+   "status": "adapted",
+   "engine": "night-file",
+   "topics": [
+    "thriller",
+    "sci-fi",
+    "trailer",
+    "epic",
+    "documentary"
+   ],
+   "moods": [
+    "dramatic",
+    "tense",
+    "epic"
+   ],
+   "audiences": [
+    "teens",
+    "adults"
+   ],
+   "complexity": 5,
+   "character_need": 1,
+   "recipe": "Night File engine: single motivated key light, volumetric fog, anamorphic bloom, slow dolly, letterbox bars, teal-orange grade."
+  },
+  {
+   "id": "3d-cartoon",
+   "name": "3D cartoon animation",
+   "family": "3d",
+   "status": "adapted",
+   "engine": "tall-tale",
+   "topics": [
+    "funny-story",
+    "kids-story",
+    "everyday",
+    "animals"
+   ],
+   "moods": [
+    "funny",
+    "playful"
+   ],
+   "audiences": [
+    "kids",
+    "teens",
+    "adults",
+    "general"
+   ],
+   "complexity": 3,
+   "character_need": 3,
+   "recipe": "Tall Tale 3D engine as-is, bias toward faster cuts and more exaggerated mood states."
+  },
+  {
+   "id": "isometric",
+   "name": "Isometric animation",
+   "family": "3d",
+   "status": "adapted",
+   "engine": "deep-dive",
+   "topics": [
+    "tech",
+    "business",
+    "city",
+    "process",
+    "architecture",
+    "supply-chain"
+   ],
+   "moods": [
+    "clean",
+    "clear",
+    "modern"
+   ],
+   "audiences": [
+    "teens",
+    "adults",
+    "general"
+   ],
+   "complexity": 3,
+   "character_need": 0,
+   "recipe": "Deep Dive engine with OrthographicCamera at 35.264/45 deg, flat shaded blocks, one accent colour, objects animate in by dropping/extruding."
+  },
+  {
+   "id": "paper-cut",
+   "name": "Paper-cut animation",
+   "family": "stylized",
+   "status": "adapted",
+   "engine": "paper-atlas",
+   "topics": [
+    "history",
+    "culture",
+    "folk-tale",
+    "geography",
+    "fable"
+   ],
+   "moods": [
+    "nostalgic",
+    "warm",
+    "serious"
+   ],
+   "audiences": [
+    "kids",
+    "teens",
+    "adults",
+    "general"
+   ],
+   "complexity": 2,
+   "character_need": 2,
+   "recipe": "Paper Atlas engine as-is with theme palette swapped for non-history topics."
+  },
+  {
+   "id": "stop-motion",
+   "name": "Stop-motion animation",
+   "family": "stylized",
+   "status": "adapted",
+   "engine": "paper-atlas",
+   "topics": [
+    "crafts",
+    "kids-story",
+    "quirky",
+    "product"
+   ],
+   "moods": [
+    "quirky",
+    "tactile",
+    "charming"
+   ],
+   "audiences": [
+    "kids",
+    "teens",
+    "general"
+   ],
+   "complexity": 3,
+   "character_need": 2,
+   "recipe": "Paper Atlas engine rendered at 8-12 fps with positional jitter and lighting flicker; hold poses for 2-3 frames."
+  },
+  {
+   "id": "claymation",
+   "name": "Claymation",
+   "family": "stylized",
+   "status": "adapted",
+   "engine": "deep-dive",
+   "topics": [
+    "kids-story",
+    "comedy",
+    "quirky",
+    "food"
+   ],
+   "moods": [
+    "quirky",
+    "warm",
+    "funny"
+   ],
+   "audiences": [
+    "kids",
+    "general"
+   ],
+   "complexity": 4,
+   "character_need": 3,
+   "recipe": "Same as clay-3d plus 12 fps stepped motion and thumbprint texture; deformation by squash/stretch."
+  },
+  {
+   "id": "puppet",
+   "name": "Puppet animation",
+   "family": "stylized",
+   "status": "adapted",
+   "engine": "paper-atlas",
+   "topics": [
+    "folk-tale",
+    "satire",
+    "kids-story",
+    "fable"
+   ],
+   "moods": [
+    "whimsical",
+    "theatrical",
+    "satirical"
+   ],
+   "audiences": [
+    "kids",
+    "teens",
+    "adults"
+   ],
+   "complexity": 3,
+   "character_need": 3,
+   "recipe": "Paper Atlas engine with a proscenium stage frame, rods/strings visible from above, limited jointed motion."
+  },
+  {
+   "id": "watercolor",
+   "name": "Watercolor animation",
+   "family": "stylized",
+   "status": "adapted",
+   "engine": "paper-atlas",
+   "topics": [
+    "nature",
+    "travel",
+    "poetry",
+    "memoir",
+    "emotional"
+   ],
+   "moods": [
+    "gentle",
+    "dreamy",
+    "reflective"
+   ],
+   "audiences": [
+    "teens",
+    "adults",
+    "general"
+   ],
+   "complexity": 3,
+   "character_need": 1,
+   "recipe": "Paper Atlas engine; replace flat fills with soft-edged washes (multi-pass blurred shapes), paper grain overlay, colour bleed on transitions."
+  },
+  {
+   "id": "sketch",
+   "name": "Sketch animation",
+   "family": "stylized",
+   "status": "adapted",
+   "engine": "stick-story",
+   "topics": [
+    "process",
+    "design",
+    "education",
+    "how-to",
+    "concept"
+   ],
+   "moods": [
+    "neutral",
+    "creative",
+    "clear"
+   ],
+   "audiences": [
+    "teens",
+    "adults",
+    "general"
+   ],
+   "complexity": 2,
+   "character_need": 1,
+   "recipe": "Stick Story engine; pencil strokes drawn on (dash reveal) over off-white paper, graphite grey + one highlight colour."
+  },
+  {
+   "id": "storybook",
+   "name": "Storybook illustration animation",
+   "family": "stylized",
+   "status": "adapted",
+   "engine": "paper-atlas",
+   "topics": [
+    "kids-story",
+    "fable",
+    "fairy-tale",
+    "bedtime",
+    "folk-tale",
+    "moral"
+   ],
+   "moods": [
+    "warm",
+    "gentle",
+    "whimsical"
+   ],
+   "audiences": [
+    "kids",
+    "general"
+   ],
+   "complexity": 3,
+   "character_need": 3,
+   "recipe": "Paper Atlas engine; page-turn transitions, soft parallax layers, painterly textures, serif narration captions at bottom."
+  },
+  {
+   "id": "comic-book",
+   "name": "Comic-book animation",
+   "family": "stylized",
+   "status": "adapted",
+   "engine": "inside-out",
+   "topics": [
+    "superhero",
+    "action",
+    "mystery",
+    "sci-fi",
+    "adventure"
+   ],
+   "moods": [
+    "dramatic",
+    "punchy",
+    "bold"
+   ],
+   "audiences": [
+    "teens",
+    "general"
+   ],
+   "complexity": 3,
+   "character_need": 2,
+   "recipe": "Inside Out engine; halftone dot fills, thick ink, panel borders that reveal, onomatopoeia bursts, motion between panels."
+  },
+  {
+   "id": "pixel-art",
+   "name": "Pixel-art animation",
+   "family": "stylized",
+   "status": "adapted",
+   "engine": "inside-out",
+   "topics": [
+    "gaming",
+    "retro",
+    "tech",
+    "nostalgia",
+    "comedy"
+   ],
+   "moods": [
+    "playful",
+    "nostalgic",
+    "quirky"
+   ],
+   "audiences": [
+    "teens",
+    "adults",
+    "general"
+   ],
+   "complexity": 2,
+   "character_need": 2,
+   "recipe": "Inside Out engine drawn to a 270x480 offscreen canvas, nearest-neighbour upscaled x4, 16-colour palette, 8-12 fps."
+  },
+  {
+   "id": "silhouette",
+   "name": "Silhouette animation",
+   "family": "stylized",
+   "status": "adapted",
+   "engine": "night-file",
+   "topics": [
+    "horror",
+    "folk-tale",
+    "mystery",
+    "fable",
+    "drama"
+   ],
+   "moods": [
+    "eerie",
+    "dramatic",
+    "mysterious"
+   ],
+   "audiences": [
+    "teens",
+    "adults",
+    "general"
+   ],
+   "complexity": 2,
+   "character_need": 2,
+   "recipe": "Night File engine or Paper Atlas layers: black figures against coloured gradient backdrops, backlit, no facial detail."
+  },
+  {
+   "id": "mixed-media",
+   "name": "Mixed-media animation",
+   "family": "hybrid",
+   "status": "adapted",
+   "engine": "paper-atlas",
+   "topics": [
+    "art",
+    "culture",
+    "documentary",
+    "memoir",
+    "music"
+   ],
+   "moods": [
+    "creative",
+    "textured",
+    "expressive"
+   ],
+   "audiences": [
+    "teens",
+    "adults"
+   ],
+   "complexity": 4,
+   "character_need": 1,
+   "recipe": "Paper Atlas base with 2 other textures (pencil, halftone) following hybrid rules in library/hybrids.json."
+  },
+  {
+   "id": "motion-graphics",
+   "name": "Motion graphics",
+   "family": "motion",
+   "status": "adapted",
+   "engine": "inside-out",
+   "topics": [
+    "business",
+    "data",
+    "economics",
+    "finance",
+    "marketing",
+    "news",
+    "product",
+    "tech"
+   ],
+   "moods": [
+    "clean",
+    "confident",
+    "modern"
+   ],
+   "audiences": [
+    "teens",
+    "adults",
+    "general"
+   ],
+   "complexity": 2,
+   "character_need": 0,
+   "recipe": "Inside Out engine without hero character; shapes, icons, counters, wipes, grid layouts; brand palette."
+  },
+  {
+   "id": "kinetic-typography",
+   "name": "Kinetic typography",
+   "family": "motion",
+   "status": "adapted",
+   "engine": "inside-out",
+   "topics": [
+    "motivation",
+    "quotes",
+    "poetry",
+    "music",
+    "speech",
+    "business"
+   ],
+   "moods": [
+    "intense",
+    "inspiring",
+    "punchy"
+   ],
+   "audiences": [
+    "teens",
+    "adults",
+    "general"
+   ],
+   "complexity": 2,
+   "character_need": 0,
+   "recipe": "Inside Out engine captions system promoted to the main visual: word-by-word scale/rotate, big type, background colour shifts on beat."
+  },
+  {
+   "id": "animated-infographic",
+   "name": "Animated infographic video",
+   "family": "motion",
+   "status": "adapted",
+   "engine": "inside-out",
+   "topics": [
+    "data",
+    "economics",
+    "finance",
+    "geography",
+    "news",
+    "politics",
+    "science",
+    "sports",
+    "statistics"
+   ],
+   "moods": [
+    "clear",
+    "confident",
+    "neutral"
+   ],
+   "audiences": [
+    "teens",
+    "adults",
+    "general"
+   ],
+   "complexity": 3,
+   "character_need": 0,
+   "recipe": "Inside Out engine; charts drawn from data (bars grow, lines draw, counters tick), one takeaway per shot."
+  },
+  {
+   "id": "explainer",
+   "name": "Explainer animation",
+   "family": "motion",
+   "status": "adapted",
+   "engine": "inside-out",
+   "topics": [
+    "education",
+    "business",
+    "tech",
+    "science",
+    "how-to",
+    "product"
+   ],
+   "moods": [
+    "clear",
+    "friendly",
+    "neutral"
+   ],
+   "audiences": [
+    "teens",
+    "adults",
+    "general"
+   ],
+   "complexity": 2,
+   "character_need": 1,
+   "recipe": "Inside Out engine; problem -> mechanism -> result structure, icons + simple hero."
+  },
+  {
+   "id": "animated-storytelling",
+   "name": "Animated storytelling",
+   "family": "storytelling",
+   "status": "adapted",
+   "engine": "paper-atlas",
+   "topics": [
+    "story",
+    "biography",
+    "history",
+    "memoir",
+    "folk-tale"
+   ],
+   "moods": [
+    "emotional",
+    "warm",
+    "epic"
+   ],
+   "audiences": [
+    "teens",
+    "adults",
+    "general"
+   ],
+   "complexity": 3,
+   "character_need": 2,
+   "recipe": "Pick the engine by genre; this entry is the generic narrative structure from reference/storytelling.md."
+  },
+  {
+   "id": "character-storytelling",
+   "name": "Character-based storytelling",
+   "family": "storytelling",
+   "status": "adapted",
+   "engine": "tall-tale",
+   "topics": [
+    "story",
+    "comedy",
+    "drama",
+    "everyday",
+    "kids-story"
+   ],
+   "moods": [
+    "funny",
+    "warm",
+    "emotional"
+   ],
+   "audiences": [
+    "kids",
+    "teens",
+    "adults",
+    "general"
+   ],
+   "complexity": 4,
+   "character_need": 3,
+   "recipe": "Tall Tale 3D if budget allows, else Inside Out/Stick Story with a locked character bible."
+  },
+  {
+   "id": "loop",
+   "name": "Loop animation",
+   "family": "motion",
+   "status": "adapted",
+   "engine": "inside-out",
+   "topics": [
+    "satisfying",
+    "abstract",
+    "mood",
+    "product",
+    "art",
+    "music"
+   ],
+   "moods": [
+    "calm",
+    "hypnotic",
+    "satisfying"
+   ],
+   "audiences": [
+    "teens",
+    "adults",
+    "general"
+   ],
+   "complexity": 2,
+   "character_need": 0,
+   "recipe": "Inside Out engine; design shot so frame at t=0 equals frame at t=duration; no voice or sparse text; 6-15 s."
+  },
+  {
+   "id": "cinematic-reel",
+   "name": "Cinematic animated reel",
+   "family": "motion",
+   "status": "adapted",
+   "engine": "night-file",
+   "topics": [
+    "motivation",
+    "travel",
+    "mood",
+    "trailer",
+    "brand"
+   ],
+   "moods": [
+    "epic",
+    "inspiring",
+    "dramatic"
+   ],
+   "audiences": [
+    "teens",
+    "adults",
+    "general"
+   ],
+   "complexity": 4,
+   "character_need": 1,
+   "recipe": "Night File engine with warmer grade; letterbox, slow push-ins, typography titles, music-led pacing."
+  },
+  {
+   "id": "text-image",
+   "name": "Dynamic text-and-image animation",
+   "family": "motion",
+   "status": "adapted",
+   "engine": "inside-out",
+   "topics": [
+    "news",
+    "quotes",
+    "facts",
+    "listicle",
+    "business"
+   ],
+   "moods": [
+    "punchy",
+    "clear",
+    "neutral"
+   ],
+   "audiences": [
+    "teens",
+    "adults",
+    "general"
+   ],
+   "complexity": 1,
+   "character_need": 0,
+   "recipe": "Inside Out engine; supplied images with Ken Burns moves and animated text callouts. Images must be user-supplied or original code art."
+  },
+  {
+   "id": "parallax",
+   "name": "Parallax animation",
+   "family": "motion",
+   "status": "adapted",
+   "engine": "paper-atlas",
+   "topics": [
+    "storytelling",
+    "nature",
+    "history",
+    "landscape",
+    "fairy-tale"
+   ],
+   "moods": [
+    "dreamy",
+    "epic",
+    "calm"
+   ],
+   "audiences": [
+    "kids",
+    "teens",
+    "adults",
+    "general"
+   ],
+   "complexity": 2,
+   "character_need": 1,
+   "recipe": "Paper Atlas layered cut-outs moved at different speeds on camera pan; 4-6 depth layers."
+  },
+  {
+   "id": "ai-assisted",
+   "name": "AI-assisted visual animation (prompt pack)",
+   "family": "ai",
+   "status": "prompt-pack",
+   "engine": null,
+   "topics": [
+    "any"
+   ],
+   "moods": [
+    "any"
+   ],
+   "audiences": [
+    "kids",
+    "teens",
+    "adults",
+    "general"
+   ],
+   "complexity": 3,
+   "character_need": 2,
+   "recipe": "The skill does NOT generate images or video. It writes a scene-by-scene prompt pack with a locked character bible for the user to run in their own tools, then can assemble the returned clips with ffmpeg + captions + audio.",
+   "external_tools": [
+    "user-chosen AI image/video generator"
+   ],
+   "note": "Only when the user asks for it explicitly."
+  }
+ ]
+}

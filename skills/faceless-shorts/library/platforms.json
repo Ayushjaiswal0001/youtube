@@ -1,0 +1,124 @@
+{
+ "_about": "Output profiles. 'engine_support' says what the bundled engines can render today. Only 9:16 at 1080x1920 is verified-by-design; other ratios need recomposition (see reference/platforms.md).",
+ "profiles": {
+  "reels": {
+   "aspect": "9:16",
+   "w": 1080,
+   "h": 1920,
+   "fps": 30,
+   "max_s": 90,
+   "sweet_spot_s": [
+    15,
+    35
+   ],
+   "hook_s": 1.5,
+   "cut_every_s": [
+    1.5,
+    3.0
+   ],
+   "caption_zone": [
+    1250,
+    1550
+   ],
+   "unsafe_top_px": 250,
+   "unsafe_bottom_px": 380,
+   "engine_support": "native"
+  },
+  "shorts": {
+   "aspect": "9:16",
+   "w": 1080,
+   "h": 1920,
+   "fps": 30,
+   "max_s": 60,
+   "sweet_spot_s": [
+    25,
+    45
+   ],
+   "hook_s": 1.5,
+   "cut_every_s": [
+    1.5,
+    3.5
+   ],
+   "caption_zone": [
+    1250,
+    1550
+   ],
+   "unsafe_top_px": 200,
+   "unsafe_bottom_px": 420,
+   "engine_support": "native"
+  },
+  "tiktok": {
+   "aspect": "9:16",
+   "w": 1080,
+   "h": 1920,
+   "fps": 30,
+   "max_s": 180,
+   "sweet_spot_s": [
+    15,
+    45
+   ],
+   "hook_s": 1.2,
+   "cut_every_s": [
+    1.2,
+    3.0
+   ],
+   "caption_zone": [
+    1250,
+    1550
+   ],
+   "unsafe_top_px": 200,
+   "unsafe_bottom_px": 480,
+   "engine_support": "native"
+  },
+  "youtube": {
+   "aspect": "16:9",
+   "w": 1920,
+   "h": 1080,
+   "fps": 30,
+   "max_s": 900,
+   "sweet_spot_s": [
+    120,
+    480
+   ],
+   "hook_s": 5,
+   "cut_every_s": [
+    3,
+    8
+   ],
+   "caption_zone": [
+    820,
+    1000
+   ],
+   "unsafe_top_px": 60,
+   "unsafe_bottom_px": 60,
+   "engine_support": "needs-recomposition"
+  },
+  "square": {
+   "aspect": "1:1",
+   "w": 1080,
+   "h": 1080,
+   "fps": 30,
+   "max_s": 90,
+   "sweet_spot_s": [
+    20,
+    45
+   ],
+   "hook_s": 2,
+   "cut_every_s": [
+    2,
+    4
+   ],
+   "caption_zone": [
+    780,
+    980
+   ],
+   "unsafe_top_px": 80,
+   "unsafe_bottom_px": 120,
+   "engine_support": "needs-recomposition"
+  },
+  "custom": {
+   "aspect": "custom",
+   "engine_support": "needs-recomposition"
+  }
+ }
+}
