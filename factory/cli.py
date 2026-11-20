@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
@@ -75,6 +76,8 @@ def _next_ist_date(spec: ChannelSpec) -> str:
 def cmd_plans(args: argparse.Namespace) -> int:
     rows: list[dict[str, Any]] = []
     for spec in _specs(args.channel):
+        if getattr(args, "format", None):
+            spec = replace(spec, format=args.format)
         for plan in load_plans_for(spec):
             out_dir = episode_out_dir(spec, plan)
             rows.append(
@@ -95,6 +98,8 @@ def cmd_render(args: argparse.Namespace) -> int:
         raise ValueError("--plan-id requires one --channel")
     results = []
     for spec in _specs(args.channel):
+        if getattr(args, "format", None):
+            spec = replace(spec, format=args.format)
         results.append(
             render_episode(
                 spec,
@@ -243,12 +248,14 @@ def build_parser() -> argparse.ArgumentParser:
 
     plans = subparsers.add_parser("plans")
     plans.add_argument("--channel", default="all")
+    plans.add_argument("--format", choices=("shorts", "long"), default=None)
     plans.add_argument("--json", action="store_true", help=argparse.SUPPRESS)
     plans.set_defaults(func=cmd_plans)
 
     render = subparsers.add_parser("render")
     render.add_argument("--channel", default="all")
     render.add_argument("--plan-id", default=None)
+    render.add_argument("--format", choices=("shorts", "long"), default=None)
     render.add_argument("--force", action="store_true")
     render.add_argument("--json", action="store_true", help=argparse.SUPPRESS)
     render.set_defaults(func=cmd_render)

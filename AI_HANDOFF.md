@@ -1,5 +1,46 @@
 # AI_HANDOFF
 
+## 0. RESUME CHECKPOINT (2026-11-21, branch `feat/landscape-16x9`)
+
+Read this block first; it is the exact state another agent needs.
+
+| Fact | Value |
+| --- | --- |
+| GitHub identity in use | `Ayushjaiswal0001` (always run `env -u GITHUB_TOKEN gh …`) |
+| Repository | `https://github.com/Ayushjaiswal0001/youtube` only — no fork, no second repo |
+| Current branch | `feat/landscape-16x9`, based on `main` @ `567e63c` |
+| `main` state | green CI; PR #1 merged earlier; **do not push to main** |
+| PR #2 | OPEN, unmerged, 1 commit `2a810f0`, runner-install hardening. **Leave untouched until the owner approves.** |
+| Workflows | `ci.yml` active; `produce.yml` active but reusable-only; the three `produce-*` are `disabled_manually` |
+| Secrets | `YT_<PREFIX>_*` NOT provisioned → any `upload: true` dispatch will skip the upload with a warning |
+| Tests | `python -m pytest tests -q` → **92 passed**; `python -m unittest discover -s tests` → 50 passed |
+| Shorts plans | 13 plans intact (5 nexus, 5 academic, 3 natkhat), history/state untouched |
+| Long-form plan | `content/longform/nexus-node.json` → `long-nexus-power-grid`, rendered (see below) |
+| Publishing actions this session | **none** — no upload, no ledger write, no schedule enabled |
+
+### Verified artifact of record (16:9)
+
+`build/nexus-node/long-nexus-power-grid/video.mp4` — 1920x1080, h264 + aac 44.1 kHz stereo,
+116.467 s, 3 494 video frames, 7 574 361 bytes, `qc_ok: true`, 52 SRT cues,
+mean −29.2 dB / peak −11.4 dB, zero decode errors, no silence > 1 s.
+Measured wall clock ≈ 8 min 45 s (≈ 4.5× real time) on the dev laptop.
+
+### Known-open defects fixed in this branch
+
+Body/caption collision; ghosting chapter cards; chapter kicker falling back to brand tag;
+chapter cards firing on every line; motifs bleeding outside the plate; `find_plan` unable
+to resolve a long-form plan; `load_plans_for` mixing formats.
+
+### Exact next actions (in order)
+
+1. Owner approval → merge PR #2, then dispatch `produce-nexus-node.yml` with `upload: false`
+   to complete T12 (runner render, Edge-TTS egress, Chrome overlays).
+2. Provision `YT_NEXUS_NODE_*`, `YT_ACADEMIC_BIOHACKER_*`, `YT_NATKHAT_TOONS_*` (T15).
+3. Durable state: replace cache-only persistence with a real store (T14).
+4. Author an Academic 16:9 plan and a Hindi 16:9 profile to close acceptance tests 5–6.
+5. Build the reusable character/animation component library (§E) — landscape has motifs,
+   not characters.
+
 Instructions for any AI coding agent (or human) picking this project up. Read
 `PROJECT_CONTEXT.md`, `ARCHITECTURE.md`, `DEVELOPMENT_STATUS.md`, `TASKS.md` first.
 This file tells you what to do *right now*.

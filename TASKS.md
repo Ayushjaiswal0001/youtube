@@ -92,6 +92,16 @@ Status markers: `[ ]` todo, `[~]` in progress, `[x]` done.
   Turning on `publishAt` scheduling requires `FACTORY_ALLOW_SCHEDULE=1` plus human
   sign-off; changing default privacy requires editing `channels/*.json`.
 
+## P4b — Long-form 16:9 engine (branch `feat/landscape-16x9`)
+
+- [x] **T24. Native 1920x1080 composition profile** — `landscape_renderer.py`, 116.5 s
+  render verified with ffprobe, 12-frame visual inspection, audio and subtitle checks.
+- [x] **T25. Format-aware planning** — `load_plans_for` separates shorts/long, `find_plan`
+  resolves both, `--format` on `render`/`plans`, long-form word/beat budget enforced.
+- [ ] **T26. Academic 16:9 plan** — acceptance test 5. Needs one authored long plan.
+- [ ] **T27. Hindi 16:9 profile** — acceptance test 6; the studio rigs are 9:16-only.
+- [ ] **T28. Runner render of a 16:9 video** — blocked on PR #2 (T12).
+
 ## P5 — Later
 
 - [ ] **T21. Long-form support** (1920x1080 renderer path, longer scripts, chapter SRT).

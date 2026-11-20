@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -11,6 +12,7 @@ from .content.models import Script
 from .content.script import build_english_script, build_hindi_script, load_plans_for, story_packet
 from .media.captions import build_srt
 from .media.english_renderer import render_english
+from .media.landscape_renderer import render_landscape
 from .media.hindi_renderer import render_hindi_episode
 from .media.thumbnail import make_thumbnail, thumbnail_path
 from .media.tts import synthesize_script
@@ -31,8 +33,20 @@ def episode_out_dir(spec: ChannelSpec, plan: dict[str, Any]) -> Path:
     return BUILD_ROOT / spec.slug / plan_id
 
 
+def _plan_specs(spec: ChannelSpec) -> list[ChannelSpec]:
+    """Both composition profiles a channel can render (9:16 and 16:9)."""
+
+    other = "long" if spec.format == "shorts" else "shorts"
+    return [spec, replace(spec, format=other)]
+
+
 def find_plan(spec: ChannelSpec, plan_id: str | None = None) -> dict[str, Any]:
-    plans = load_plans_for(spec)
+    plans: list[dict[str, Any]] = []
+    for candidate in _plan_specs(spec):
+        try:
+            plans.extend(load_plans_for(candidate))
+        except ValueError:
+            continue
     if plan_id:
         wanted = slugify(plan_id)
         for plan in plans:
@@ -71,7 +85,8 @@ def _render_english(
             "skipped": True,
         }
     narration = synthesize_script(script, spec, out_dir / "audio")
-    return render_english(
+    renderer = render_landscape if spec.format == "long" else render_english
+    return renderer(
         script,
         narration,
         spec,
@@ -106,6 +121,11 @@ def render_episode(
     force: bool = False,
 ) -> dict[str, Any]:
     selected = plan or find_plan(spec, plan_id)
+    # A plan can request the horizontal profile; the composition system, QA geometry
+    # and duration bounds all follow from spec.format.
+    requested = str(selected.get("format") or "").lower()
+    if requested in {"long", "shorts"} and requested != spec.format:
+        spec = replace(spec, format=requested)
     if spec.is_hindi:
         script, story, out_dir = _render_hindi(spec, selected, force=force)
     else:

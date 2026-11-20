@@ -126,3 +126,26 @@ code, not by reading commit messages.
 | Publish dry-run | `publish --channel <slug>` | not yet run |
 | Workflow execution | — | no production workflow exists |
 | Live upload | uploader CLI (private) | 3 succeeded |
+
+## 2026-11-21 — long-form 16:9 engine and plan/format fixes
+
+Added on `feat/landscape-16x9`:
+
+- `factory/media/landscape_renderer.py` — native 1920x1080 composition profile: text
+  column + diagram plate, animated motifs (nodes, bars, flow, grid, radial), chapter
+  cards with ghost numerals, word-synced caption band, progress rail with chapter ticks.
+- `content/longform/nexus-node.json` — *The Real Limit on AI Is Not Chips*, 332 words,
+  8 beats, 4 chapters, 2 sources.
+- Long-form script contract in `factory/content/script.py` (300–1800 words, ≥6 beats,
+  chapters in metadata) and format-aware `load_plans_for` (shorts plans and long plans no
+  longer mix).
+- `find_plan` resolves plans across both composition profiles; `render`/`plans` accept
+  `--format long`.
+- 13 new tests (`tests/factory/test_landscape.py`); suite is now **92 passed**.
+
+Verified render: 1920x1080, 116.467 s, h264+aac, `qc_ok: true`, 52 cues, −29.2 dB mean,
+7.57 MB, ≈8 min 45 s of wall clock. Inspected on a 12-frame contact sheet and individual
+frames; five composition defects were found and fixed during that inspection.
+
+Not verified: any runner execution of this pipeline, Edge-TTS egress on a runner, and
+upload of a long-form video.

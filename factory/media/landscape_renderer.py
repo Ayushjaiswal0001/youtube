@@ -1,0 +1,603 @@
+"""Native 1920x1080 (16:9) long-form motion-graphics renderer.
+
+This is a separate composition profile, not a stretched Shorts frame. The horizontal
+canvas gets its own layout grammar:
+
+    ┌──────────────────────────────────────────────────────────────┐
+    │ brand chrome                                    scene 4 / 12 │
+    ├───────────────────────────────┬──────────────────────────────┤
+    │ kicker / chapter label        │                              │
+    │ 96px headline, fitted         │   animated diagram plate     │
+    │ support copy, 44px            │   (nodes, bars, flow, grid)  │
+    │ accent rule                   │                              │
+    ├───────────────────────────────┴──────────────────────────────┤
+    │  word-synced caption band                                   │
+    │  progress rail with chapter ticks                           │
+    └──────────────────────────────────────────────────────────────┘
+
+It shares the primitives that are resolution independent (palette maths, fonts, text
+wrapping, the procedural music bed, the narration mix) and implements its own scene
+grammar, motif animation and pacing. Chapter cards and establishing/CTA layouts exist
+only here because long-form needs them.
+"""
+
+from __future__ import annotations
+
+import json
+import math
+import re
+import subprocess
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any, Iterable
+
+import numpy as np
+from PIL import Image, ImageChops, ImageDraw, ImageFont
+
+from ..config import FONTS_DIR, FPS, ChannelSpec
+from ..content.models import Narration, Script, ScriptLine, WordTiming
+from ..util import ffprobe_streams, iso_now
+from .english_renderer import BRAND, _font, _mix, _rgb, _rgba, _wrap
+from .music import make_bed, mix_narration
+
+WIDTH = 1920
+HEIGHT = 1080
+FPS_TARGET = FPS
+
+MARGIN = 104
+TEXT_COL = 900          # width of the left editorial column
+PANEL_X = 1092          # left edge of the diagram plate
+PANEL_TOP = 188
+PANEL_BOTTOM = 812
+CAPTION_TOP = 836
+RAIL_Y = 1040
+
+TITLE_FONT = FONTS_DIR / "Inter-Black.otf"
+SMALL_FONT = FONTS_DIR / "Inter-ExtraBold.otf"
+SERIF_FONT = FONTS_DIR / "Caladea-Bold.ttf"
+
+
+@dataclass
+class Profile:
+    """Composition profile: everything that differs between 9:16 and 16:9."""
+
+    width: int = WIDTH
+    height: int = HEIGHT
+    margin: int = MARGIN
+    text_col: int = TEXT_COL
+    caption_size: int = 46
+    headline_sizes: tuple[int, ...] = (104, 96, 88, 80, 72, 64)
+
+
+PROFILES = {
+    "long": Profile(),
+}
+
+
+def get_profile(spec: ChannelSpec) -> Profile:
+    return PROFILES.get(spec.format, Profile())
+
+
+# --------------------------------------------------------------------- utilities
+
+
+def _ease_out(value: float) -> float:
+    value = max(0.0, min(1.0, value))
+    return 1.0 - (1.0 - value) ** 3
+
+
+def _ease_in_out(value: float) -> float:
+    value = max(0.0, min(1.0, value))
+    return 3 * value**2 - 2 * value**3
+
+
+def _chunks(line: ScriptLine, words_per_chunk: int = 4) -> list[dict[str, Any]]:
+    """Group words into caption chunks with timings, falling back to even spacing."""
+
+    words = line.words or []
+    if not words:
+        tokens = [token for token in re.findall(r"\S+", line.text) if token]
+        if not tokens:
+            return []
+        span = max(0.2, line.end - line.start)
+        step = span / len(tokens)
+        words = [
+            WordTiming(token, line.start + index * step, line.start + (index + 1) * step)
+            for index, token in enumerate(tokens)
+        ]
+    chunks: list[dict[str, Any]] = []
+    for index in range(0, len(words), words_per_chunk):
+        group = words[index : index + words_per_chunk]
+        chunks.append(
+            {
+                "start": group[0].start,
+                "end": group[-1].end,
+                "words": [{"text": word.text, "start": word.start, "end": word.end} for word in group],
+            }
+        )
+    return chunks
+
+
+def _active_chunk(chunks: list[dict[str, Any]], t: float) -> dict[str, Any] | None:
+    for chunk in chunks:
+        if chunk["start"] - 0.02 <= t <= chunk["end"] + 0.06:
+            return chunk
+    return None
+
+
+# ----------------------------------------------------------------- canvas parts
+
+
+def _base(profile: Profile, spec: ChannelSpec) -> Image.Image:
+    c = spec.colors
+    top, bottom = np.array(_rgb(c["bg"]), dtype=np.float32), np.array(_rgb(c["bg2"]), dtype=np.float32)
+    ramp = np.linspace(0.0, 1.0, profile.height, dtype=np.float32)[:, None, None]
+    rows = top * (1 - ramp) + bottom * ramp
+    array = np.repeat(rows, profile.width, axis=1).astype(np.uint8)
+    base = Image.fromarray(array, mode="RGB").convert("RGBA")
+
+    grid = Image.new("RGBA", base.size, (0, 0, 0, 0))
+    pen = ImageDraw.Draw(grid)
+    grid_color = _rgba(c["grid"], 90)
+    for x in range(0, profile.width, 96):
+        pen.line((x, 0, x, profile.height), fill=grid_color, width=1)
+    for y in range(0, profile.height, 96):
+        pen.line((0, y, profile.width, y), fill=grid_color, width=1)
+
+    glow = Image.new("RGBA", base.size, (0, 0, 0, 0))
+    gp = ImageDraw.Draw(glow)
+    radius = 520
+    gp.ellipse(
+        (profile.width - radius + 140, -radius + 120, profile.width + radius - 140, radius + 120),
+        fill=_rgba(c["accent"], 34),
+    )
+    gp.ellipse(
+        (-radius + 60, profile.height - radius + 60, radius + 60, profile.height + radius + 60),
+        fill=_rgba(c["accent2"], 26),
+    )
+
+    composed = Image.alpha_composite(base, glow)
+    composed = Image.alpha_composite(composed, grid)
+    vignette = Image.new("RGBA", base.size, (0, 0, 0, 0))
+    vd = ImageDraw.Draw(vignette)
+    vd.rectangle((0, 0, profile.width, 96), fill=(0, 0, 0, 60))
+    vd.rectangle((0, profile.height - 150, profile.width, profile.height), fill=(0, 0, 0, 80))
+    return Image.alpha_composite(composed, vignette)
+
+
+def _chrome(draw: ImageDraw.ImageDraw, profile: Profile, spec: ChannelSpec, brand: tuple[str, str, str], index: int, total: int) -> None:
+    c = spec.colors
+    name, kicker, handle = brand
+    font = _font(SMALL_FONT, 26)
+    draw.rectangle((0, 0, profile.width, 4), fill=_rgba(c["accent"], 220))
+    draw.text((profile.margin, 42), name, font=font, fill=c["text"])
+    spaced = "  ·  ".join(part for part in (kicker, handle) if part)
+    draw.text((profile.margin, 74), spaced, font=_font(SMALL_FONT, 18), fill=c["muted"])
+    counter = f"{index + 1:02d} / {total:02d}"
+    width = draw.textlength(counter, font=font)
+    draw.text((profile.width - profile.margin - width, 42), counter, font=font, fill=c["muted"])
+
+
+def _motif(
+    draw: ImageDraw.ImageDraw,
+    profile: Profile,
+    spec: ChannelSpec,
+    kind: str,
+    t: float,
+    local: float,
+) -> None:
+    """Animated diagram inside the plate. Coordinates live in panel space."""
+
+    c = spec.colors
+    left, top = PANEL_X + 52, PANEL_TOP + 52
+    right, bottom = profile.width - profile.margin - 52, PANEL_BOTTOM - 52
+    width, height = right - left, bottom - top
+    progress = _ease_in_out(local / 0.7)
+    accent, accent2 = c["accent"], c["accent2"]
+
+    if kind in {"bars", "chart"}:
+        values = [0.34, 0.52, 0.44, 0.72, 0.61, 0.9]
+        gap = width / (len(values) * 1.6)
+        for index, value in enumerate(values):
+            grow = _ease_out(min(1.0, progress * 1.3 - index * 0.08))
+            bar_h = height * 0.78 * value * grow
+            x = left + index * (gap + gap * 0.6) + gap * 0.3
+            base_y = bottom - 40
+            draw.rounded_rectangle(
+                (x, base_y - bar_h, x + gap, base_y),
+                radius=8,
+                fill=_rgba(accent if index % 2 == 0 else accent2, 220),
+            )
+        draw.line((left, bottom - 40, right, bottom - 40), fill=_rgba(c["muted"], 200), width=2)
+
+    elif kind in {"flow", "network", "nodes", "spark"}:
+        nodes = [
+            (0.14, 0.62),
+            (0.34, 0.30),
+            (0.46, 0.70),
+            (0.62, 0.42),
+            (0.82, 0.26),
+            (0.88, 0.66),
+        ]
+        points = [(left + width * x, top + height * y) for x, y in nodes]
+        for index in range(len(points) - 1):
+            appear = _ease_out(min(1.0, progress * 1.6 - index * 0.12))
+            if appear <= 0:
+                continue
+            x1, y1 = points[index]
+            x2, y2 = points[index + 1]
+            draw.line((x1, y1, x1 + (x2 - x1) * appear, y1 + (y2 - y1) * appear), fill=_rgba(c["muted"], 170), width=3)
+        for index, (x, y) in enumerate(points):
+            appear = _ease_out(min(1.0, progress * 1.6 - index * 0.1))
+            radius = 20 + 6 * math.sin(t * 2.2 + index)
+            if appear <= 0:
+                continue
+            draw.ellipse((x - radius, y - radius, x + radius, y + radius), fill=_rgba(accent if index % 2 == 0 else accent2, int(255 * appear)))
+
+    elif kind in {"grid", "chip"}:
+        step = 74
+        for row in range(9):
+            for col in range(12):
+                appear = _ease_out(min(1.0, progress * 2.4 - (row + col) * 0.03))
+                if appear <= 0:
+                    continue
+                x = left + col * step
+                y = top + row * step
+                size = 26
+                pulse = 0.4 + 0.6 * abs(math.sin(t * 1.4 + (row * 12 + col) * 0.25))
+                draw.rounded_rectangle(
+                    (x, y, x + size, y + size),
+                    radius=6,
+                    fill=_rgba(accent if (row + col) % 3 else accent2, int(210 * appear * pulse)),
+                )
+
+    elif kind in {"shield", "lock"}:
+        cx, cy = left + width / 2, top + height / 2
+        radius = min(width, height) * 0.32 * _ease_out(progress)
+        for ring in range(3):
+            r = radius * (1 - ring * 0.22)
+            draw.ellipse((cx - r, cy - r, cx + r, cy + r), outline=_rgba(accent if ring % 2 == 0 else accent2, 220 - ring * 50), width=4)
+        draw.line((cx, cy - radius * 0.7, cx, cy + radius * 0.7), fill=_rgba(c["text"], 200), width=3)
+
+    elif kind in {"scale", "gap"}:
+        cx, cy = left + width / 2, top + height / 2
+        span = width * 0.36 * _ease_out(progress)
+        draw.line((cx - span, cy, cx + span, cy), fill=_rgba(c["muted"], 220), width=4)
+        draw.line((cx - span, cy - 46, cx - span, cy + 46), fill=_rgba(accent, 235), width=6)
+        draw.line((cx + span, cy - 46, cx + span, cy + 46), fill=_rgba(accent2, 235), width=6)
+        x = cx - span + (2 * span) * _ease_in_out(local / 1.6 % 1.0)
+        draw.ellipse((x - 14, cy - 14, x + 14, cy + 14), fill=_rgba(c["text"], 235))
+
+    else:  # clock / default: radial progress
+        cx, cy = left + width / 2, top + height / 2
+        radius = min(width, height) * 0.3
+        draw.ellipse((cx - radius, cy - radius, cx + radius, cy + radius), outline=_rgba(c["grid"], 255), width=6)
+        angle = 2 * math.pi * _ease_in_out(progress)
+        draw.arc(
+            (cx - radius, cy - radius, cx + radius, cy + radius),
+            start=-90,
+            end=-90 + math.degrees(angle),
+            fill=_rgba(accent, 240),
+            width=10,
+        )
+
+
+def _headline(draw: ImageDraw.ImageDraw, profile: Profile, spec: ChannelSpec, text: str, max_width: int) -> tuple[ImageFont.FreeTypeFont, list[str]]:
+    for size in profile.headline_sizes:
+        font = _font(TITLE_FONT, size)
+        lines = _wrap(draw, text.upper(), font, max_width)
+        if len(lines) <= 3:
+            return font, lines
+    font = _font(TITLE_FONT, 56)
+    return font, _wrap(draw, text.upper(), font, max_width)[:3]
+
+
+def _body_block(
+    draw: ImageDraw.ImageDraw,
+    profile: Profile,
+    spec: ChannelSpec,
+    text: str,
+    max_width: int,
+    top: int,
+    bottom: int,
+    alpha: float,
+) -> None:
+    """Draw support copy that always fits above the caption band."""
+
+    c = spec.colors
+    available = max(60, bottom - top)
+    for size in (40, 36, 32, 28, 24):
+        font = _font(SERIF_FONT, size)
+        line_height = int(size * 1.34)
+        max_lines = max(1, available // line_height)
+        lines = _wrap(draw, text, font, max_width)
+        if len(lines) <= max_lines:
+            break
+    fill = _rgba(c["text"], int(216 * alpha)) if spec.palette == "nexus" else _rgba(c["muted"], int(255 * alpha))
+    y = top
+    for line in lines[:max_lines]:
+        draw.text((profile.margin, y), line, font=font, fill=fill)
+        y += line_height
+
+
+def _caption_band(
+    draw: ImageDraw.ImageDraw,
+    profile: Profile,
+    spec: ChannelSpec,
+    chunk: dict[str, Any] | None,
+    t: float,
+) -> None:
+    if not chunk:
+        return
+    c = spec.colors
+    font = _font(SMALL_FONT, profile.caption_size)
+    words = chunk["words"]
+    gap = draw.textlength(" ", font=font)
+    widths = [draw.textlength(word["text"], font=font) for word in words]
+    total = sum(widths) + gap * (len(words) - 1)
+    x = (profile.width - total) / 2
+    y = CAPTION_TOP
+    padding = 26
+    draw.rounded_rectangle(
+        (x - padding, y - 16, x + total + padding, y + profile.caption_size + 22),
+        radius=18,
+        fill=(0, 0, 0, 150),
+    )
+    for word, width in zip(words, widths):
+        active = word["start"] - 0.02 <= t <= word["end"] + 0.02
+        draw.text((x, y), word["text"], font=font, fill=c["accent"] if active else c["text"])
+        x += width + gap
+
+
+def _rail(draw: ImageDraw.ImageDraw, profile: Profile, spec: ChannelSpec, progress: float, chapter_marks: Iterable[float]) -> None:
+    c = spec.colors
+    left, right = profile.margin, profile.width - profile.margin
+    draw.rounded_rectangle((left, RAIL_Y, right, RAIL_Y + 6), radius=3, fill=_mix(c["bg"], c["muted"], 0.25))
+    filled = left + (right - left) * max(0.0, min(1.0, progress))
+    draw.rounded_rectangle((left, RAIL_Y, max(left + 6, filled), RAIL_Y + 6), radius=3, fill=c["accent"])
+    for mark in chapter_marks:
+        x = left + (right - left) * mark
+        draw.rectangle((x - 1, RAIL_Y - 8, x + 1, RAIL_Y + 14), fill=_rgba(c["muted"], 200))
+
+
+def _chapter_card(img: Image.Image, spec: ChannelSpec, number: int, title: str, alpha: float) -> Image.Image:
+    c = spec.colors
+    overlay = Image.new("RGBA", img.size, (0, 0, 0, 0))
+    od = ImageDraw.Draw(overlay)
+    od.rectangle((0, 0, img.width, img.height), fill=_rgba(c["bg"], int(255 * alpha)))
+    od.rectangle((0, img.height // 2 - 118, 22, img.height // 2 + 118), fill=_rgba(c["accent"], int(255 * alpha)))
+    # oversized ghost numeral gives the card depth without extra assets
+    ghost = _font(TITLE_FONT, 460)
+    numeral = f"{number:02d}"
+    ghost_alpha = int(38 * alpha)
+    od.text(
+        (img.width - od.textlength(numeral, font=ghost) - 40, -90),
+        numeral,
+        font=ghost,
+        fill=_rgba(c["accent"], ghost_alpha),
+    )
+    od.text((96, img.height // 2 - 132), f"CHAPTER {number}", font=_font(SMALL_FONT, 30), fill=_rgba(c["accent"], int(255 * alpha)))
+    font, lines = _font(TITLE_FONT, 96), []
+    pen = ImageDraw.Draw(overlay)
+    for size in (96, 88, 80, 72):
+        font = _font(TITLE_FONT, size)
+        lines = _wrap(pen, title.upper(), font, img.width - 240)
+        if len(lines) <= 2:
+            break
+    y = img.height // 2 - 76
+    for line in lines:
+        pen.text((96, y), line, font=font, fill=_rgba(c["text"], int(255 * alpha)))
+        y += int(size * 1.12)
+    return Image.alpha_composite(img, overlay)
+
+
+# ------------------------------------------------------------------- frame drawing
+
+
+def _draw_frame(
+    base: Image.Image,
+    line: ScriptLine,
+    t: float,
+    duration: float,
+    index: int,
+    total: int,
+    spec: ChannelSpec,
+    brand: tuple[str, str, str],
+    chapter_marks: list[float],
+    chapter_for_line: dict[int, tuple[int, str]],
+    chapter_starts: set[int] | None = None,
+) -> Image.Image:
+    profile = get_profile(spec)
+    frame = base.copy()
+    draw = ImageDraw.Draw(frame)
+    local = max(0.0, t - line.start)
+    c = spec.colors
+
+    _chrome(draw, profile, spec, brand, index, total)
+
+    # panel background first, then motif inside it
+    draw.rounded_rectangle(
+        (PANEL_X, PANEL_TOP, profile.width - profile.margin, PANEL_BOTTOM),
+        radius=28,
+        fill=_rgba(c["panel"], 235),
+        outline=_rgba(c["grid"], 255),
+        width=2,
+    )
+    # Motifs are drawn on their own layer and clipped to the plate, otherwise dense
+    # patterns (grid/chip) bleed past the panel edge into the frame.
+    motif_layer = Image.new("RGBA", frame.size, (0, 0, 0, 0))
+    _motif(ImageDraw.Draw(motif_layer), profile, spec, line.visual or "network", t, local)
+    mask = Image.new("L", frame.size, 0)
+    ImageDraw.Draw(mask).rounded_rectangle(
+        (PANEL_X, PANEL_TOP, profile.width - profile.margin, PANEL_BOTTOM), radius=24, fill=255
+    )
+    motif_alpha = motif_layer.getchannel("A").point(lambda value: value)
+    motif_layer.putalpha(ImageChops.multiply(motif_alpha, mask))
+    frame = Image.alpha_composite(frame, motif_layer)
+    draw = ImageDraw.Draw(frame)  # rebind: text must land on the composited frame
+
+    enter = _ease_out(local / 0.42)
+    offset = int((1 - enter) * 26)
+    max_width = TEXT_COL - 40
+
+    kicker = f"CHAPTER {chapter_for_line.get(index, (0, ''))[0]}" if index in chapter_for_line else brand[1]
+    draw.text((profile.margin, PANEL_TOP + offset), kicker, font=_font(SMALL_FONT, 24), fill=c["accent"])
+
+    headline_font, headline_lines = _headline(draw, profile, spec, line.headline or line.caption or " ", max_width)
+    y = PANEL_TOP + 52 + offset
+    for text_line in headline_lines:
+        draw.text((profile.margin, y), text_line, font=headline_font, fill=_rgba(c["text"], int(255 * enter)))
+        y += int(headline_font.size * 1.14)
+
+    rule_y = y + 18
+    draw.rounded_rectangle((profile.margin, rule_y, profile.margin + 120, rule_y + 6), radius=3, fill=_rgba(c["accent"], int(255 * enter)))
+
+    _body_block(draw, profile, spec, line.text, max_width, rule_y + 34, CAPTION_TOP - 34, enter)
+
+    _caption_band(draw, profile, spec, _active_chunk(_chunks(line), t), t)
+    _rail(draw, profile, spec, t / max(duration, 0.01), chapter_marks)
+
+    if chapter_starts and index in chapter_starts:
+        number, title = chapter_for_line[index]
+        card_start = line.start
+        card_alpha = max(0.0, 1.0 - max(0.0, local - 0.9) / 0.5)
+        if t - card_start < 1.4:
+            return _chapter_card(frame, spec, number, title, card_alpha)
+    return frame
+
+
+# ------------------------------------------------------------------- entry point
+
+
+def _chapter_map(
+    script: Script, lines: list[ScriptLine]
+) -> tuple[dict[int, tuple[int, str]], list[float], set[int]]:
+    """Map every line index to its (chapter number, title) and list chapter starts."""
+
+    chapters = script.metadata.get("chapters") or []
+    mapping: dict[int, tuple[int, str]] = {}
+    marks: list[float] = []
+    starts_set: set[int] = set()
+    if not chapters:
+        return mapping, marks, starts_set
+    starts = {index: line.start for index, line in enumerate(lines)}
+    total_duration = max((line.end for line in lines), default=1.0) or 1.0
+    resolved: list[tuple[int, int, str]] = []
+    for number, chapter in enumerate(chapters, 1):
+        try:
+            line_index = int(chapter.get("line", 0))
+        except (TypeError, ValueError):
+            continue
+        resolved.append((line_index, number, str(chapter.get("title", ""))))
+        starts_set.add(line_index)
+        if line_index in starts:
+            marks.append(min(1.0, starts[line_index] / total_duration))
+    resolved.sort()
+    # Forward-fill: every line after a chapter start belongs to that chapter, so the
+    # kicker keeps naming the active chapter instead of falling back to the brand tag.
+    for index in range(len(lines)):
+        current = None
+        for start_index, number, title in resolved:
+            if start_index <= index:
+                current = (number, title)
+        if current:
+            mapping[index] = current
+    return mapping, marks, starts_set
+
+
+def render_landscape(
+    script: Script,
+    narration: Narration,
+    spec: ChannelSpec,
+    output_path: Path | str,
+    *,
+    force: bool = False,
+) -> dict[str, Any]:
+    """Render a 1920x1080 long-form episode and return a machine-readable result."""
+
+    output_path = Path(output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    if output_path.is_file() and not force:
+        raise FileExistsError(f"output already exists: {output_path}")
+
+    profile = get_profile(spec)
+    lines = narration.lines or script.lines
+    if not lines:
+        raise ValueError("no narration timeline")
+    duration = max(narration.duration, max(line.end for line in lines) + 0.6)
+
+    work_dir = output_path.parent / f"{output_path.stem}_work"
+    work_dir.mkdir(parents=True, exist_ok=True)
+    bed_path = work_dir / "bed.wav"
+    mixed_audio = work_dir / "mixed.m4a"
+    make_bed(duration, spec.palette, [line.start for line in lines[1:]], bed_path)
+    mix_narration(narration.audio_path, bed_path, mixed_audio, duration)
+
+    brand = BRAND.get(spec.slug, (spec.display_name.upper(), "BRIEF", spec.handle))
+    base = _base(profile, spec)
+    chapter_for_line, chapter_marks, chapter_starts = _chapter_map(script, lines)
+    total_frames = max(1, int(math.ceil(duration * FPS_TARGET)))
+
+    command = [
+        "ffmpeg", "-y",
+        "-f", "rawvideo", "-pix_fmt", "rgb24",
+        "-s", f"{profile.width}x{profile.height}",
+        "-r", str(FPS_TARGET), "-i", "-",
+        "-i", str(mixed_audio),
+        "-c:v", "libx264", "-preset", "veryfast", "-crf", "20",
+        "-pix_fmt", "yuv420p",
+        "-c:a", "aac", "-b:a", "192k",
+        "-shortest", "-movflags", "+faststart",
+        str(output_path),
+    ]
+    process = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    assert process.stdin is not None
+    try:
+        for frame_index in range(total_frames):
+            t = frame_index / FPS_TARGET
+            line, line_index = _active_line(lines, t)
+            frame = _draw_frame(
+                base, line, t, duration, line_index, len(lines), spec, brand,
+                chapter_marks, chapter_for_line, chapter_starts,
+            )
+            process.stdin.write(frame.convert("RGB").tobytes())
+        process.stdin.close()
+        stderr = process.stderr.read().decode("utf-8", errors="replace") if process.stderr else ""
+        code = process.wait(timeout=1800)
+        if code != 0:
+            raise RuntimeError(f"ffmpeg video encode failed: {stderr[-3000:]}")
+    except Exception:
+        process.kill()
+        raise
+
+    streams = ffprobe_streams(output_path)
+    payload = {
+        "video_path": str(output_path),
+        "duration": round(duration, 3),
+        "size": output_path.stat().st_size,
+        "profile": "16:9",
+        "chapters": [chapter.get("title", "") for chapter in (script.metadata.get("chapters") or [])],
+        "streams": [
+            {
+                "codec_type": stream.get("codec_type"),
+                "codec_name": stream.get("codec_name"),
+                "width": stream.get("width"),
+                "height": stream.get("height"),
+            }
+            for stream in streams.get("streams", [])
+        ],
+        "rendered_at": iso_now(),
+    }
+    (output_path.parent / "render.json").write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    (output_path.parent / "timeline.json").write_text(json.dumps(narration.to_dict(), ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    (output_path.parent / "script.json").write_text(json.dumps(script.to_dict(), ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    return payload
+
+
+def _active_line(lines: list[ScriptLine], t: float) -> tuple[ScriptLine, int]:
+    for index, line in enumerate(lines):
+        if line.start <= t < line.end:
+            return line, index
+    if t < lines[0].start:
+        return lines[0], 0
+    return lines[-1], len(lines) - 1
