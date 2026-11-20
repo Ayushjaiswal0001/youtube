@@ -80,6 +80,9 @@ def render(name: str, pose: str, viseme: str, t: float, talking: float,
 
 def base_dict(character_id: str = "chiku") -> dict:
     schema = load_schema(character_id)
+    raw_shapes = json.loads(
+        (Path("content/characters") / f"{character_id}.json").read_text(encoding="utf-8")
+    )["shapes"]
     return {
         "schema_version": 1,
         "id": character_id,
@@ -91,6 +94,7 @@ def base_dict(character_id: str = "chiku") -> dict:
         "palette": {k: list(v) for k, v in schema.palette.items()},
         "proportions": dict(schema.proportions.values),
         "timing": {name: getattr(schema.timing, name) for name in REQUIRED_TIMING},
+        "shapes": raw_shapes,
         "mouth": {
             "anchor_y": schema.mouth.anchor_y,
             "size": schema.mouth.size,

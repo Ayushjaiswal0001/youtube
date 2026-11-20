@@ -23,9 +23,17 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Mapping, Sequence, Tuple
 
+from studio.characters.shapes import Shape, ShapeError
+
 CHARACTER_DIR = Path(__file__).resolve().parent.parent.parent / "content" / "characters"
 
 ARCHETYPES = ("monkey", "mouse")
+
+# Shapes every character of an archetype must define, so a typo fails at load time.
+REQUIRED_SHAPES = {
+    "monkey": ("tail", "chest_patch", "vest", "buttons", "hair_tuft", "nose_shine"),
+    "mouse": ("tail", "bowtie", "bowtie_knot", "whiskers"),
+}
 FEATURES = ("tail", "hair_tuft", "vest", "whiskers", "spectacles", "bowtie")
 
 # Every proportion the rigs read. Keeping the list closed makes typos loud.
@@ -248,6 +256,7 @@ class CharacterSchema:
     features: List[str] = field(default_factory=list)
     mouth: MouthConfig = MouthConfig(12.0, 1.0, 3.5, 5.0, 4.0)
     eyes: EyeConfig = field(default_factory=EyeConfig.from_dict)
+    shapes: Mapping[str, Shape] = field(default_factory=dict)
     expressions: Mapping[str, Mapping[str, float]] = field(default_factory=dict)
     source_path: str = ""
 
@@ -262,6 +271,15 @@ class CharacterSchema:
 
     def has(self, feature: str) -> bool:
         return feature in self.features
+
+    def shape(self, name: str) -> Shape:
+        try:
+            return self.shapes[name]
+        except KeyError as exc:
+            raise SchemaError(
+                f"{self.character_id}: shape '{name}' is not defined "
+                f"(defined: {', '.join(sorted(self.shapes)) or 'none'})"
+            ) from exc
 
     # -- construction --------------------------------------------------------
 
@@ -346,6 +364,22 @@ class CharacterSchema:
 
         eye_config = EyeConfig.from_dict(data.get("eyes"), source=source)
 
+        raw_shapes = data.get("shapes") or {}
+        if not isinstance(raw_shapes, Mapping):
+            raise SchemaError(f"{source}: shapes must be an object")
+        shapes: Dict[str, Shape] = {}
+        for name, definition in raw_shapes.items():
+            try:
+                shapes[str(name)] = Shape.from_dict(definition, f"{source}:{name}")
+            except ShapeError as exc:
+                raise SchemaError(str(exc)) from exc
+        missing_shapes = [name for name in REQUIRED_SHAPES[archetype] if name not in shapes]
+        if missing_shapes:
+            raise SchemaError(
+                f"{source}: missing shape(s) for archetype '{archetype}': "
+                f"{', '.join(missing_shapes)}"
+            )
+
         expressions: Dict[str, Dict[str, float]] = {}
         raw_expressions = data.get("expressions") or {}
         if not isinstance(raw_expressions, Mapping):
@@ -374,6 +408,7 @@ class CharacterSchema:
             features=features,
             mouth=mouth_config,
             eyes=eye_config,
+            shapes=shapes,
             expressions=expressions,
             source_path=source,
         )

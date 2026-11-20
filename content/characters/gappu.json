@@ -210,5 +210,143 @@
     "saccade_rate": 0.72,
     "saccade_travel": 0.085,
     "micro_saccade": 0.045
+  },
+  "shapes": {
+    "tail": {
+      "kind": "stroke",
+      "origin": [
+        20,
+        -110
+      ],
+      "width": 8.0,
+      "fill": "tail",
+      "outline": "outline",
+      "outline_width": 3.0,
+      "commands": [
+        [
+          "M",
+          0,
+          0
+        ],
+        [
+          "C",
+          60,
+          20,
+          90,
+          -50,
+          70,
+          -90
+        ]
+      ],
+      "wave": [
+        0.0,
+        30.0,
+        -25.0,
+        15.0
+      ]
+    },
+    "bowtie": {
+      "kind": "filled",
+      "origin": [
+        0,
+        -56
+      ],
+      "fill": "bowtie",
+      "outline": "outline",
+      "outline_width": 3.0,
+      "commands": [
+        [
+          "M",
+          0,
+          0
+        ],
+        [
+          "L",
+          -22,
+          -12
+        ],
+        [
+          "L",
+          -22,
+          12
+        ],
+        [
+          "Z"
+        ],
+        [
+          "M",
+          0,
+          0
+        ],
+        [
+          "L",
+          22,
+          -12
+        ],
+        [
+          "L",
+          22,
+          12
+        ],
+        [
+          "Z"
+        ]
+      ]
+    },
+    "bowtie_knot": {
+      "kind": "ellipse",
+      "origin": [
+        0,
+        -56
+      ],
+      "center": [
+        0,
+        0
+      ],
+      "rx": 7,
+      "ry": 7,
+      "fill": "bowtie",
+      "outline": "outline",
+      "width": 3.0
+    },
+    "whiskers": {
+      "kind": "segments",
+      "width": 2.5,
+      "fill": "outline",
+      "points": [
+        [
+          -25,
+          10
+        ],
+        [
+          -75,
+          5
+        ],
+        [
+          -25,
+          16
+        ],
+        [
+          -72,
+          22
+        ],
+        [
+          25,
+          10
+        ],
+        [
+          75,
+          5
+        ],
+        [
+          25,
+          16
+        ],
+        [
+          72,
+          22
+        ]
+      ]
+    }
   }
 }

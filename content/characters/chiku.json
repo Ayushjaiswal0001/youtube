@@ -197,5 +197,154 @@
     "saccade_rate": 0.55,
     "saccade_travel": 0.09,
     "micro_saccade": 0.035
+  },
+  "shapes": {
+    "tail": {
+      "kind": "stroke",
+      "origin": [
+        -25,
+        -160
+      ],
+      "width": 20.0,
+      "fill": "fur",
+      "outline": "outline",
+      "outline_width": 4.0,
+      "commands": [
+        [
+          "M",
+          0,
+          0
+        ],
+        [
+          "C",
+          -70,
+          30,
+          -110,
+          -60,
+          -80,
+          -120
+        ]
+      ],
+      "wave": [
+        0.0,
+        40.0,
+        -30.0,
+        20.0
+      ]
+    },
+    "chest_patch": {
+      "kind": "ellipse",
+      "center": [
+        0,
+        5
+      ],
+      "rx": 42,
+      "ry": 60,
+      "fill": "muzzle"
+    },
+    "vest": {
+      "kind": "filled",
+      "fill": "vest",
+      "outline": "outline",
+      "outline_width": 3.5,
+      "mirror": true,
+      "commands": [
+        [
+          "M",
+          -52,
+          -55
+        ],
+        [
+          "C",
+          -65,
+          0,
+          -60,
+          45,
+          -45,
+          60
+        ],
+        [
+          "L",
+          -18,
+          60
+        ],
+        [
+          "C",
+          -30,
+          20,
+          -30,
+          -30,
+          -25,
+          -55
+        ],
+        [
+          "Z"
+        ]
+      ]
+    },
+    "buttons": {
+      "kind": "dots",
+      "r": 5.0,
+      "fill": "vest_trim",
+      "points": [
+        [
+          -12,
+          10
+        ],
+        [
+          -12,
+          35
+        ]
+      ]
+    },
+    "hair_tuft": {
+      "kind": "filled",
+      "fill": "fur",
+      "outline": "outline",
+      "outline_width": 3.5,
+      "commands": [
+        [
+          "M",
+          -15,
+          -82
+        ],
+        [
+          "C",
+          0,
+          -112,
+          10,
+          -108,
+          0,
+          -82
+        ],
+        [
+          "C",
+          15,
+          -105,
+          25,
+          -95,
+          12,
+          -80
+        ],
+        [
+          "Z"
+        ]
+      ]
+    },
+    "nose_shine": {
+      "kind": "ellipse",
+      "center": [
+        -3,
+        -10
+      ],
+      "rx": 3,
+      "ry": 2,
+      "fill": [
+        1.0,
+        1.0,
+        1.0,
+        0.7
+      ]
+    }
   }
 }

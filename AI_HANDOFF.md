@@ -50,6 +50,21 @@ They are disjoint, so there is no conflict either way. Recommended order: **#2 f
 (it fixes the runner install that T12 needs), then **#3**. Both stay unmerged until the
 owner approves.
 
+### Shape data (T30b)
+
+`content/characters/*.json` → `shapes` → `studio/characters/shapes.py`. Five kinds:
+`stroke`, `filled`, `ellipse`, `dots`, `segments`. Commands are `M/L/C/Q/Z`.
+
+- `wave` is a per-point list of x multipliers; `x += wave[i] * wave_value` is how the tail
+  swings, so keep its length equal to the path's point count (validated).
+- `mirror: true` draws a second copy with every x negated — that is the vest's other panel.
+- Colours are palette keys or explicit `[r, g, b, a]`.
+- `REQUIRED_SHAPES` in `schema.py` lists what each archetype must define, so a missing shape
+  fails at load rather than drawing nothing.
+- Verification command after touching a rig or a shape:
+  `python -m tools.capture_goldens --check` must print `78 frames, 0 changed`.
+- Still drawn in code: spectacles and their glints, the muzzle mask, and limb capsules.
+
 ### Locomotion (T33)
 
 `MotionController(mode, duration, seed, distance, facing).state_at(t)` returns a `BodyState`;

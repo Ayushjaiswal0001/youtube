@@ -7,6 +7,7 @@ from typing import Optional, Tuple
 import cairo
 from studio.characters.eyes import draw_brows, draw_eyes
 from studio.characters.mouth import draw_mouth
+from studio.characters.shapes import draw_shape
 from studio.characters.schema import CharacterSchema, load_schema
 from studio.characters.rig_base import (
     JointNode, Viseme, draw_ellipse, draw_capsule,
@@ -250,26 +251,8 @@ class ChikuRig:
         draw_ellipse(cr, 0, 0, P.shadow_rx * shadow_scale, P.shadow_ry * shadow_scale,
                      fill_color=(0.1, 0.1, 0.15, 0.25 * shadow_scale))
 
-        # 2. Tail (curved bezier path behind torso)
-        cr.save()
-        cr.translate(-25, -160)
-        cr.set_source_rgba(*COLOR_FUR)
-        cr.set_line_width(20)
-        cr.set_line_cap(cairo.LINE_CAP_ROUND)
-        cr.move_to(0, 0)
-        # Tail wave key points
-        c1x = -70 + self.tail_wave * 40
-        c1y = 30
-        c2x = -110 - self.tail_wave * 30
-        c2y = -60
-        endx = -80 + self.tail_wave * 20
-        endy = -120
-        cr.curve_to(c1x, c1y, c2x, c2y, endx, endy)
-        cr.stroke_preserve()
-        cr.set_source_rgba(*COLOR_OUTLINE)
-        cr.set_line_width(4)
-        cr.stroke()
-        cr.restore()
+        # 2. Tail (data: shapes.tail, wags with the timing profile)
+        draw_shape(cr, self.schema.shape("tail"), self.schema.palette, wave=self.tail_wave)
 
         # 3. Legs
         # Left Leg (back)
@@ -299,34 +282,11 @@ class ChikuRig:
         draw_ellipse(cr, 0, 0, P.torso_rx, P.torso_ry, fill_color=COLOR_FUR, stroke_color=COLOR_OUTLINE, stroke_width=4)
 
         # Peach chest patch
-        draw_ellipse(cr, 0, 5, 42, 60, fill_color=COLOR_MUZZLE)
+        draw_shape(cr, self.schema.shape("chest_patch"), self.schema.palette)
 
-        # Red Cartoon Vest
-        cr.set_source_rgba(*COLOR_VEST)
-        cr.move_to(-52, -55)
-        cr.curve_to(-65, 0, -60, 45, -45, 60)
-        cr.line_to(-18, 60)
-        cr.curve_to(-30, 20, -30, -30, -25, -55)
-        cr.close_path()
-        cr.fill_preserve()
-        cr.set_source_rgba(*COLOR_OUTLINE)
-        cr.set_line_width(3.5)
-        cr.stroke()
-
-        cr.set_source_rgba(*COLOR_VEST)
-        cr.move_to(52, -55)
-        cr.curve_to(65, 0, 60, 45, 45, 60)
-        cr.line_to(18, 60)
-        cr.curve_to(30, 20, 30, -30, 25, -55)
-        cr.close_path()
-        cr.fill_preserve()
-        cr.set_source_rgba(*COLOR_OUTLINE)
-        cr.set_line_width(3.5)
-        cr.stroke()
-
-        # Vest gold buttons
-        draw_ellipse(cr, -12, 10, 5, 5, fill_color=COLOR_VEST_TRIM)
-        draw_ellipse(cr, -12, 35, 5, 5, fill_color=COLOR_VEST_TRIM)
+        # Red Cartoon Vest (data: shapes.vest, one panel mirrored for the other side)
+        draw_shape(cr, self.schema.shape("vest"), self.schema.palette)
+        draw_shape(cr, self.schema.shape("buttons"), self.schema.palette)
 
         # 5. Arms
         # Left Arm
@@ -361,16 +321,8 @@ class ChikuRig:
         # Main Head Circle
         draw_ellipse(cr, 0, P.head_center_y, P.head_rx, P.head_ry, fill_color=COLOR_FUR, stroke_color=COLOR_OUTLINE, stroke_width=4)
 
-        # Cute hair tuft on top
-        cr.set_source_rgba(*COLOR_FUR)
-        cr.move_to(-15, -82)
-        cr.curve_to(0, -112, 10, -108, 0, -82)
-        cr.curve_to(15, -105, 25, -95, 12, -80)
-        cr.close_path()
-        cr.fill_preserve()
-        cr.set_source_rgba(*COLOR_OUTLINE)
-        cr.set_line_width(3.5)
-        cr.stroke()
+        # Cute hair tuft on top (data: shapes.hair_tuft)
+        draw_shape(cr, self.schema.shape("hair_tuft"), self.schema.palette)
 
         # Peach Face Muzzle Mask
         cr.save()
@@ -380,7 +332,7 @@ class ChikuRig:
         # Nose
         draw_ellipse(cr, 0, P.nose_y, P.nose_rx, P.nose_ry, fill_color=COLOR_NOSE)
         # Nose shine
-        draw_ellipse(cr, -3, -10, 3, 2, fill_color=(1.0, 1.0, 1.0, 0.7))
+        draw_shape(cr, self.schema.shape("nose_shine"), self.schema.palette)
 
         # Mouth: shape comes from the viseme timeline, amplitude from the narration.
         draw_mouth(cr, self.viseme, self.mouth_open, anchor_y=self.schema.mouth.anchor_y,

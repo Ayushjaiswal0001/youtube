@@ -226,6 +226,20 @@ which is how the T33 state reset slipped past the suite.
 - This pins the drawing of every pose the story engine can request, so the next refactor
   cannot change one silently.
 
+## 3i. Data-driven drawing shapes (T30b) — measured
+
+Tail beziers, the vest panels, the hair tuft, the chest patch, the buttons, the bowtie, the
+knot, the whiskers and the nose shine are now `shapes` data in `content/characters/*.json`,
+interpreted by `studio/characters/shapes.py`.
+
+| Check | Result |
+| --- | --- |
+| Pixel parity | `python -m tools.capture_goldens --check` → **78 frames, 0 changed, 0 new** |
+| Manifest goldens | the eight original frames still reproduce byte-for-byte |
+| Suite | **228 passed** |
+| Validation | unknown shape kind, unknown path command, wrong argument count, non-numeric coordinate, bad `[x, y]`, wave length mismatch, colour missing from the palette and missing archetype-required shapes all raise a readable `SchemaError` |
+| Still code | spectacles (lenses, glints, bridge), ear/hand/foot placement (already proportions), and the muzzle mask |
+
 ## 4. Not yet executed
 
 | Test | Status |

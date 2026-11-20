@@ -7,9 +7,11 @@ the renderer must draw every expression without falling over.
 
 from __future__ import annotations
 
+import json
 import math
 import statistics
 import unittest
+from pathlib import Path
 from dataclasses import replace
 
 import cairo
@@ -277,6 +279,9 @@ class ControllerTests(unittest.TestCase):
                        ("blink_period", "blink_duration", "blink_phase", "breath_rate",
                         "breath_phase", "breath_amplitude", "sway_rate", "sway_amplitude",
                         "tail_rate", "tail_amplitude", "idle_arm_rate")},
+            "shapes": json.loads(
+                (Path("content/characters/chiku.json")).read_text(encoding="utf-8")
+            )["shapes"],
             "expressions": {"happy": {"lid_closed": 0.9, "gaze_x": -0.5}},
         }
         schema = CharacterSchema.from_dict(data)

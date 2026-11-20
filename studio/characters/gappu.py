@@ -7,6 +7,7 @@ from typing import Optional, Tuple
 import cairo
 from studio.characters.eyes import draw_brows, draw_eyes
 from studio.characters.mouth import draw_mouth
+from studio.characters.shapes import draw_shape
 from studio.characters.schema import CharacterSchema, load_schema
 from studio.characters.rig_base import (
     JointNode, Viseme, draw_ellipse, draw_capsule,
@@ -232,25 +233,8 @@ class GappuRig:
                      fill_color=(COLOR_SHADOW[0], COLOR_SHADOW[1], COLOR_SHADOW[2],
                                  COLOR_SHADOW[3] * shadow_scale))
 
-        # 2. Long Thin Mouse Tail
-        cr.save()
-        cr.translate(20, -110)
-        cr.set_source_rgba(*COLOR_TAIL)  # pinkish mouse tail
-        cr.set_line_width(8)
-        cr.set_line_cap(cairo.LINE_CAP_ROUND)
-        cr.move_to(0, 0)
-        c1x = 60 + self.tail_wave * 30
-        c1y = 20
-        c2x = 90 - self.tail_wave * 25
-        c2y = -50
-        endx = 70 + self.tail_wave * 15
-        endy = -90
-        cr.curve_to(c1x, c1y, c2x, c2y, endx, endy)
-        cr.stroke_preserve()
-        cr.set_source_rgba(*COLOR_OUTLINE)
-        cr.set_line_width(3)
-        cr.stroke()
-        cr.restore()
+        # 2. Long Thin Mouse Tail (data: shapes.tail)
+        draw_shape(cr, self.schema.shape("tail"), self.schema.palette, wave=self.tail_wave)
 
         # 3. Feet
         # Left Foot
@@ -271,24 +255,9 @@ class GappuRig:
         # Light tummy patch
         draw_ellipse(cr, 0, P.muzzle_y, P.muzzle_rx, P.muzzle_ry, fill_color=COLOR_FUR_LIGHT)
 
-        # Cute Lime-Green Bowtie
-        cr.save()
-        cr.translate(0, -56)
-        cr.set_source_rgba(*COLOR_BOWTIE)
-        cr.move_to(0, 0)
-        cr.line_to(-22, -12)
-        cr.line_to(-22, 12)
-        cr.close_path()
-        cr.move_to(0, 0)
-        cr.line_to(22, -12)
-        cr.line_to(22, 12)
-        cr.close_path()
-        cr.fill_preserve()
-        cr.set_source_rgba(*COLOR_OUTLINE)
-        cr.set_line_width(3.0)
-        cr.stroke()
-        draw_ellipse(cr, 0, 0, 7, 7, fill_color=COLOR_BOWTIE, stroke_color=COLOR_OUTLINE, stroke_width=3.0)
-        cr.restore()
+        # Cute Lime-Green Bowtie (data: shapes.bowtie + shapes.bowtie_knot)
+        draw_shape(cr, self.schema.shape("bowtie"), self.schema.palette)
+        draw_shape(cr, self.schema.shape("bowtie_knot"), self.schema.palette)
 
         # 5. Arms
         # Left Arm
@@ -323,15 +292,8 @@ class GappuRig:
         # Head Base
         draw_ellipse(cr, 0, P.head_center_y, P.head_rx, P.head_ry, fill_color=COLOR_FUR, stroke_color=COLOR_OUTLINE, stroke_width=4)
 
-        # Whiskers!
-        cr.set_source_rgba(*COLOR_OUTLINE)
-        cr.set_line_width(2.5)
-        # Left Whiskers
-        cr.move_to(-25, 10); cr.line_to(-75, 5); cr.stroke()
-        cr.move_to(-25, 16); cr.line_to(-72, 22); cr.stroke()
-        # Right Whiskers
-        cr.move_to(25, 10); cr.line_to(75, 5); cr.stroke()
-        cr.move_to(25, 16); cr.line_to(72, 22); cr.stroke()
+        # Whiskers (data: shapes.whiskers)
+        draw_shape(cr, self.schema.shape("whiskers"), self.schema.palette)
 
         # Pink Mouse Nose
         draw_ellipse(cr, 0, P.nose_y, P.nose_rx, P.nose_ry, fill_color=COLOR_NOSE, stroke_color=COLOR_OUTLINE, stroke_width=2.5)
