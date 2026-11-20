@@ -41,6 +41,25 @@ may import the API layer.
 | `factory/publisher.py` | 165 | `build_upload_data`, `publish_episode`, `analytics_for` |
 | `studio/*` (partial) | 4 files | PyCairo rig/background/scene engine for Hindi |
 
+## 2b. Plan generation (autonomy layer)
+
+```
+content/topics/<slug>.json     ──> next_english_plan   ─┐
+content/series/<slug>.json     ──> next_natkhat_plan   ─┤─> content/batch_<date>.json
+pipeline_state/<slug>/history  ──> duplicate guard      ─┘        │
+pipeline_state/<slug>/series    ──> episode order guard           v
+                                                        load_plans_for (all batches)
+```
+
+* English: each call claims the next unused topic; a topic already in the batch or in
+  history is skipped, so nothing repeats. Exhaustion raises `PlanGenerationError`.
+* Natkhat: `series.json` holds `active_series`, `next_episode`, `completed`. The next
+  episode is only planned when the previous one has status `uploaded`
+  (`--allow-unpublished` overrides for dry runs). `publisher.publish_episode` calls
+  `advance_after_publish` after a real upload, and a finished series rolls to the next.
+* Batch files are additive: `load_plans_for` merges every `batch_*.json`, oldest first,
+  de-duplicated by plan id, so pending plans survive a new day's batch.
+
 ## 3. Render pipeline (per episode)
 
 ```
@@ -96,12 +115,17 @@ rather than editing code.
 
 ```
 .github/workflows/
-  ci.yml                    # exists: compileall + unittest on 3.11/3.12
-  produce-nexus.yml         # cron 14:30 UTC (20:00 IST)  -> render, QC, upload, verify
-  produce-academic.yml      # cron 06:30 UTC (12:00 IST)
-  produce-natkhat.yml       # cron 12:30 UTC (18:00 IST)
-  keepalive.yml             # (optional) refresh OAuth before 7-day expiry
+  ci.yml                          # uploader (3.11/3.12 unittest) + factory (deps + 27 tests)
+  produce.yml                     # reusable: plan -> render -> qc -> verify -> upload -> artifacts
+  produce-nexus-node.yml          # cron 30 14 * * *  (20:00 IST)
+  produce-academic-biohacker.yml  # cron 30 6  * * *  (12:00 IST)
+  produce-natkhat-toons.yml       # cron 30 12 * * *  (18:00 IST)
 ```
+
+State survives runs through `actions/cache/restore`/`save` of `pipeline_state/` and
+`.state/youtube` with a rolling `state-<channel>-` prefix. Uploads are skipped with a
+warning when the channel's secrets are absent, so a dry dispatch never fails on auth.
+**None of the produce workflows has been executed yet.**
 
 Each produce workflow: `workflow_dispatch` + `schedule` + `concurrency` lock +
 `timeout-minutes` + retry wrapper + artifact upload (`build/`, `qc.json`,

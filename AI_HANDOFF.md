@@ -16,6 +16,17 @@ project. Treat preservation as task zero.
 
 ## 2. Exact next development task
 
+**T12 — prove the workflows can run before trusting them.**
+
+Everything below (T5) is done. `produce.yml` plus the three `produce-*.yml` callers
+exist but have never executed, because this clone still cannot push. The next
+developer must: push the branch to `Ayushjaiswal0001/youtube` (owner-side access),
+dispatch `produce-nexus-node.yml` with `upload: false`, and confirm PyCairo builds,
+Chrome is found via `CHROME_PATH`, Edge-TTS reaches the network, and `QC` passes on
+the runner. Only then provision secrets (T15) and enable schedules.
+
+## 2b. Previously the next task (completed)
+
 **T5 — restore the missing `studio/` modules, then re-render one Natkhat episode.**
 
 Copy from `D:\animated\studio\` into the repo's `studio/`:
@@ -88,7 +99,7 @@ by rolling it back.
 
 | Blocker | Evidence |
 | --- | --- |
-| No push rights | `git push --dry-run` → `403 ... denied to Ayushjaiswal001`; `permissions.push: false`. Account `Ayushjaiswal001` ≠ repo owner `Ayushjaiswal0001`. |
+| No push rights | `git push --dry-run` → `403 ... denied to Ayushjaiswal001`; `permissions.push: false`. Account `Ayushjaiswal001` ≠ repo owner `Ayushjaiswal0001`. **Owner rule: only `Ayushjaiswal0001/youtube` may be used — never fork to, mirror to, or push through `Ayushjaiswal001`.** |
 | Hindi render broken | `ModuleNotFoundError: studio.pipeline.episode` |
 | No Actions secrets | `gh api .../actions/secrets` → 403 (insufficient permission); workflows would fail at auth |
 | Assets untracked | global `*.wav` in `.gitignore` |

@@ -238,3 +238,8 @@ output/
 
 # Renderer assets are part of the pipeline and must be tracked
 !assets/**/*.wav
+
+# CI-written credentials and runtime state (never commit)
+.secrets/
+.state/
+pipeline_state/**/studio_data/

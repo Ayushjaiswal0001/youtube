@@ -11,6 +11,7 @@ Last audited: 2026-11-20 (repository HEAD `a69474c` + uncommitted work on
 | Item | Value |
 | --- | --- |
 | Canonical repository | `https://github.com/Ayushjaiswal0001/youtube` (**public**) |
+| Canonical repository (only one allowed) | `https://github.com/Ayushjaiswal0001/youtube` (**public**). Never fork to, mirror to, or push from `Ayushjaiswal001`; that account is not this project. |
 | Working clone | `C:\Users\DELL\AppData\Local\Temp\opencode\youtube` |
 | Default branch | `main` @ `a69474c` |
 | Development branch | `feat/autonomous-multichannel-factory` (unpushed) |
