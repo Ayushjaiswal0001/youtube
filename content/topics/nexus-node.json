@@ -1,0 +1,252 @@
+{
+  "channel": "nexus-node",
+  "version": 1,
+  "topics": [
+    {
+      "id": "nexus-data-wall",
+      "title": "AI Is Running Out of Text",
+      "topic": "the data wall in AI training",
+      "angle": "why high-quality text is becoming the bottleneck",
+      "slot": "pm",
+      "tags": ["ai", "llm", "training-data"],
+      "sources": [
+        "https://arxiv.org/search/?query=data+wall+language+model",
+        "https://www.epochai.org/research"
+      ],
+      "hook": "AI companies spent years chasing more compute. The next shortage is stranger: readable text.",
+      "hook_headline": "The next shortage",
+      "hook_visual": "grid",
+      "beats": [
+        {
+          "text": "Large models are trained on trillions of words scraped from the open web, books, code and subtitles.",
+          "headline": "Trillions of words",
+          "visual": "network"
+        },
+        {
+          "text": "That pool is finite, and the best quality slice of it is smaller than most people assume.",
+          "headline": "A finite pool",
+          "visual": "bars"
+        },
+        {
+          "text": "Publishers are restricting crawlers, and licensed archives cost real money, so fresh supply is tightening.",
+          "headline": "Supply tightening",
+          "visual": "shield"
+        },
+        {
+          "text": "The workaround is synthetic data, human feedback or smaller models trained on cleaner, curated text.",
+          "headline": "Three workarounds",
+          "visual": "nodes"
+        }
+      ],
+      "payoff": "The winners may not be the labs with the most data, but the ones with the cleanest way to replace it.",
+      "payoff_headline": "Quality beats volume",
+      "cta": "Follow for more on how AI actually gets built.",
+      "cta_headline": "Follow"
+    },
+    {
+      "id": "nexus-on-device",
+      "title": "The AI Moving Onto Your Phone",
+      "topic": "on-device AI inference",
+      "angle": "why small local models are suddenly competitive",
+      "slot": "pm",
+      "tags": ["ai", "edge", "hardware"],
+      "sources": [
+        "https://arxiv.org/search/?query=on-device+language+model+inference",
+        "https://mlcommons.org/benchmarks/"
+      ],
+      "hook": "The most useful AI of the next few years may never leave your phone.",
+      "hook_headline": "Local first",
+      "hook_visual": "device",
+      "beats": [
+        {
+          "text": "Running a model on-device removes network latency, cloud bills and most privacy questions in one move.",
+          "headline": "Three problems gone",
+          "visual": "shield"
+        },
+        {
+          "text": "Quantisation and distillation shrink models to a few billion parameters without destroying everyday reasoning.",
+          "headline": "Smaller, not dumber",
+          "visual": "bars"
+        },
+        {
+          "text": "Phone chips now ship dedicated neural hardware measured in tens of trillions of operations per second.",
+          "headline": "Neural silicon",
+          "visual": "chip"
+        },
+        {
+          "text": "The catch is memory bandwidth and battery, which is why tiny models still beat big ones on a handset.",
+          "headline": "The catch",
+          "visual": "battery"
+        }
+      ],
+      "payoff": "Expect hybrids: a small model handling the everyday work, and the cloud called only for the hard questions.",
+      "payoff_headline": "Hybrid by default",
+      "cta": "Follow for more on where AI is heading.",
+      "cta_headline": "Follow"
+    },
+    {
+      "id": "nexus-power-grid",
+      "title": "AI's Real Limit Is Electricity",
+      "topic": "data centre energy demand",
+      "angle": "why power, not chips, constrains AI growth",
+      "slot": "pm",
+      "tags": ["ai", "energy", "infrastructure"],
+      "sources": [
+        "https://www.iea.org/reports/energy-and-ai",
+        "https://www.lbnl.gov/"
+      ],
+      "hook": "A GPU you cannot power is a very expensive paperweight.",
+      "hook_headline": "Power, not chips",
+      "hook_visual": "grid",
+      "beats": [
+        {
+          "text": "Training and serving large models turns electricity into answers, and demand is climbing fast.",
+          "headline": "Electricity in, answers out",
+          "visual": "flow"
+        },
+        {
+          "text": "Grid connections, transformers and cooling now take longer to secure than the servers themselves.",
+          "headline": "The slow part",
+          "visual": "clock"
+        },
+        {
+          "text": "That is pushing operators toward dedicated power contracts, on-site generation and colder climates.",
+          "headline": "New siting rules",
+          "visual": "map"
+        },
+        {
+          "text": "Efficiency work, from better chips to smarter batching, quietly decides who can afford to scale.",
+          "headline": "Efficiency is strategy",
+          "visual": "bars"
+        }
+      ],
+      "payoff": "Watch the power purchase agreements, not the benchmark charts. They predict the next model release.",
+      "payoff_headline": "Follow the watts",
+      "cta": "Follow for more on the systems behind AI.",
+      "cta_headline": "Follow"
+    },
+    {
+      "id": "nexus-robot-video",
+      "title": "Robots Learn by Watching Video",
+      "topic": "video pretraining for robots",
+      "angle": "how internet video becomes robot skill",
+      "slot": "pm",
+      "tags": ["ai", "robotics", "video"],
+      "sources": [
+        "https://arxiv.org/search/?query=robot+learning+from+video",
+        "https://robotics-transformer.github.io/"
+      ],
+      "hook": "Robots used to need demonstrations. Now they are learning from videos anyone can record.",
+      "hook_headline": "Watch and learn",
+      "hook_visual": "camera",
+      "beats": [
+        {
+          "text": "A robot arm needs thousands of examples to learn one grasp, and human demonstrations are slow and costly.",
+          "headline": "The data problem",
+          "visual": "bars"
+        },
+        {
+          "text": "Video pretraining lets a model watch ordinary footage first and infer how objects move and get held.",
+          "headline": "Pretrain on video",
+          "visual": "film"
+        },
+        {
+          "text": "The gap is action: a video shows what happened, not the exact forces a hand applied to make it happen.",
+          "headline": "Seeing is not doing",
+          "visual": "gap"
+        },
+        {
+          "text": "The fix is a small amount of real robot data to anchor the model, then scale with cheap footage.",
+          "headline": "Anchor, then scale",
+          "visual": "nodes"
+        }
+      ],
+      "payoff": "The future of robot training looks less like programming and more like a very large video library.",
+      "payoff_headline": "Video is the new manual",
+      "cta": "Follow for more on AI in the physical world.",
+      "cta_headline": "Follow"
+    },
+    {
+      "id": "nexus-open-weights",
+      "title": "Open Weights Are Catching Up",
+      "topic": "open weight language models",
+      "angle": "the shrinking gap between open and closed models",
+      "slot": "pm",
+      "tags": ["ai", "open-source", "models"],
+      "sources": [
+        "https://arxiv.org/search/?query=open+weight+language+models+evaluation",
+        "https://huggingface.co/models"
+      ],
+      "hook": "The gap between the best closed model and the best free one is now measured in months.",
+      "hook_headline": "Months, not years",
+      "hook_visual": "gap",
+      "beats": [
+        {
+          "text": "Open weight releases publish the trained parameters, so anyone can run, fine-tune or inspect the model.",
+          "headline": "What open weights means",
+          "visual": "box"
+        },
+        {
+          "text": "Each strong closed release is followed by open models that reach similar scores a few months later.",
+          "headline": "A shrinking lag",
+          "visual": "chart"
+        },
+        {
+          "text": "Teams pick open weights when they need privacy, offline use, or a model they can specialise cheaply.",
+          "headline": "Why teams switch",
+          "visual": "shield"
+        },
+        {
+          "text": "The trade-off is support, safety tooling and the engineering cost of running inference yourself.",
+          "headline": "The trade-off",
+          "visual": "scale"
+        }
+      ],
+      "payoff": "Open weights turn the model into a commodity. The product advantage moves to data and workflow.",
+      "payoff_headline": "The moat moves",
+      "cta": "Follow for more on the AI stack.",
+      "cta_headline": "Follow"
+    },
+    {
+      "id": "nexus-eval-problem",
+      "title": "Nobody Knows If AI Works",
+      "topic": "AI evaluation and benchmarks",
+      "angle": "why benchmarks leak and mislead",
+      "slot": "pm",
+      "tags": ["ai", "evaluation", "benchmarks"],
+      "sources": [
+        "https://arxiv.org/search/?query=benchmark+contamination+language+model",
+        "https://crfm.stanford.edu/helm/"
+      ],
+      "hook": "A benchmark score is only useful if the answers were not already in the training data.",
+      "hook_headline": "Test leakage",
+      "hook_visual": "grid",
+      "beats": [
+        {
+          "text": "Public test sets end up on the web, which means they can end up inside the next training run.",
+          "headline": "Contamination",
+          "visual": "flow"
+        },
+        {
+          "text": "A model that memorised the answers looks brilliant and fails the moment the question changes.",
+          "headline": "Memorised, not learned",
+          "visual": "gap"
+        },
+        {
+          "text": "Labs increasingly hold private test sets and rotate them, which makes scores harder to compare.",
+          "headline": "Private tests",
+          "visual": "lock"
+        },
+        {
+          "text": "Task-specific evaluation on your own data is the only number that predicts your results.",
+          "headline": "Measure your task",
+          "visual": "bars"
+        }
+      ],
+      "payoff": "Treat leaderboards as press releases and your own evaluation set as the actual spec.",
+      "payoff_headline": "Your data is the benchmark",
+      "cta": "Follow for more sober AI coverage.",
+      "cta_headline": "Follow"
+    }
+  ]
+}

@@ -58,6 +58,53 @@ class YouTubeApi:
             raise UploaderError(f"video lookup returned {len(items)} items for {video_id}")
         return items[0]
 
+    def videos_stats(self, video_ids: list[str]) -> list[dict[str, Any]]:
+        ids = [str(video_id) for video_id in video_ids if video_id]
+        if not ids:
+            return []
+        if len(ids) > 50:
+            raise UploaderError("videos.list supports at most 50 IDs per request")
+        return self._items(
+            self._get(
+                "videos",
+                {
+                    "part": "snippet,status,statistics",
+                    "id": ",".join(ids),
+                },
+            )
+        )
+
+    def set_thumbnail(self, video_id: str, image_path: Path | str) -> dict[str, Any]:
+        path = Path(image_path)
+        if not path.is_file():
+            raise UploaderError(f"thumbnail file not found: {path}")
+        suffix = path.suffix.lower()
+        content_type = "image/png" if suffix == ".png" else "image/jpeg"
+        query = urllib.parse.urlencode(
+            {"videoId": video_id, "uploadType": "media"}
+        )
+        response = self.http.request(
+            "POST",
+            f"https://www.googleapis.com/upload/youtube/v3/thumbnails/set?{query}",
+            headers=self._auth_headers(
+                {
+                    "Content-Type": content_type,
+                    "Content-Length": str(path.stat().st_size),
+                }
+            ),
+            data=path.read_bytes(),
+            timeout=120,
+        )
+        if response.status not in (200, 201):
+            raise ApiError(
+                response.status,
+                "thumbnail_upload_failed",
+                f"thumbnail upload failed with status {response.status}",
+                retryable=response.status == 429 or response.status >= 500,
+            )
+        payload = response.json()
+        return payload if isinstance(payload, dict) else {}
+
     def list_uploads(self, playlist_id: str, max_results: int = 10) -> list[dict[str, Any]]:
         return self._items(
             self._get(

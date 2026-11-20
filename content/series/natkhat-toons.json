@@ -1,0 +1,372 @@
+{
+  "channel": "natkhat-toons",
+  "version": 1,
+  "characters": {
+    "chiku": "चीकू — curious golden monkey, brave but rash",
+    "gappu": "गप्पू — clever mouse with spectacles, thinks before acting"
+  },
+  "series": [
+    {
+      "series": "natkhat-haveli",
+      "series_title": "हवेली का रहस्य",
+      "category": "haunted_haveli",
+      "start_episode": 4,
+      "moral": "डर को देखो, तो वह छोटा हो जाता है।",
+      "episodes": [
+        {
+          "title": "चीकू और गप्पू: छत का दरवाज़ा",
+          "topic": "the brass key opens the terrace door",
+          "hook": "पीतल की चाबी ने छत का पुराना दरवाज़ा खोल दिया।",
+          "tags": [
+            "kids",
+            "hindi",
+            "mystery"
+          ],
+          "scenes": [
+            {
+              "speaker": "narrator",
+              "dialogue": "पीतल की चाबी घूमी और छत का दरवाज़ा धीरे से खुल गया।",
+              "chiku_pose": "excited_jump",
+              "gappu_pose": "observing",
+              "camera": "medium_pan",
+              "bg": "haunted_haveli",
+              "sfx": "whoosh"
+            },
+            {
+              "speaker": "chiku",
+              "dialogue": "देखा गप्पू! मैंने कहा था, चाबी किसी खज़ाने की है!",
+              "chiku_pose": "boast_proud",
+              "gappu_pose": "skeptical_eyebrow",
+              "camera": "close_up_chiku",
+              "bg": "haunted_haveli",
+              "sfx": "pop"
+            },
+            {
+              "speaker": "gappu",
+              "dialogue": "रुको चीकू! सीढ़ियों पर पुराने पैरों के निशान हैं। कोई यहाँ आता है।",
+              "chiku_pose": "shocked_freeze",
+              "gappu_pose": "observing",
+              "camera": "two_shot_zoom",
+              "bg": "haunted_haveli",
+              "sfx": "twinkle"
+            },
+            {
+              "speaker": "narrator",
+              "dialogue": "छत पर एक टूटी घड़ी और उसके पास एक छोटा संदूक रखा था।",
+              "chiku_pose": "observing",
+              "gappu_pose": "observing",
+              "camera": "wide_finish",
+              "bg": "haunted_haveli",
+              "sfx": "whoosh"
+            },
+            {
+              "speaker": "narrator",
+              "dialogue": "अगली बार: संदूक में किसकी आवाज़ छिपी है? जानने के लिए जुड़े रहो!",
+              "chiku_pose": "excited_jump",
+              "gappu_pose": "observing",
+              "camera": "wide_finish",
+              "bg": "haunted_haveli",
+              "sfx": "pop"
+            }
+          ]
+        },
+        {
+          "title": "चीकू और गप्पू: संदूक की आवाज़",
+          "topic": "a voice inside the old trunk",
+          "hook": "संदूक के अंदर से हर रात गुनगुनाहट आती है।",
+          "tags": [
+            "kids",
+            "hindi",
+            "mystery"
+          ],
+          "scenes": [
+            {
+              "speaker": "narrator",
+              "dialogue": "आधी रात को संदूक से धीमी गुनगुनाहट आने लगी।",
+              "chiku_pose": "shocked_freeze",
+              "gappu_pose": "observing",
+              "camera": "medium_pan",
+              "bg": "haunted_haveli",
+              "sfx": "whoosh"
+            },
+            {
+              "speaker": "chiku",
+              "dialogue": "भूत है! मैं अब यह संदूक कभी नहीं खोलूँगा!",
+              "chiku_pose": "shocked_freeze",
+              "gappu_pose": "laughing_point",
+              "camera": "close_up_chiku",
+              "bg": "haunted_haveli",
+              "sfx": "boing"
+            },
+            {
+              "speaker": "gappu",
+              "dialogue": "आवाज़ शब्द नहीं हैं, चीकू। यह तो संगीत की पुरानी धुन है।",
+              "chiku_pose": "observing",
+              "gappu_pose": "observing",
+              "camera": "two_shot_zoom",
+              "bg": "haunted_haveli",
+              "sfx": "twinkle"
+            },
+            {
+              "speaker": "narrator",
+              "dialogue": "संदूक खुला, और अंदर एक पुराना संगीत-बक्सा और चिट्ठियों का बंडल मिला।",
+              "chiku_pose": "observing",
+              "gappu_pose": "observing",
+              "camera": "wide_finish",
+              "bg": "haunted_haveli",
+              "sfx": "ding"
+            },
+            {
+              "speaker": "narrator",
+              "dialogue": "अगली बार: चिट्ठियाँ किसके नाम लिखी हैं? जानने के लिए जुड़े रहो!",
+              "chiku_pose": "excited_jump",
+              "gappu_pose": "satisfied_nod",
+              "camera": "wide_finish",
+              "bg": "haunted_haveli",
+              "sfx": "pop"
+            }
+          ]
+        },
+        {
+          "title": "चीकू और गप्पू: हवेली का असली भूत",
+          "topic": "solving the haunted haveli mystery",
+          "hook": "हवेली का भूत आखिर कौन है?",
+          "tags": [
+            "kids",
+            "hindi",
+            "mystery",
+            "series finale"
+          ],
+          "scenes": [
+            {
+              "speaker": "narrator",
+              "dialogue": "चिट्ठियाँ पुराने चौकीदार की थीं, जो हवेली में अकेला रहता था।",
+              "chiku_pose": "observing",
+              "gappu_pose": "observing",
+              "camera": "medium_pan",
+              "bg": "haunted_haveli",
+              "sfx": "whoosh"
+            },
+            {
+              "speaker": "chiku",
+              "dialogue": "तो छत पर चलती परछाईं उसकी थी? मैं तो डर ही गया था!",
+              "chiku_pose": "embarrassed_smile",
+              "gappu_pose": "laughing_point",
+              "camera": "close_up_chiku",
+              "bg": "haunted_haveli",
+              "sfx": "boing"
+            },
+            {
+              "speaker": "gappu",
+              "dialogue": "परछाईं संगीत-बक्से की थी, और गुनगुनाहट उसकी धुन। भूत कहीं नहीं था।",
+              "chiku_pose": "satisfied_nod",
+              "gappu_pose": "satisfied_nod",
+              "camera": "two_shot_zoom",
+              "bg": "haunted_haveli",
+              "sfx": "twinkle"
+            },
+            {
+              "speaker": "narrator",
+              "dialogue": "दोनों ने चौकीदार को संदूक लौटाया और हवेली फिर से रोशनी से भर गई।",
+              "chiku_pose": "excited_jump",
+              "gappu_pose": "observing",
+              "camera": "wide_finish",
+              "bg": "village_night",
+              "sfx": "success_ding"
+            },
+            {
+              "speaker": "narrator",
+              "dialogue": "सीख: डर को देखो, तो वह छोटा हो जाता है। अगली कहानी जल्द आ रही है!",
+              "chiku_pose": "excited_jump",
+              "gappu_pose": "satisfied_nod",
+              "camera": "wide_finish",
+              "bg": "village_night",
+              "sfx": "ding"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "series": "natkhat-jungle",
+      "series_title": "जंगल का खज़ाना",
+      "category": "jungle_adventure",
+      "start_episode": 1,
+      "moral": "सच्चा खज़ाना वह है जो सबके काम आए।",
+      "episodes": [
+        {
+          "title": "चीकू और गप्पू: नक्शे वाला पत्ता",
+          "topic": "a leaf map found in the jungle",
+          "hook": "जंगल में एक पत्ते पर बना नक्शा मिला।",
+          "tags": [
+            "kids",
+            "hindi",
+            "adventure"
+          ],
+          "scenes": [
+            {
+              "speaker": "narrator",
+              "dialogue": "जंगल की सुबह चीकू को एक पीला पत्ता मिला, जिस पर नक्शा बना था।",
+              "chiku_pose": "excited_jump",
+              "gappu_pose": "observing",
+              "camera": "medium_pan",
+              "bg": "jungle_clearing",
+              "sfx": "twinkle"
+            },
+            {
+              "speaker": "chiku",
+              "dialogue": "खज़ाना मिल गया! अब मैं जंगल का सबसे अमीर बंदर बनूँगा!",
+              "chiku_pose": "boast_proud",
+              "gappu_pose": "skeptical_eyebrow",
+              "camera": "close_up_chiku",
+              "bg": "jungle_clearing",
+              "sfx": "pop"
+            },
+            {
+              "speaker": "gappu",
+              "dialogue": "पहले नक्शा पढ़ो। निशान नदी के उस पार जाता है, और पुल टूटा हुआ है।",
+              "chiku_pose": "observing",
+              "gappu_pose": "observing",
+              "camera": "two_shot_zoom",
+              "bg": "forest_path",
+              "sfx": "whoosh"
+            },
+            {
+              "speaker": "narrator",
+              "dialogue": "दोनों ने मिलकर बाँस और लता से एक नया पुल बनाया।",
+              "chiku_pose": "excited_jump",
+              "gappu_pose": "satisfied_nod",
+              "camera": "wide_finish",
+              "bg": "riverbank",
+              "sfx": "success_ding"
+            },
+            {
+              "speaker": "narrator",
+              "dialogue": "अगली बार: नदी के पार क्या मिलेगा? जानने के लिए जुड़े रहो!",
+              "chiku_pose": "excited_jump",
+              "gappu_pose": "observing",
+              "camera": "wide_finish",
+              "bg": "riverbank",
+              "sfx": "pop"
+            }
+          ]
+        },
+        {
+          "title": "चीकू और गप्पू: गुफा की गूँज",
+          "topic": "the echoing cave",
+          "hook": "गुफा हर आवाज़ को दोहराती है, और चीकू डर जाता है।",
+          "tags": [
+            "kids",
+            "hindi",
+            "adventure"
+          ],
+          "scenes": [
+            {
+              "speaker": "narrator",
+              "dialogue": "नक्शे का निशान गुफा के मुँह तक पहुँचा, जहाँ से आवाज़ लौटकर आती थी।",
+              "chiku_pose": "observing",
+              "gappu_pose": "observing",
+              "camera": "medium_pan",
+              "bg": "cave_entrance",
+              "sfx": "whoosh"
+            },
+            {
+              "speaker": "chiku",
+              "dialogue": "गुफा में कोई मेरी आवाज़ की नकल कर रहा है! वहाँ भूत रहता है!",
+              "chiku_pose": "shocked_freeze",
+              "gappu_pose": "laughing_point",
+              "camera": "close_up_chiku",
+              "bg": "cave_entrance",
+              "sfx": "boing"
+            },
+            {
+              "speaker": "gappu",
+              "dialogue": "वह गूँज है, चीकू। पत्थर आवाज़ लौटाते हैं, कोई छिपा नहीं है।",
+              "chiku_pose": "observing",
+              "gappu_pose": "observing",
+              "camera": "two_shot_zoom",
+              "bg": "cave_entrance",
+              "sfx": "twinkle"
+            },
+            {
+              "speaker": "narrator",
+              "dialogue": "गुफा के भीतर उन्हें एक पुराना कुआँ दिखा, जो सूखा पड़ा था।",
+              "chiku_pose": "observing",
+              "gappu_pose": "observing",
+              "camera": "wide_finish",
+              "bg": "cave_entrance",
+              "sfx": "ding"
+            },
+            {
+              "speaker": "narrator",
+              "dialogue": "अगली बार: सूखे कुएँ में क्या छिपा है? जानने के लिए जुड़े रहो!",
+              "chiku_pose": "excited_jump",
+              "gappu_pose": "observing",
+              "camera": "wide_finish",
+              "bg": "cave_entrance",
+              "sfx": "pop"
+            }
+          ]
+        },
+        {
+          "title": "चीकू और गप्पू: असली खज़ाना",
+          "topic": "the real treasure is the water spring",
+          "hook": "कुएँ के नीचे सोना नहीं, पानी था।",
+          "tags": [
+            "kids",
+            "hindi",
+            "adventure",
+            "series finale"
+          ],
+          "scenes": [
+            {
+              "speaker": "narrator",
+              "dialogue": "कुएँ की तली में सोने की मोहरें नहीं, बल्कि ठंडे पानी का सोता था।",
+              "chiku_pose": "observing",
+              "gappu_pose": "observing",
+              "camera": "medium_pan",
+              "bg": "cave_entrance",
+              "sfx": "whoosh"
+            },
+            {
+              "speaker": "chiku",
+              "dialogue": "यह तो खज़ाना नहीं है! मैंने इतनी मेहनत किसलिए की?",
+              "chiku_pose": "embarrassed_smile",
+              "gappu_pose": "satisfied_nod",
+              "camera": "close_up_chiku",
+              "bg": "cave_entrance",
+              "sfx": "boing"
+            },
+            {
+              "speaker": "gappu",
+              "dialogue": "जंगल के सब जानवर प्यासे थे। यह पानी सबके काम आएगा।",
+              "chiku_pose": "satisfied_nod",
+              "gappu_pose": "satisfied_nod",
+              "camera": "two_shot_zoom",
+              "bg": "riverbank",
+              "sfx": "twinkle"
+            },
+            {
+              "speaker": "narrator",
+              "dialogue": "उस दिन सबने मिलकर कुएँ को साफ़ किया और जंगल में पानी लहराया।",
+              "chiku_pose": "excited_jump",
+              "gappu_pose": "satisfied_nod",
+              "camera": "wide_finish",
+              "bg": "riverbank",
+              "sfx": "success_ding"
+            },
+            {
+              "speaker": "narrator",
+              "dialogue": "सीख: सच्चा खज़ाना वह है जो सबके काम आए। नई कहानी जल्द आ रही है!",
+              "chiku_pose": "excited_jump",
+              "gappu_pose": "observing",
+              "camera": "wide_finish",
+              "bg": "jungle_clearing",
+              "sfx": "ding"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

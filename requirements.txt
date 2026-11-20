@@ -1,0 +1,15 @@
+# Runtime dependencies for the production factory (factory/ + studio/).
+#
+# uploader/ is deliberately dependency-free: it only needs the Python standard
+# library, so the publishing path keeps working even if this file fails to install.
+#
+# System requirements outside pip:
+#   * ffmpeg + ffprobe on PATH
+#   * headless Chrome (DevTools protocol) for Devanagari overlays and English frames
+#   * PyCairo needs libcairo2/libcairo2-dev (Linux) or cairo.dll (Windows via pip wheel)
+
+numpy==2.4.6
+pillow==12.2.0
+edge-tts==7.3.1
+gTTS==2.5.4
+pycairo==1.29.0

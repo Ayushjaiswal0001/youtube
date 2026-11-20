@@ -1,0 +1,179 @@
+name: produce
+
+# Reusable single-channel production run.
+#
+# NOT YET EXECUTED ON GITHUB ACTIONS. Everything it calls is verified locally, but the
+# runner-side assumptions (PyCairo build, headless Chrome, Edge-TTS egress, secret
+# names) are unproven until the first dispatch. See TASKS.md T12 before scheduling it.
+#
+# Required repository secrets for uploads (upload: true):
+#   YT_<PREFIX>_CLIENT_ID / YT_<PREFIX>_CLIENT_SECRET / YT_<PREFIX>_REFRESH_TOKEN
+#   PREFIX = NEXUS_NODE | ACADEMIC_BIOHACKER | NATKHAT_TOONS
+#
+# Uploads stay private unless the channel config allows public uploads, which none do.
+
+on:
+  workflow_call:
+    inputs:
+      channel:
+        description: Channel slug (nexus-node, academic-biohacker, natkhat-toons)
+        required: true
+        type: string
+      secret_prefix:
+        description: Secret name fragment (NEXUS_NODE, ACADEMIC_BIOHACKER, NATKHAT_TOONS)
+        required: true
+        type: string
+      upload:
+        description: Perform a real (private) upload after QC passes
+        required: false
+        type: boolean
+        default: false
+      allow_unpublished:
+        description: Natkhat only - plan the next episode even if the previous is unpublished
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: produce-${{ inputs.channel }}
+  cancel-in-progress: false
+
+jobs:
+  produce:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      CHANNEL: ${{ inputs.channel }}
+      FACTORY_BUILD_DIR: ${{ github.workspace }}/build
+      FACTORY_STATE_DIR: ${{ github.workspace }}/pipeline_state
+      FACTORY_LOG_DIR: ${{ github.workspace }}/logs
+      YT_STATE_ROOT: ${{ github.workspace }}/.state/youtube
+      YT_SECRETS_ROOT: ${{ github.workspace }}/.secrets/youtube
+      CHROME_PATH: /usr/bin/google-chrome
+      PYTHONIOENCODING: utf-8
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            ffmpeg libcairo2-dev pkg-config python3-dev fonts-dejavu-core
+          google-chrome --version || chromium --version || true
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+
+      - name: Restore pipeline state
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            pipeline_state
+            .state/youtube
+          key: state-${{ inputs.channel }}-${{ github.run_id }}
+          restore-keys: |
+            state-${{ inputs.channel }}-
+
+      - name: Environment check
+        run: python -m factory.cli doctor
+
+      - name: Plan the next episode
+        id: plan
+        run: |
+          EXTRA=""
+          if [ "${{ inputs.allow_unpublished }}" = "true" ]; then EXTRA="--allow-unpublished"; fi
+          python -m factory.cli plan new --channel "$CHANNEL" --json $EXTRA > plan.json
+          python - <<'PY'
+          import json, pathlib
+          data = json.loads(pathlib.Path("plan.json").read_text())
+          item = data[0] if isinstance(data, list) else data
+          with open("plan_id.txt", "w") as handle:
+              handle.write(item["plan_id"])
+          print("planned:", item["plan_id"], item["plan"].get("title", ""))
+          PY
+          echo "plan_id=$(cat plan_id.txt)" >> "$GITHUB_OUTPUT"
+
+      - name: Render episode
+        run: |
+          python -m factory.cli render --channel "$CHANNEL" --plan-id "${{ steps.plan.outputs.plan_id }}" --json | tee render.json
+
+      - name: Quality assurance
+        run: |
+          python -m factory.cli qc --channel "$CHANNEL" --plan-id "${{ steps.plan.outputs.plan_id }}" --json | tee qc-step.json
+
+      - name: Export channel credentials
+        if: ${{ inputs.upload }}
+        env:
+          CLIENT_ID: ${{ secrets[format('YT_{0}_CLIENT_ID', inputs.secret_prefix)] }}
+          CLIENT_SECRET: ${{ secrets[format('YT_{0}_CLIENT_SECRET', inputs.secret_prefix)] }}
+          REFRESH_TOKEN: ${{ secrets[format('YT_{0}_REFRESH_TOKEN', inputs.secret_prefix)] }}
+        run: |
+          PREFIX=$(printf '%s' "${{ inputs.secret_prefix }}" | tr 'a-z' 'A-Z')
+          export PREFIX
+          if [ -z "$CLIENT_ID" ] || [ -z "$CLIENT_SECRET" ] || [ -z "$REFRESH_TOKEN" ]; then
+            echo "::warning::YT_${PREFIX}_* secrets are missing; skipping upload"
+            echo "UPLOAD_READY=0" >> "$GITHUB_ENV"
+            exit 0
+          fi
+          # The uploader reads env credentials as YT_<SLUG_UPPER_SNAKE>_*; never echo them.
+          {
+            echo "YT_${PREFIX}_CLIENT_ID=$CLIENT_ID"
+            echo "YT_${PREFIX}_CLIENT_SECRET=$CLIENT_SECRET"
+            echo "YT_${PREFIX}_REFRESH_TOKEN=$REFRESH_TOKEN"
+          } >> "$GITHUB_ENV"
+          echo "UPLOAD_READY=1" >> "$GITHUB_ENV"
+
+      - name: Verify channel identity
+        if: ${{ inputs.upload && env.UPLOAD_READY == '1' }}
+        run: python -m uploader.cli verify --channel "$CHANNEL"
+
+      - name: Upload (private)
+        if: ${{ inputs.upload && env.UPLOAD_READY == '1' }}
+        env:
+          FACTORY_ALLOW_UPLOAD: "1"
+        run: |
+          python -m factory.cli publish \
+            --channel "$CHANNEL" \
+            --plan-id "${{ steps.plan.outputs.plan_id }}" \
+            --execute \
+            --confirm-channel "$CHANNEL" \
+            --json | tee publish.json
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.channel }}-${{ github.run_id }}
+          if-no-files-found: warn
+          retention-days: 14
+          path: |
+            plan.json
+            render.json
+            qc-step.json
+            publish.json
+            build/**/qc.json
+            build/**/captions.srt
+            build/**/thumbnail.jpg
+            build/**/runs.jsonl
+            pipeline_state/**/runs.jsonl
+
+      - name: Save pipeline state
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            pipeline_state
+            .state/youtube
+          key: state-${{ inputs.channel }}-${{ github.run_id }}

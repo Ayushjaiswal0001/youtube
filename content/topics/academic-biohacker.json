@@ -1,0 +1,252 @@
+{
+  "channel": "academic-biohacker",
+  "version": 1,
+  "topics": [
+    {
+      "id": "academic-post-meal-walk",
+      "title": "Walk After Eating",
+      "topic": "post-meal walking and blood glucose",
+      "angle": "why a short walk after eating changes the glucose curve",
+      "slot": "am",
+      "tags": ["health", "glucose", "walking", "evidence"],
+      "sources": [
+        "https://pubmed.ncbi.nlm.nih.gov/?term=postprandial+walking+glucose",
+        "https://www.who.int/news-room/fact-sheets/detail/physical-activity"
+      ],
+      "hook": "Ten minutes of walking after a meal does something a supplement cannot: it moves glucose into muscle.",
+      "hook_headline": "Move, don't supplement",
+      "hook_visual": "walk",
+      "beats": [
+        {
+          "text": "After you eat, glucose rises in the blood, and insulin signals muscle and fat to take it up.",
+          "headline": "The post-meal rise",
+          "visual": "chart"
+        },
+        {
+          "text": "Contracting muscle pulls glucose in through a transporter that does not need extra insulin to activate.",
+          "headline": "Muscle as a sink",
+          "visual": "cell"
+        },
+        {
+          "text": "Trials comparing sitting with light walking after meals generally report lower glucose peaks with the walk.",
+          "headline": "What trials show",
+          "visual": "bars"
+        },
+        {
+          "text": "The effect is modest and short-lived, so it complements movement across the day rather than replacing it.",
+          "headline": "Modest, not magic",
+          "visual": "scale"
+        }
+      ],
+      "payoff": "If you only change one habit this week, make it a short walk while your food settles.",
+      "payoff_headline": "The smallest change",
+      "cta": "Follow for evidence-first health shorts.",
+      "cta_headline": "Follow"
+    },
+    {
+      "id": "academic-cool-to-sleep",
+      "title": "You Sleep By Cooling Down",
+      "topic": "core temperature and sleep onset",
+      "angle": "the thermoregulation signal that starts sleep",
+      "slot": "am",
+      "tags": ["sleep", "temperature", "evidence"],
+      "sources": [
+        "https://pubmed.ncbi.nlm.nih.gov/?term=core+temperature+sleep+onset",
+        "https://www.nhlbi.nih.gov/health/sleep"
+      ],
+      "hook": "Sleep does not start in your brain alone. It starts with a drop in core temperature.",
+      "hook_headline": "Cool to sleep",
+      "hook_visual": "thermo",
+      "beats": [
+        {
+          "text": "In the evening your body shifts heat from the core to the skin, and core temperature begins to fall.",
+          "headline": "Heat moves outward",
+          "visual": "flow"
+        },
+        {
+          "text": "That fall is one of the signals the brain uses to time sleep onset, alongside light and melatonin.",
+          "headline": "A timed signal",
+          "visual": "clock"
+        },
+        {
+          "text": "A hot bath one to two hours before bed can help, because the heat you dump afterwards cools you down.",
+          "headline": "The warm bath trick",
+          "visual": "bath"
+        },
+        {
+          "text": "A warm bedroom works against this, which is why a cooler room helps many people fall asleep faster.",
+          "headline": "Cool the room",
+          "visual": "room"
+        }
+      ],
+      "payoff": "You cannot force sleep. You can give your body the temperature cue it is waiting for.",
+      "payoff_headline": "Set the cue",
+      "cta": "Follow for more sleep science.",
+      "cta_headline": "Follow"
+    },
+    {
+      "id": "academic-slow-breathing",
+      "title": "Slow Breathing, Slower Heart",
+      "topic": "slow paced breathing and heart rate variability",
+      "angle": "how breathing rate shifts autonomic balance",
+      "slot": "am",
+      "tags": ["breathing", "stress", "heart-rate", "evidence"],
+      "sources": [
+        "https://pubmed.ncbi.nlm.nih.gov/?term=slow+paced+breathing+heart+rate+variability",
+        "https://www.nccih.nih.gov/health/meditation-and-mindfulness"
+      ],
+      "hook": "Your breathing rate is one of the few levers you can pull directly on your nervous system.",
+      "hook_headline": "A direct lever",
+      "hook_visual": "wave",
+      "beats": [
+        {
+          "text": "Heart rate naturally rises on the in-breath and falls on the out-breath, a pattern called respiratory sinus arrhythmia.",
+          "headline": "Beat follows breath",
+          "visual": "wave"
+        },
+        {
+          "text": "Breathing at roughly six breaths per minute amplifies that rhythm and is often used in HRV training.",
+          "headline": "About six a minute",
+          "visual": "clock"
+        },
+        {
+          "text": "Small trials report short-term drops in perceived stress and steadier heart rate variability during practice.",
+          "headline": "What the data shows",
+          "visual": "bars"
+        },
+        {
+          "text": "Longer slow exhales are the practical part: they lean the balance toward the parasympathetic side.",
+          "headline": "Lengthen the exhale",
+          "visual": "scale"
+        }
+      ],
+      "payoff": "Try a longer exhale than inhale for two minutes and watch what your pulse does.",
+      "payoff_headline": "Two minutes",
+      "cta": "Follow for practical, evidence-first health.",
+      "cta_headline": "Follow"
+    },
+    {
+      "id": "academic-breakfast-protein",
+      "title": "Protein at Breakfast",
+      "topic": "protein at breakfast and appetite",
+      "angle": "why front-loading protein changes later cravings",
+      "slot": "am",
+      "tags": ["nutrition", "protein", "appetite", "evidence"],
+      "sources": [
+        "https://pubmed.ncbi.nlm.nih.gov/?term=high+protein+breakfast+appetite",
+        "https://www.who.int/news-room/fact-sheets/detail/healthy-diet"
+      ],
+      "hook": "The same calories at 8am and 8pm do not behave the same way in your body.",
+      "hook_headline": "Timing matters",
+      "hook_visual": "clock",
+      "beats": [
+        {
+          "text": "Protein triggers satiety signals and takes more energy to digest than fat or carbohydrate.",
+          "headline": "Satiety signals",
+          "visual": "flow"
+        },
+        {
+          "text": "Studies comparing high and low protein breakfasts often find lower hunger and lower later intake.",
+          "headline": "Less hunger later",
+          "visual": "bars"
+        },
+        {
+          "text": "The effect is clearest when breakfast protein is spread through the day rather than saved for dinner.",
+          "headline": "Spread, don't save",
+          "visual": "chart"
+        },
+        {
+          "text": "Total daily protein still matters most, so breakfast is a distribution fix, not a loophole.",
+          "headline": "Total still counts",
+          "visual": "scale"
+        }
+      ],
+      "payoff": "Front-load protein if evening snacking is your weak point. Keep the daily total honest.",
+      "payoff_headline": "Fix the weak point",
+      "cta": "Follow for more nutrition without the hype.",
+      "cta_headline": "Follow"
+    },
+    {
+      "id": "academic-daylight-vs-screens",
+      "title": "Morning Light Beats Night Screens",
+      "topic": "light exposure timing and circadian rhythm",
+      "angle": "why morning outdoor light matters more than blue light filters",
+      "slot": "am",
+      "tags": ["light", "circadian", "sleep", "evidence"],
+      "sources": [
+        "https://pubmed.ncbi.nlm.nih.gov/?term=light+exposure+circadian+phase",
+        "https://www.nigms.nih.gov/education/fact-sheets/Pages/circadian-rhythms.aspx"
+      ],
+      "hook": "Bright light at the wrong time and dim light at the right time both confuse the same clock.",
+      "hook_headline": "One clock",
+      "hook_visual": "sun",
+      "beats": [
+        {
+          "text": "A special set of retinal cells reports light levels to the brain's master clock, separate from image vision.",
+          "headline": "A light sensor",
+          "visual": "eye"
+        },
+        {
+          "text": "Morning light advances the clock and anchors it, which is why outdoor light beats indoor light by a wide margin.",
+          "headline": "Morning anchors it",
+          "visual": "sun"
+        },
+        {
+          "text": "Bright light late at night delays the clock and pushes sleep later, even when screens look dim.",
+          "headline": "Late light delays",
+          "visual": "moon"
+        },
+        {
+          "text": "Blue light filters reduce some short-wavelength light but do not replace dimming the room and the screen.",
+          "headline": "Filters are partial",
+          "visual": "shield"
+        }
+      ],
+      "payoff": "Ten minutes outside in the morning buys more than any filter installed at night.",
+      "payoff_headline": "Go outside first",
+      "cta": "Follow for more circadian science.",
+      "cta_headline": "Follow"
+    },
+    {
+      "id": "academic-break-up-sitting",
+      "title": "Break Up Your Sitting",
+      "topic": "sitting breaks and metabolic health",
+      "angle": "why short movement breaks matter even with exercise",
+      "slot": "am",
+      "tags": ["movement", "metabolism", "evidence"],
+      "sources": [
+        "https://pubmed.ncbi.nlm.nih.gov/?term=sitting+breaks+glucose+insulin",
+        "https://www.who.int/news-room/fact-sheets/detail/physical-activity"
+      ],
+      "hook": "A morning workout does not fully cancel eight unbroken hours in a chair.",
+      "hook_headline": "Exercise is not enough",
+      "hook_visual": "chair",
+      "beats": [
+        {
+          "text": "Long uninterrupted sitting is associated with worse metabolic markers, independent of planned exercise.",
+          "headline": "Independent risk",
+          "visual": "bars"
+        },
+        {
+          "text": "Standing or walking for a couple of minutes every half hour lowers post-meal glucose in lab studies.",
+          "headline": "Two minutes, often",
+          "visual": "clock"
+        },
+        {
+          "text": "The likely mechanism is repeated muscle contraction restoring glucose uptake after it goes quiet.",
+          "headline": "Muscle goes quiet",
+          "visual": "cell"
+        },
+        {
+          "text": "The breaks do not need to be exercise: standing, stairs or a short walk all count as interruption.",
+          "headline": "Interrupt, don't exercise",
+          "visual": "walk"
+        }
+      ],
+      "payoff": "Set a timer for thirty minutes. The point is not the workout, it is the interruption.",
+      "payoff_headline": "Interrupt the chair",
+      "cta": "Follow for evidence-first health shorts.",
+      "cta_headline": "Follow"
+    }
+  ]
+}
