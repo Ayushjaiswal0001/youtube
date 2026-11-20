@@ -48,10 +48,10 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install system libraries for PyCairo
+      - name: Install system libraries (PyCairo + ffmpeg)
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends libcairo2-dev pkg-config python3-dev
+          sudo apt-get install -y --no-install-recommends libcairo2-dev pkg-config python3-dev ffmpeg
 
       - name: Install factory dependencies
         run: |
