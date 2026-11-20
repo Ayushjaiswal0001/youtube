@@ -1,0 +1,21 @@
+{
+  "slug": "natkhat-toons",
+  "display_name": "Natkhat Toons",
+  "handle": "@NatkhatToons-n5",
+  "expected_channel_id": "UC4OCY0qDwQqFnSCZw12sKxA",
+  "requires_made_for_kids_confirmation": true,
+  "force_made_for_kids": true,
+  "allow_public_upload": false,
+  "defaults": {
+    "category_id": "1",
+    "privacy_status": "private",
+    "made_for_kids": true,
+    "notify_subscribers": false,
+    "tags": [
+      "shorts",
+      "kids"
+    ],
+    "description_footer": "",
+    "playlist_id": null
+  }
+}

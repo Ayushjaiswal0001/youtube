@@ -1,0 +1,19 @@
+{
+  "slug": "academic-biohacker",
+  "display_name": "Academic Biohacker",
+  "handle": "@academicbiohacker",
+  "expected_channel_id": "UCr8jSmLa_o2BwNh8HuyZHAQ",
+  "requires_made_for_kids_confirmation": false,
+  "allow_public_upload": false,
+  "defaults": {
+    "category_id": "27",
+    "privacy_status": "private",
+    "made_for_kids": false,
+    "notify_subscribers": false,
+    "tags": [
+      "shorts"
+    ],
+    "description_footer": "",
+    "playlist_id": null
+  }
+}

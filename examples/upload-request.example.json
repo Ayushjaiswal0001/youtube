@@ -1,0 +1,11 @@
+{
+  "title": "Example Short",
+  "description": "Replace this description with the approved video metadata.",
+  "tags": [
+    "example"
+  ],
+  "categoryId": "27",
+  "privacyStatus": "private",
+  "madeForKids": false,
+  "notifySubscribers": false
+}
