@@ -65,13 +65,30 @@ jobs:
           python-version: "3.12"
 
       - name: Install system dependencies
+        timeout-minutes: 10
+        env:
+          DEBIAN_FRONTEND: noninteractive
+          APT_OPTS: >-
+            -o Acquire::Retries=3
+            -o Acquire::http::Timeout=20
+            -o Acquire::https::Timeout=20
+            -o Acquire::ForceIPv4=true
+            -o DPkg::Lock::Timeout=60
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            ffmpeg libcairo2-dev pkg-config python3-dev fonts-dejavu-core
-          google-chrome --version || chromium --version || true
+          # Bounded apt calls: the first dispatch of this workflow sat in
+          # 'apt-get update' for 30+ minutes because a mirror stalled with no
+          # timeout. Every call below now gives up and retries instead of hanging,
+          # and the step itself is capped at 10 minutes.
+          sudo -E apt-get $APT_OPTS update
+          sudo -E apt-get $APT_OPTS install -y --no-install-recommends \
+            libcairo2-dev pkg-config python3-dev fonts-dejavu-core
+          # ffmpeg is not preinstalled on the runner image; verify before installing.
+          if ! command -v ffmpeg >/dev/null || ! command -v ffprobe >/dev/null; then
+            sudo -E apt-get $APT_OPTS install -y --no-install-recommends ffmpeg
+          fi
 
       - name: Install Python dependencies
+        timeout-minutes: 10
         run: |
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt
@@ -87,7 +104,13 @@ jobs:
             state-${{ inputs.channel }}-
 
       - name: Environment check
-        run: python -m factory.cli doctor
+        timeout-minutes: 5
+        run: |
+          # Bounded probes: a broken Chrome install must fail fast, not hang.
+          timeout 30 ffmpeg -version | head -1
+          timeout 30 ffprobe -version | head -1
+          timeout 30 google-chrome --version || timeout 30 chromium --version || echo "CHROME_PATH=${CHROME_PATH:-unset}"
+          python -m factory.cli doctor
 
       - name: Plan the next episode
         id: plan
@@ -106,6 +129,7 @@ jobs:
           echo "plan_id=$(cat plan_id.txt)" >> "$GITHUB_OUTPUT"
 
       - name: Render episode
+        timeout-minutes: 30
         run: |
           python -m factory.cli render --channel "$CHANNEL" --plan-id "${{ steps.plan.outputs.plan_id }}" --json | tee render.json
 
