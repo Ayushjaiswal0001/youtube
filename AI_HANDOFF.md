@@ -13,7 +13,7 @@ Read this block first; it is the exact state another agent needs.
 | PR #2 | OPEN, unmerged, 1 commit `2a810f0`, runner-install hardening. **Leave untouched until the owner approves.** |
 | Workflows | `ci.yml` active; `produce.yml` active but reusable-only; the three `produce-*` are `disabled_manually` |
 | Secrets | `YT_<PREFIX>_*` NOT provisioned → any `upload: true` dispatch will skip the upload with a warning |
-| Tests | `python -m pytest tests -q` → **200 passed**; `python -m unittest discover -s tests` → 50 passed |
+| Tests | `python -m pytest tests -q` → **225 passed**; `python -m unittest discover -s tests` → 50 passed |
 | Shorts plans | 13 plans intact (5 nexus, 5 academic, 3 natkhat), history/state untouched |
 | Long-form plan | `content/longform/nexus-node.json` → `long-nexus-power-grid`, rendered (see below) |
 | Publishing actions this session | **none** — no upload, no ledger write, no schedule enabled |
@@ -49,6 +49,25 @@ delta 9 ms, remix 15.5 s. Tests: `tests/factory/test_audio.py` (4).
 They are disjoint, so there is no conflict either way. Recommended order: **#2 first**
 (it fixes the runner install that T12 needs), then **#3**. Both stay unmerged until the
 owner approves.
+
+### Locomotion (T33)
+
+`MotionController(mode, duration, seed, distance, facing).state_at(t)` returns a `BodyState`;
+`rig.update_pose(..., body=state)` applies it **after** the pose. Rules that keep this sane:
+
+- Rigs reset every animated field at the start of `update_pose`. Do not remove that reset:
+  without it `apply_body` integrates and the character leaves the screen (this happened).
+  If you add a field a pose can write, reset it there too.
+- Motion owns translation and gait; the pose owns attitude. Arms are only overridden when
+  the motion is about arms (walk, run, wave, point). Everything else keeps the pose.
+- `walk_in`/`walk_out` use `facing` to decide direction, so two characters exit away from
+  each other instead of through each other.
+- Scene key: `chiku_motion` / `gappu_motion` (string, or list where the first is used).
+  Absent = `idle` = a no-op, which is why existing scenes render unchanged.
+- The golden set covers idle/excited/shocked/talking only. It does **not** cover
+  `boast_proud` or `skeptical_eyebrow`, and those are exactly the poses whose output moved
+  when the reset was introduced. **Adding goldens for every pose is the highest-value
+  remaining T30b task.**
 
 ### Eyes, gaze and blinking (T32)
 

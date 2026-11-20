@@ -21,6 +21,7 @@ from studio.characters.gaze import (
     gaze_toward,
 )
 from studio.characters.lipsync import VisemeTrack
+from studio.characters.locomotion import MotionController, motions_for
 from studio.characters.visemes import VisemeTimeline
 from studio.animation.background import BackgroundRenderer
 from studio.animation.camera import Camera
@@ -170,6 +171,15 @@ class SceneRenderer:
                                       speaking=speaker == "gappu",
                                       facing=gappu.facing),
         )
+        # Locomotion layer (T33). Scenes without a motion keep the pose exactly as it was,
+        # so every existing episode renders unchanged.
+        chiku_motion = MotionController(
+            motions_for(scene_data, "chiku")[0], duration=total_duration,
+            seed=_seed_for(story_id, scene_num, "chiku", "motion"), facing=chiku.facing)
+        gappu_motion = MotionController(
+            motions_for(scene_data, "gappu")[0], duration=total_duration,
+            seed=_seed_for(story_id, scene_num, "gappu", "motion"), facing=gappu.facing)
+
         chiku.attach_face(chiku_face)
         gappu.attach_face(gappu_face)
 
@@ -285,9 +295,11 @@ class SceneRenderer:
                 cr.save()
                 camera.apply(cr, t)
                 chiku.update_pose(chiku_pose, t, is_talking=chiku_talking, phoneme_intensity=0.8,
-                                  lipsync=lipsync_track, timeline=viseme_timeline)
+                                  lipsync=lipsync_track, timeline=viseme_timeline,
+                                  body=chiku_motion.state_at(t))
                 gappu.update_pose(gappu_pose, t, is_talking=gappu_talking, phoneme_intensity=0.7,
-                                  lipsync=lipsync_track, timeline=viseme_timeline)
+                                  lipsync=lipsync_track, timeline=viseme_timeline,
+                                  body=gappu_motion.state_at(t))
                 chiku.face_state_at(t)
                 gappu.face_state_at(t)
 

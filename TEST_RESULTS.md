@@ -188,6 +188,31 @@ term — there is no depth/vergence target; blink intervals are seeded jitter, n
 distribution; eyebrow offset is clamped to ±18 px so a pose + expression cannot climb into the
 hairline; the 0.05 convergence constant is an artistic choice, not a measurement.
 
+## 3g. Locomotion and body mechanics (T33) — measured
+
+`studio/characters/locomotion.py` turns one of sixteen named motions into a per-frame
+`BodyState` (hip offset, jump offset, lean, leg and arm angles, head tilt, squash), applied
+on top of the pose by both rigs.
+
+| Check | Result |
+| --- | --- |
+| Tests | `tests/factory/test_locomotion.py` **25 passed**; full suite **225 passed** |
+| Motions | idle, walk, walk_in, walk_out, run, run_in, jump, land, turn, lean, sit, stand_up, wave, point, shake_head, nod |
+| Gait | walk period measured at **1.05 s** (±0.08) with legs in antiphase for >55 % of frames; run has larger stride and lean |
+| Jump | leaves the ground (peak −120 px), anticipates with a squash below 0.95, stretches above 1.0 in the air, settles on landing |
+| Jump-in / jump-out | `walk_in` starts 300 px off-stage and arrives exactly at the anchor; `walk_out` leaves *away* from the partner (fixed after the first demo render had them walk through each other) |
+| Real render | `motion-demo` episode produced end to end through `EpisodePipeline`: **695 video frames, 23.20 s, 1080x1920, h264+aac, 2 700 512 B**, 5 scenes, 69 s wall |
+| Inspected frames | walk-in from the left, walk-in from the right, pointing, airborne jump, and a two-character exit where each leaves in the opposite direction |
+| Composition | pose + motion + lip-sync + eyes all active in the same frame (asserted in tests and visible in the demo) |
+
+**Bug found and fixed during this milestone:** `apply_body` added motion to the previous
+frame's pose values, so any pose that did not explicitly reset a limb accumulated motion —
+the first demo render had Gappu drifting into the sky. Rigs now reset the animated fields
+each frame before posing. Consequence measured honestly: the natkhat episode re-render is
+bit-identical for scene 1 but differs in scenes 2–5 (PSNR ≥48.4 dB, background pixels
+identical, i.e. no camera change). Those poses (`boast_proud`, `skeptical_eyebrow`) are not
+covered by the golden set, which is a real gap in the goldens, not a rendering defect.
+
 ## 4. Not yet executed
 
 | Test | Status |

@@ -112,7 +112,7 @@ Status markers: `[ ]` todo, `[~]` in progress, `[x]` done.
   onset lag 0 ms. **Proportional, not phoneme-level** — Edge-TTS emits no word boundaries
   (verified empirically).
 - [x] **T32. Eye system** — saccades, gaze targets, blink with variance (not a fixed timer).
-- [ ] **T33. Locomotion** — walk/run cycles with contact/passing/up poses and foot planting.
+- [x] **T33. Locomotion** — walk/run cycles with contact/passing/up poses and foot planting.
 - [ ] **T34. Reaction library** — anticipation, impact, settle, with the existing easing set.
 - [ ] **T35. Two-character blocking** — eye-line, overlap, and shared framing.
 - [ ] **T36. Layered parallax environments.**

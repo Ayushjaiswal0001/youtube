@@ -67,6 +67,8 @@ class GappuRig:
         self.leg_r_angle = 0.0
         self.tail_wave = 0.0
         self.jump_y = 0.0
+        self.hip_x = 0.0
+        self.squash = 1.0
 
     @property
     def colors(self) -> dict:
@@ -89,13 +91,28 @@ class GappuRig:
         return self.eye_state
 
     def update_pose(self, pose: str, t: float, is_talking: bool = False, phoneme_intensity: float = 0.5,
-                    lipsync: object | None = None, timeline: object | None = None):
+                    lipsync: object | None = None, timeline: object | None = None,
+                    body: object | None = None):
         """Update Gappu's joints based on time and pose."""
         # Breathing / sway / blink / tail come from the schema's timing profile
         self.torso.local_y = self.prop.torso_y + self.timing.breath(t)
         self.torso.local_rot = self.timing.sway(t)
         self.blink_t = self.timing.blink(t)
         self.tail_wave = self.timing.tail(t)
+
+        # Reset everything a pose or a motion may write. Poses are not required to set all
+        # of these, and without a reset a value from the previous frame survives -- which
+        # turns "add the walk offset" into an integrator that walks the character off screen.
+        self.jump_y = 0.0
+        self.hip_x = 0.0
+        self.squash = 1.0
+        self.head.local_rot = 0.0
+        self.leg_l_angle = 0.0
+        self.leg_r_angle = 0.0
+        self.arm_l_angle = 0.1
+        self.arm_r_angle = -0.1
+        self.eyebrow_y = 0.0
+        self.eyebrow_tilt = 0.0
 
         # Talking mouth animation: narration envelope when available, sine fallback.
         if is_talking:
@@ -176,11 +193,37 @@ class GappuRig:
             self.eyebrow_y = -4.0
             self.eyebrow_tilt = 0.1
 
+        self.apply_body(body)
+
+    def apply_body(self, body) -> None:
+        """Apply a locomotion frame on top of the current pose.
+
+        Pose and motion are separate layers: the pose owns attitude, the motion owns
+        movement. Angles add, arms are replaced only when the motion actually moves them,
+        and lip-sync / eyes are untouched.
+        """
+
+        if body is None:
+            self.hip_x = 0.0
+            self.squash = 1.0
+            return
+        self.hip_x = body.hip_x
+        self.jump_y += body.jump_y
+        self.torso.local_rot += body.lean
+        self.leg_l_angle += body.leg_l
+        self.leg_r_angle += body.leg_r
+        self.head.local_rot += body.head_tilt
+        if body.arm_l is not None:
+            self.arm_l_angle = body.arm_l
+        if body.arm_r is not None:
+            self.arm_r_angle = body.arm_r
+        self.squash = body.squash
+
     def draw(self, cr: cairo.Context):
         """Renders full 2D vector mouse to Cairo context."""
         cr.save()
-        cr.translate(self.x, self.y + self.jump_y)
-        cr.scale(self.scale * self.facing, self.scale)
+        cr.translate(self.x + self.hip_x, self.y + self.jump_y)
+        cr.scale(self.scale * self.facing, self.scale * self.squash)
 
         # 1. Shadow
         P = self.prop
