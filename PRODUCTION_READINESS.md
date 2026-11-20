@@ -63,7 +63,7 @@ Cairo draw primitives (ellipse, capsule), easing functions (`ease_in_out_quad`,
 | Reusable rigs | **PARTIAL** | One class per character (`ChikuRig`, `GappuRig`); no shared parameter schema, no data-driven character definitions |
 | Facial expressions | **PARTIAL** | Pose presets, no expression blend tree or FACS-style channels |
 | Eye + eyebrow movement | **PARTIAL** | `blink_t` cycles on a 3.2 s timer, `eyebrow_tilt`/`eyebrow_y` are settable; no saccades, no gaze targets |
-| Mouth shapes / lip-sync | **PARTIAL — pseudo-sync** | `mouth_open = abs(sin(t*14)) * intensity`: a periodic wave, **not** driven by the TTS phonemes or audio |
+| Mouth shapes / lip-sync | **PARTIAL — audio-driven** | `lipsync.py` builds a per-frame envelope from the real narration (RMS, 95th-percentile normalised, attack/release smoothed) and the rigs follow it; 10 tests + full episode re-render. Envelope-based, **not phoneme-based** |
 | Body gestures | **PARTIAL** | Pose presets only (`update_pose(pose, t, …)`), no procedural arm IK |
 | Walk / run cycles | **NOT FOUND** | no locomotion module in `studio/` |
 | Emotional reactions | **PARTIAL** | pose + easing primitives exist; no reaction library, no anticipation/settle |

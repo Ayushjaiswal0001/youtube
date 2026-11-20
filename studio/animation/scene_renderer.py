@@ -13,6 +13,7 @@ import cairo
 from studio.config import VIDEO_WIDTH, VIDEO_HEIGHT, FPS, INTERMEDIATE_DIR
 from studio.characters.chiku import ChikuRig
 from studio.characters.gappu import GappuRig
+from studio.characters.lipsync import VisemeTrack
 from studio.animation.background import BackgroundRenderer
 from studio.animation.camera import Camera
 from studio.animation.effects import draw_sparkle, draw_dust_puff, draw_exclamation_pop
@@ -83,6 +84,7 @@ class SceneRenderer:
         sfx_path = self.sfx_lib.get_sfx(sfx_name)
         bgm_path = self.sfx_lib.get_bgm()
         voice_path = Path(audio_data["audio_path"])
+        lipsync_track = VisemeTrack.from_audio(voice_path, fps=self.fps)
         mixed_audio = INTERMEDIATE_DIR / f"scene_{scene_num:03d}_mixed.wav"
         filter_complex = (
             f"[0:a]volume=1.0[v];"
@@ -181,8 +183,10 @@ class SceneRenderer:
 
                 cr.save()
                 camera.apply(cr, t)
-                chiku.update_pose(chiku_pose, t, is_talking=chiku_talking, phoneme_intensity=0.8)
-                gappu.update_pose(gappu_pose, t, is_talking=gappu_talking, phoneme_intensity=0.7)
+                chiku.update_pose(chiku_pose, t, is_talking=chiku_talking, phoneme_intensity=0.8,
+                                  lipsync=lipsync_track)
+                gappu.update_pose(gappu_pose, t, is_talking=gappu_talking, phoneme_intensity=0.7,
+                                  lipsync=lipsync_track)
 
                 if sfx_name == "twinkle" or "\u092a\u0924\u094d\u0925\u0930" in dialogue:
                     sparkle_rot = t * 2.5

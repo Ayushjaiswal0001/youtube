@@ -54,7 +54,8 @@ class ChikuRig:
         self.tail_wave = 0.0
         self.jump_y = 0.0
 
-    def update_pose(self, pose: str, t: float, is_talking: bool = False, phoneme_intensity: float = 0.5):
+    def update_pose(self, pose: str, t: float, is_talking: bool = False, phoneme_intensity: float = 0.5,
+                    lipsync: object | None = None):
         """Update rig joints based on procedural motion and named pose."""
         # Idle breathing / sway
         breath = math.sin(t * 3.5) * 4.0
@@ -71,15 +72,20 @@ class ChikuRig:
         # Tail natural wavy physics
         self.tail_wave = math.sin(t * 4.0) * 0.25
 
-        # Talking mouth animation
+        # Talking mouth animation: driven by the narration envelope when a track is
+        # supplied, so the mouth follows real speech instead of a fixed 14 Hz wave.
         if is_talking:
-            self.mouth_open = abs(math.sin(t * 14.0)) * phoneme_intensity
-            if self.mouth_open > 0.6:
-                self.viseme = Viseme.OPEN_WIDE
-            elif self.mouth_open > 0.3:
-                self.viseme = Viseme.OPEN_SMALL
+            if lipsync is not None and len(lipsync):  # type: ignore[arg-type]
+                self.mouth_open = lipsync.at(t) * phoneme_intensity  # type: ignore[union-attr]
+                self.viseme = lipsync.viseme_at(t)  # type: ignore[union-attr]
             else:
-                self.viseme = Viseme.SMILE
+                self.mouth_open = abs(math.sin(t * 14.0)) * phoneme_intensity
+                if self.mouth_open > 0.6:
+                    self.viseme = Viseme.OPEN_WIDE
+                elif self.mouth_open > 0.3:
+                    self.viseme = Viseme.OPEN_SMALL
+                else:
+                    self.viseme = Viseme.SMILE
         else:
             self.mouth_open = 0.0
             self.viseme = Viseme.SMILE

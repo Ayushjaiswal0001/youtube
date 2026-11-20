@@ -94,6 +94,28 @@ lift, duration preservation and NaN-free measurement. Full suite: **96 passed**.
 Not verified: subjective narration clarity by ear; ducking depth is only proven by the
 loudness/duration measurements, not by a listening test.
 
+## 3c. Lip-sync (audio-driven) — measured
+
+Openness now comes from the narration itself (`studio/characters/lipsync.py`): ffmpeg
+decodes the voice track to 16 kHz mono, a per-frame RMS envelope is normalised to the
+95th percentile and smoothed with attack/release, then mapped onto the existing `Viseme`
+states.
+
+| Check | Result |
+| --- | --- |
+| Automated tests | **10 passed** (`tests/factory/test_lipsync.py`); suite **106 passed** |
+| Rig behaviour | track-driven frames 0–5 → `mouth_open = 0.0`; frames 6–11 → `> 0.5`; values differ from the old sine |
+| Silent track | all 30 frames closed, `speaking_at()` false everywhere |
+| Real narration (scene 2, 5.33 s) | 160 frames, speaking ratio **0.79**, gaps visible between phrases |
+| Full episode re-render | `natkhat-haveli-e1` 32.07 s, `qc_ok: true`, 10 cues, rendered through the wired path |
+| Mouth-region pixel probe (0.1 s sampling) | speech-like on/off pattern in the first 16 s (wide 199 frames, shut 6, max 1153 px vs min 26 px) |
+
+**Limitation, stated plainly:** the pixel probe uses a fixed crop, so camera pans and
+pose-driven expression mouths (e.g. `excited_jump` opens the mouth while silent by design)
+make it unreliable after ~16 s. Lip-sync is proven by the rig tests and the narration
+envelope, not by a whole-episode per-frame mouth measurement. Visemes are also
+**envelope-based, not phoneme-based** — a wide vowel and a loud consonant look the same.
+
 ## 4. Not yet executed
 
 | Test | Status |

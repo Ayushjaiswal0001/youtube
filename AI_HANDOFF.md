@@ -13,7 +13,7 @@ Read this block first; it is the exact state another agent needs.
 | PR #2 | OPEN, unmerged, 1 commit `2a810f0`, runner-install hardening. **Leave untouched until the owner approves.** |
 | Workflows | `ci.yml` active; `produce.yml` active but reusable-only; the three `produce-*` are `disabled_manually` |
 | Secrets | `YT_<PREFIX>_*` NOT provisioned → any `upload: true` dispatch will skip the upload with a warning |
-| Tests | `python -m pytest tests -q` → **96 passed**; `python -m unittest discover -s tests` → 50 passed |
+| Tests | `python -m pytest tests -q` → **106 passed**; `python -m unittest discover -s tests` → 50 passed |
 | Shorts plans | 13 plans intact (5 nexus, 5 academic, 3 natkhat), history/state untouched |
 | Long-form plan | `content/longform/nexus-node.json` → `long-nexus-power-grid`, rendered (see below) |
 | Publishing actions this session | **none** — no upload, no ledger write, no schedule enabled |
@@ -49,6 +49,14 @@ delta 9 ms, remix 15.5 s. Tests: `tests/factory/test_audio.py` (4).
 They are disjoint, so there is no conflict either way. Recommended order: **#2 first**
 (it fixes the runner install that T12 needs), then **#3**. Both stay unmerged until the
 owner approves.
+
+### Lip-sync (implemented, envelope-based)
+
+`studio/characters/lipsync.py` + wiring in `chiku.py`, `gappu.py`, `scene_renderer.py`.
+The rigs now take an optional `lipsync=VisemeTrack` argument; the scene renderer builds one
+track per scene from `audio_data["audio_path"]`. Fallback to the old sine remains when no
+track is available. **Trap:** `scene_renderer` imports modules as `studio.*`, so any new
+module must be added under `studio/characters/` and imported the same way.
 
 ### Exact next actions (in order)
 

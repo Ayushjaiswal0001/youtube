@@ -56,7 +56,8 @@ class GappuRig:
         self.tail_wave = 0.0
         self.jump_y = 0.0
 
-    def update_pose(self, pose: str, t: float, is_talking: bool = False, phoneme_intensity: float = 0.5):
+    def update_pose(self, pose: str, t: float, is_talking: bool = False, phoneme_intensity: float = 0.5,
+                    lipsync: object | None = None):
         """Update Gappu's joints based on time and pose."""
         # Idle breathing
         breath = math.sin(t * 3.0 + 1.0) * 3.0
@@ -73,15 +74,19 @@ class GappuRig:
         # Gentle tail twitch
         self.tail_wave = math.sin(t * 3.5) * 0.3
 
-        # Talking mouth
+        # Talking mouth animation: narration envelope when available, sine fallback.
         if is_talking:
-            self.mouth_open = abs(math.sin(t * 13.0)) * phoneme_intensity
-            if self.mouth_open > 0.5:
-                self.viseme = Viseme.OPEN_WIDE
-            elif self.mouth_open > 0.25:
-                self.viseme = Viseme.OPEN_SMALL
+            if lipsync is not None and len(lipsync):  # type: ignore[arg-type]
+                self.mouth_open = lipsync.at(t) * phoneme_intensity  # type: ignore[union-attr]
+                self.viseme = lipsync.viseme_at(t)  # type: ignore[union-attr]
             else:
-                self.viseme = Viseme.SMILE
+                self.mouth_open = abs(math.sin(t * 14.0)) * phoneme_intensity
+                if self.mouth_open > 0.6:
+                    self.viseme = Viseme.OPEN_WIDE
+                elif self.mouth_open > 0.3:
+                    self.viseme = Viseme.OPEN_SMALL
+                else:
+                    self.viseme = Viseme.SMILE
         else:
             self.mouth_open = 0.0
             self.viseme = Viseme.SMILE

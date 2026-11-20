@@ -101,8 +101,11 @@ Status markers: `[ ]` todo, `[~]` in progress, `[x]` done.
 
 - [ ] **T30. Data-driven character schema** — character definitions as data, one rig
   renderer, shared expression/gesture channel names (`rig_base.py` is the seed).
-- [ ] **T31. Real lip-sync** — replace `abs(sin(t*14))` with visemes driven by narration
-  timing / phoneme estimates; verify against the SRT word times.
+- [x] **T31a. Audio-driven lip-sync** — `studio/characters/lipsync.py`; rigs follow the
+  narration envelope instead of a 14 Hz sine. 10 tests, full Natkhat episode re-rendered
+  (`qc_ok: true`). Envelope-based.
+- [ ] **T31b. Phoneme-level visemes** — distinguish vowel shapes (round/wide) using text
+  and the Edge-TTS sentence boundaries that `tts_engine` already collects but nobody reads.
 - [ ] **T32. Eye system** — saccades, gaze targets, blink with variance (not a fixed timer).
 - [ ] **T33. Locomotion** — walk/run cycles with contact/passing/up poses and foot planting.
 - [ ] **T34. Reaction library** — anticipation, impact, settle, with the existing easing set.
