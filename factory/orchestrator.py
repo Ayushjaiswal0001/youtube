@@ -149,6 +149,7 @@ def render_episode(
         topic=script.topic,
         title=script.title,
         status="rendered" if qc["ok"] else "qc_failed",
+        plan_id=script.metadata.get("plan_id"),
     )
     state.log_run(
         {

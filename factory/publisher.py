@@ -16,6 +16,7 @@ from uploader.router import ChannelRouter
 
 from .config import CHANNELS_DIR, SECRETS_ROOT, UPLOAD_STATE_ROOT, ChannelSpec
 from .content.models import Script
+from .content.plans import advance_after_publish, existing_plan
 from .state import ChannelState
 
 
@@ -112,7 +113,12 @@ def publish_episode(
             status="uploaded",
             video_id=result.get("video_id"),
             publish_at=publish_at,
+            plan_id=script.metadata.get("plan_id"),
         )
+        # Natkhat continuity: only an actual upload advances the series pointer.
+        target = existing_plan(spec, str(script.metadata.get("plan_id") or ""))
+        if target is not None:
+            result["series_state"] = advance_after_publish(spec, target)
     return result
 
 

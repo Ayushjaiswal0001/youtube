@@ -29,6 +29,7 @@ class HistoryEntry:
     status: str = "planned"
     publish_at: str | None = None
     title: str = ""
+    plan_id: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -39,6 +40,7 @@ class HistoryEntry:
             "status": self.status,
             "publish_at": self.publish_at,
             "title": self.title,
+            "plan_id": self.plan_id,
         }
 
 
@@ -88,6 +90,7 @@ class ChannelState:
         status: str = "rendered",
         video_id: str | None = None,
         publish_at: str | None = None,
+        plan_id: str | None = None,
     ) -> None:
         entry = HistoryEntry(
             topic=topic,
@@ -97,6 +100,7 @@ class ChannelState:
             status=status,
             publish_at=publish_at,
             title=title,
+            plan_id=plan_id,
         )
         items = self.history()
         items = [item for item in items if item.get("fingerprint") != entry.fingerprint]
@@ -105,6 +109,14 @@ class ChannelState:
 
     def log_run(self, entry: dict[str, Any]) -> None:
         append_jsonl(self.runs_path, {"timestamp": iso_now(), **entry})
+
+    def plan_status(self, plan_id: str) -> str | None:
+        """Status recorded for a plan id, or None when the plan never ran."""
+
+        for item in self.history():
+            if item.get("plan_id") == plan_id:
+                return str(item.get("status") or "")
+        return None
 
     def series(self) -> dict[str, Any]:
         data = read_json(self.series_path, {})

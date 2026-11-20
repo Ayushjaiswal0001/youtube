@@ -16,6 +16,7 @@ from .config import (
     load_channel_specs,
     selected_channels,
 )
+from .content.plans import bank_status, generate_plan
 from .content.script import build_english_script, build_hindi_script, load_plans_for
 from .orchestrator import (
     episode_out_dir,
@@ -176,12 +177,17 @@ def cmd_batch(args: argparse.Namespace) -> int:
 
 
 def cmd_doctor(args: argparse.Namespace) -> int:
+    import os
     import shutil
 
     checks = []
     for command in ("ffmpeg", "ffprobe"):
         checks.append({"name": command, "ok": shutil.which(command) is not None, "path": shutil.which(command)})
-    chrome = shutil.which("chrome") or str(Path("C:/Program Files (x86)/Google/Chrome/Application/chrome.exe"))
+    chrome = shutil.which("chrome") or shutil.which("google-chrome") or shutil.which("chromium")
+    if not chrome:
+        chrome = os.environ.get("CHROME_PATH") or str(
+            Path("C:/Program Files (x86)/Google/Chrome/Application/chrome.exe")
+        )
     checks.append({"name": "chrome", "ok": Path(chrome).is_file(), "path": chrome})
     checks.append({"name": "fonts", "ok": FONTS_DIR.is_dir(), "path": str(FONTS_DIR)})
     checks.append({"name": "build_root", "ok": BUILD_ROOT.is_dir(), "path": str(BUILD_ROOT)})
@@ -193,6 +199,35 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     payload = {"ok": all(item["ok"] for item in checks), "checks": checks}
     _print(payload if args.json else [f"{item['name']}: {'OK' if item['ok'] else 'FAIL'} {item.get('path') or item.get('detail', '')}" for item in checks], args.json)
     return 0 if payload["ok"] else 2
+
+
+def cmd_plan_new(args: argparse.Namespace) -> int:
+    results = []
+    for spec in _specs(args.channel):
+        results.append(
+            generate_plan(
+                spec,
+                allow_unpublished=args.allow_unpublished,
+                write=not args.no_write,
+            )
+        )
+    _print(
+        results
+        if args.json
+        else [
+            f"{item['channel']:22} {item['plan_id']:34} "
+            f"{'created' if item['created'] else 'exists':8} {item['plan'].get('title', '')}"
+            for item in results
+        ],
+        args.json,
+    )
+    return 0
+
+
+def cmd_plan_status(args: argparse.Namespace) -> int:
+    results = [bank_status(spec) for spec in _specs(args.channel)]
+    _print(results if args.json else [json.dumps(item, ensure_ascii=False, indent=2) for item in results], args.json)
+    return 0
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -246,6 +281,25 @@ def build_parser() -> argparse.ArgumentParser:
     doctor = subparsers.add_parser("doctor")
     doctor.add_argument("--json", action="store_true", help=argparse.SUPPRESS)
     doctor.set_defaults(func=cmd_doctor)
+
+    plan = subparsers.add_parser("plan", help="generate and inspect episode plans")
+    plan_sub = plan.add_subparsers(dest="plan_command", required=True)
+
+    plan_new = plan_sub.add_parser("new", help="write the next plan for a channel")
+    plan_new.add_argument("--channel", default="all")
+    plan_new.add_argument(
+        "--allow-unpublished",
+        action="store_true",
+        help="Natkhat: plan the next episode even if the previous one has not been uploaded",
+    )
+    plan_new.add_argument("--no-write", action="store_true", help="preview without touching the batch")
+    plan_new.add_argument("--json", action="store_true", help=argparse.SUPPRESS)
+    plan_new.set_defaults(func=cmd_plan_new)
+
+    plan_status = plan_sub.add_parser("status", help="remaining topics / series position")
+    plan_status.add_argument("--channel", default="all")
+    plan_status.add_argument("--json", action="store_true", help=argparse.SUPPRESS)
+    plan_status.set_defaults(func=cmd_plan_status)
     return parser
 
 

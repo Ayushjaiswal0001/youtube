@@ -140,6 +140,11 @@ class BatchPlan:
 
 
 def default_batch_path() -> Path:
+    """Newest authored batch; kept for callers that still expect a single file."""
+
+    candidates = sorted(CONTENT_DIR.glob("batch_*.json"))
+    if candidates:
+        return candidates[-1]
     return CONTENT_DIR / "batch_2026-11-20.json"
 
 
@@ -295,8 +300,28 @@ def story_packet(script: Script, spec: ChannelSpec) -> dict[str, Any]:
 
 
 def load_plans_for(spec: ChannelSpec, batch_path: Path | str | None = None) -> list[dict[str, Any]]:
-    batch = BatchPlan.load(batch_path or default_batch_path())
-    plans = batch.for_channel(spec.slug)
+    """Every plan for a channel, oldest batch first, first occurrence wins.
+
+    Batch files are additive: a daily run appends its generated plan to
+    ``batch_<date>.json`` and older batches keep working, so pending plans are never
+    lost when a new batch appears.
+    """
+
+    paths = [Path(batch_path)] if batch_path else sorted(CONTENT_DIR.glob("batch_*.json"))
+    plans: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for path in paths:
+        if not path.is_file():
+            continue
+        batch = BatchPlan.load(path)
+        for plan in batch.for_channel(spec.slug):
+            if not isinstance(plan, dict):
+                continue
+            key = slugify(str(plan.get("id") or plan.get("title") or ""))
+            if key in seen:
+                continue
+            seen.add(key)
+            plans.append(plan)
     if not plans:
-        raise ValueError(f"batch has no plans for channel {spec.slug!r}")
+        raise ValueError(f"no batch has plans for channel {spec.slug!r}")
     return plans

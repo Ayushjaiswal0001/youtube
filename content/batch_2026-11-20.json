@@ -52,7 +52,12 @@
           "OpenAI Operator: https://openai.com/index/introducing-operator/",
           "OSWorld benchmark: https://arxiv.org/abs/2404.07972"
         ],
-        "tags": ["ai agents", "computer use", "automation", "ai safety"]
+        "tags": [
+          "ai agents",
+          "computer use",
+          "automation",
+          "ai safety"
+        ]
       },
       {
         "id": "nexus-small-models",
@@ -103,7 +108,12 @@
           "Hugging Face quantization guide: https://huggingface.co/docs/transformers/main/en/quantization/overview",
           "MobileLLM: https://arxiv.org/abs/2402.14905"
         ],
-        "tags": ["small language models", "on-device ai", "quantization", "distillation"]
+        "tags": [
+          "small language models",
+          "on-device ai",
+          "quantization",
+          "distillation"
+        ]
       },
       {
         "id": "nexus-ai-memory-cost",
@@ -154,7 +164,102 @@
           "Retrieval-Augmented Generation: https://arxiv.org/abs/2005.11401",
           "NIST AI Risk Management Framework: https://www.nist.gov/itl/ai-risk-management-framework"
         ],
-        "tags": ["ai memory", "context window", "rag", "ai privacy"]
+        "tags": [
+          "ai memory",
+          "context window",
+          "rag",
+          "ai privacy"
+        ]
+      },
+      {
+        "id": "nexus-data-wall",
+        "title": "AI Is Running Out of Text",
+        "topic": "the data wall in AI training",
+        "hook": "AI companies spent years chasing more compute. The next shortage is stranger: readable text.",
+        "hook_headline": "The next shortage",
+        "hook_visual": "grid",
+        "beats": [
+          {
+            "text": "Large models are trained on trillions of words scraped from the open web, books, code and subtitles.",
+            "headline": "Trillions of words",
+            "visual": "network"
+          },
+          {
+            "text": "That pool is finite, and the best quality slice of it is smaller than most people assume.",
+            "headline": "A finite pool",
+            "visual": "bars"
+          },
+          {
+            "text": "Publishers are restricting crawlers, and licensed archives cost real money, so fresh supply is tightening.",
+            "headline": "Supply tightening",
+            "visual": "shield"
+          },
+          {
+            "text": "The workaround is synthetic data, human feedback or smaller models trained on cleaner, curated text.",
+            "headline": "Three workarounds",
+            "visual": "nodes"
+          }
+        ],
+        "payoff": "The winners may not be the labs with the most data, but the ones with the cleanest way to replace it.",
+        "payoff_headline": "Quality beats volume",
+        "cta": "Follow for more on how AI actually gets built.",
+        "cta_headline": "Follow",
+        "tags": [
+          "ai",
+          "llm",
+          "training-data"
+        ],
+        "sources": [
+          "https://arxiv.org/search/?query=data+wall+language+model",
+          "https://www.epochai.org/research"
+        ],
+        "slot": "pm",
+        "angle": "why high-quality text is becoming the bottleneck"
+      },
+      {
+        "id": "nexus-on-device",
+        "title": "The AI Moving Onto Your Phone",
+        "topic": "on-device AI inference",
+        "hook": "The most useful AI of the next few years may never leave your phone.",
+        "hook_headline": "Local first",
+        "hook_visual": "device",
+        "beats": [
+          {
+            "text": "Running a model on-device removes network latency, cloud bills and most privacy questions in one move.",
+            "headline": "Three problems gone",
+            "visual": "shield"
+          },
+          {
+            "text": "Quantisation and distillation shrink models to a few billion parameters without destroying everyday reasoning.",
+            "headline": "Smaller, not dumber",
+            "visual": "bars"
+          },
+          {
+            "text": "Phone chips now ship dedicated neural hardware measured in tens of trillions of operations per second.",
+            "headline": "Neural silicon",
+            "visual": "chip"
+          },
+          {
+            "text": "The catch is memory bandwidth and battery, which is why tiny models still beat big ones on a handset.",
+            "headline": "The catch",
+            "visual": "battery"
+          }
+        ],
+        "payoff": "Expect hybrids: a small model handling the everyday work, and the cloud called only for the hard questions.",
+        "payoff_headline": "Hybrid by default",
+        "cta": "Follow for more on where AI is heading.",
+        "cta_headline": "Follow",
+        "tags": [
+          "ai",
+          "edge",
+          "hardware"
+        ],
+        "sources": [
+          "https://arxiv.org/search/?query=on-device+language+model+inference",
+          "https://mlcommons.org/benchmarks/"
+        ],
+        "slot": "pm",
+        "angle": "why small local models are suddenly competitive"
       }
     ],
     "academic-biohacker": [
@@ -207,7 +312,12 @@
           "Glymphatic system review: https://pubmed.ncbi.nlm.nih.gov/37316937/",
           "Sleep and amyloid beta: https://pubmed.ncbi.nlm.nih.gov/30531871/"
         ],
-        "tags": ["sleep", "brain health", "glymphatic system", "neuroscience"]
+        "tags": [
+          "sleep",
+          "brain health",
+          "glymphatic system",
+          "neuroscience"
+        ]
       },
       {
         "id": "academic-morning-light",
@@ -258,7 +368,12 @@
           "Circadian light review: https://www.ncbi.nlm.nih.gov/pmc/articles/PMC6751071/",
           "Light, melatonin, and circadian timing: https://pubmed.ncbi.nlm.nih.gov/32040585/"
         ],
-        "tags": ["circadian rhythm", "morning light", "sleep", "body clock"]
+        "tags": [
+          "circadian rhythm",
+          "morning light",
+          "sleep",
+          "body clock"
+        ]
       },
       {
         "id": "academic-gut-brain",
@@ -309,7 +424,103 @@
           "Microbiome and gut-brain signaling: https://pubmed.ncbi.nlm.nih.gov/34738954/",
           "Diet, fiber, and the gut microbiome: https://pubmed.ncbi.nlm.nih.gov/33336247/"
         ],
-        "tags": ["gut health", "microbiome", "gut brain axis", "fiber"]
+        "tags": [
+          "gut health",
+          "microbiome",
+          "gut brain axis",
+          "fiber"
+        ]
+      },
+      {
+        "id": "academic-post-meal-walk",
+        "title": "Walk After Eating",
+        "topic": "post-meal walking and blood glucose",
+        "hook": "Ten minutes of walking after a meal does something a supplement cannot: it moves glucose into muscle.",
+        "hook_headline": "Move, don't supplement",
+        "hook_visual": "walk",
+        "beats": [
+          {
+            "text": "After you eat, glucose rises in the blood, and insulin signals muscle and fat to take it up.",
+            "headline": "The post-meal rise",
+            "visual": "chart"
+          },
+          {
+            "text": "Contracting muscle pulls glucose in through a transporter that does not need extra insulin to activate.",
+            "headline": "Muscle as a sink",
+            "visual": "cell"
+          },
+          {
+            "text": "Trials comparing sitting with light walking after meals generally report lower glucose peaks with the walk.",
+            "headline": "What trials show",
+            "visual": "bars"
+          },
+          {
+            "text": "The effect is modest and short-lived, so it complements movement across the day rather than replacing it.",
+            "headline": "Modest, not magic",
+            "visual": "scale"
+          }
+        ],
+        "payoff": "If you only change one habit this week, make it a short walk while your food settles.",
+        "payoff_headline": "The smallest change",
+        "cta": "Follow for evidence-first health shorts.",
+        "cta_headline": "Follow",
+        "tags": [
+          "health",
+          "glucose",
+          "walking",
+          "evidence"
+        ],
+        "sources": [
+          "https://pubmed.ncbi.nlm.nih.gov/?term=postprandial+walking+glucose",
+          "https://www.who.int/news-room/fact-sheets/detail/physical-activity"
+        ],
+        "slot": "am",
+        "angle": "why a short walk after eating changes the glucose curve"
+      },
+      {
+        "id": "academic-cool-to-sleep",
+        "title": "You Sleep By Cooling Down",
+        "topic": "core temperature and sleep onset",
+        "hook": "Sleep does not start in your brain alone. It starts with a drop in core temperature.",
+        "hook_headline": "Cool to sleep",
+        "hook_visual": "thermo",
+        "beats": [
+          {
+            "text": "In the evening your body shifts heat from the core to the skin, and core temperature begins to fall.",
+            "headline": "Heat moves outward",
+            "visual": "flow"
+          },
+          {
+            "text": "That fall is one of the signals the brain uses to time sleep onset, alongside light and melatonin.",
+            "headline": "A timed signal",
+            "visual": "clock"
+          },
+          {
+            "text": "A hot bath one to two hours before bed can help, because the heat you dump afterwards cools you down.",
+            "headline": "The warm bath trick",
+            "visual": "bath"
+          },
+          {
+            "text": "A warm bedroom works against this, which is why a cooler room helps many people fall asleep faster.",
+            "headline": "Cool the room",
+            "visual": "room"
+          }
+        ],
+        "payoff": "You cannot force sleep. You can give your body the temperature cue it is waiting for.",
+        "payoff_headline": "Set the cue",
+        "cta": "Follow for more sleep science.",
+        "cta_headline": "Follow",
+        "tags": [
+          "sleep",
+          "temperature",
+          "evidence"
+        ],
+        "sources": [
+          "https://pubmed.ncbi.nlm.nih.gov/?term=core+temperature+sleep+onset",
+          "https://www.nhlbi.nih.gov/health/sleep"
+        ],
+        "slot": "am",
+        "angle": "the thermoregulation signal that starts sleep"
       }
     ],
     "natkhat-toons": [
@@ -353,24 +564,29 @@
           },
           {
             "speaker": "narrator",
-        "dialogue": "तभी चीकू को खिड़की पर एक पीतल की चाबी मिली। हवेली का रहस्य अभी बाकी था!",
-        "chiku_pose": "embarrassed_smile",
-        "gappu_pose": "satisfied_nod",
-        "camera": "wide_finish",
-        "bg": "haunted_haveli",
-        "sfx": "success_ding"
-      },
-      {
-        "speaker": "narrator",
-        "dialogue": "अगली बार: चाबी कौन सा दरवाज़ा खोलेगी? जानने के लिए जुड़े रहो!",
-        "chiku_pose": "excited_jump",
-        "gappu_pose": "observing",
-        "camera": "wide_finish",
-        "bg": "haunted_haveli",
-        "sfx": "pop"
-      }
-    ],
-        "tags": ["hindi kahani", "kids story", "haunted haveli", "chiku gappu"]
+            "dialogue": "तभी चीकू को खिड़की पर एक पीतल की चाबी मिली। हवेली का रहस्य अभी बाकी था!",
+            "chiku_pose": "embarrassed_smile",
+            "gappu_pose": "satisfied_nod",
+            "camera": "wide_finish",
+            "bg": "haunted_haveli",
+            "sfx": "success_ding"
+          },
+          {
+            "speaker": "narrator",
+            "dialogue": "अगली बार: चाबी कौन सा दरवाज़ा खोलेगी? जानने के लिए जुड़े रहो!",
+            "chiku_pose": "excited_jump",
+            "gappu_pose": "observing",
+            "camera": "wide_finish",
+            "bg": "haunted_haveli",
+            "sfx": "pop"
+          }
+        ],
+        "tags": [
+          "hindi kahani",
+          "kids story",
+          "haunted haveli",
+          "chiku gappu"
+        ]
       },
       {
         "id": "natkhat-haveli-e2",
@@ -412,24 +628,29 @@
           },
           {
             "speaker": "narrator",
-        "dialogue": "दरवाज़े के पीछे एक संगीत का डिब्बा और पुरानी चिट्ठी थी। चिट्ठी में छत का नक्शा था!",
-        "chiku_pose": "embarrassed_smile",
-        "gappu_pose": "satisfied_nod",
-        "camera": "wide_finish",
-        "bg": "haunted_haveli",
-        "sfx": "success_ding"
-      },
-      {
-        "speaker": "narrator",
-        "dialogue": "अगली बार: छत के नक्शे में छिपा राज़ क्या है? जानने के लिए जुड़े रहो!",
-        "chiku_pose": "excited_jump",
-        "gappu_pose": "observing",
-        "camera": "wide_finish",
-        "bg": "haunted_haveli",
-        "sfx": "pop"
-      }
-    ],
-        "tags": ["hindi kahani", "kids story", "haunted haveli", "chiku gappu"]
+            "dialogue": "दरवाज़े के पीछे एक संगीत का डिब्बा और पुरानी चिट्ठी थी। चिट्ठी में छत का नक्शा था!",
+            "chiku_pose": "embarrassed_smile",
+            "gappu_pose": "satisfied_nod",
+            "camera": "wide_finish",
+            "bg": "haunted_haveli",
+            "sfx": "success_ding"
+          },
+          {
+            "speaker": "narrator",
+            "dialogue": "अगली बार: छत के नक्शे में छिपा राज़ क्या है? जानने के लिए जुड़े रहो!",
+            "chiku_pose": "excited_jump",
+            "gappu_pose": "observing",
+            "camera": "wide_finish",
+            "bg": "haunted_haveli",
+            "sfx": "pop"
+          }
+        ],
+        "tags": [
+          "hindi kahani",
+          "kids story",
+          "haunted haveli",
+          "chiku gappu"
+        ]
       },
       {
         "id": "natkhat-haveli-e3",
@@ -471,24 +692,29 @@
           },
           {
             "speaker": "narrator",
-        "dialogue": "चौकीदार ने उन्हें हवेली की दूसरी चाबी दी। दूसरी चाबी किस दरवाज़े की थी?",
-        "chiku_pose": "embarrassed_smile",
-        "gappu_pose": "satisfied_nod",
-        "camera": "wide_finish",
-        "bg": "haunted_haveli",
-        "sfx": "success_ding"
-      },
-      {
-        "speaker": "narrator",
-        "dialogue": "अगली बार: दूसरी चाबी और हवेली का आखिरी राज़! जानने के लिए जुड़े रहो!",
-        "chiku_pose": "excited_jump",
-        "gappu_pose": "observing",
-        "camera": "wide_finish",
-        "bg": "haunted_haveli",
-        "sfx": "pop"
-      }
-    ],
-        "tags": ["hindi kahani", "kids story", "haunted haveli", "chiku gappu"]
+            "dialogue": "चौकीदार ने उन्हें हवेली की दूसरी चाबी दी। दूसरी चाबी किस दरवाज़े की थी?",
+            "chiku_pose": "embarrassed_smile",
+            "gappu_pose": "satisfied_nod",
+            "camera": "wide_finish",
+            "bg": "haunted_haveli",
+            "sfx": "success_ding"
+          },
+          {
+            "speaker": "narrator",
+            "dialogue": "अगली बार: दूसरी चाबी और हवेली का आखिरी राज़! जानने के लिए जुड़े रहो!",
+            "chiku_pose": "excited_jump",
+            "gappu_pose": "observing",
+            "camera": "wide_finish",
+            "bg": "haunted_haveli",
+            "sfx": "pop"
+          }
+        ],
+        "tags": [
+          "hindi kahani",
+          "kids story",
+          "haunted haveli",
+          "chiku gappu"
+        ]
       }
     ]
   }

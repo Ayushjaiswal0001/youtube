@@ -45,6 +45,33 @@ def _scene_durations(project_file: Path) -> list[dict[str, Any]]:
     return rows
 
 
+def _load_pipeline(studio_out: Path):
+    """Import the studio pipeline with paths bound to this episode's build directory.
+
+    ``studio.config`` reads its ``STUDIO_*`` environment variables once, at import
+    time, and every studio module binds those directories as module constants. A
+    second render in the same process would otherwise keep writing into the first
+    episode's folder, so drop the cached modules and import them fresh.
+    """
+
+    import sys
+
+    for name in [key for key in list(sys.modules) if key == "studio" or key.startswith("studio.")]:
+        del sys.modules[name]
+
+    import studio.config as studio_config
+
+    if studio_config.OUTPUT_DIR != studio_out.resolve():
+        raise RuntimeError(
+            f"studio config did not pick up STUDIO_OUTPUT_DIR: "
+            f"{studio_config.OUTPUT_DIR} != {studio_out.resolve()}"
+        )
+
+    from studio.pipeline.episode import EpisodePipeline
+
+    return EpisodePipeline
+
+
 def render_hindi_episode(
     spec: ChannelSpec,
     plan: dict[str, Any],
@@ -89,20 +116,13 @@ def render_hindi_episode(
     os.environ["STUDIO_LOGS_DIR"] = str(BUILD_ROOT / "logs")
     os.environ["STUDIO_DATA_DIR"] = str(STATE_ROOT / spec.slug / "studio_data")
 
-    import studio.config as studio_config
-    from studio.pipeline.episode import EpisodePipeline
-
-    studio_config.OUTPUT_DIR = studio_out
-    studio_config.EPISODES_DIR = studio_out / "episodes"
-    studio_config.INTERMEDIATE_DIR = studio_out / "intermediate"
-    studio_config.LOGS_DIR = BUILD_ROOT / "logs"
-    studio_config.DATA_DIR = STATE_ROOT / spec.slug / "studio_data"
+    EpisodePipeline = _load_pipeline(studio_out)
     for directory in (
-        studio_config.OUTPUT_DIR,
-        studio_config.EPISODES_DIR,
-        studio_config.INTERMEDIATE_DIR,
-        studio_config.LOGS_DIR,
-        studio_config.DATA_DIR,
+        Path(os.environ["STUDIO_OUTPUT_DIR"]),
+        Path(os.environ["STUDIO_EPISODES_DIR"]),
+        Path(os.environ["STUDIO_INTERMEDIATE_DIR"]),
+        Path(os.environ["STUDIO_LOGS_DIR"]),
+        Path(os.environ["STUDIO_DATA_DIR"]),
     ):
         directory.mkdir(parents=True, exist_ok=True)
 

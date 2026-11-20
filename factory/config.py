@@ -211,9 +211,11 @@ def load_channel_specs(channels_dir: Path | str | None = None) -> dict[str, Chan
 def selected_channels(value: str | None, specs: Mapping[str, ChannelSpec]) -> list[ChannelSpec]:
     if not value or value == "all":
         return list(specs.values())
-    if value not in specs:
-        raise ValueError(f"unknown channel: {value}")
-    return [specs[value]]
+    wanted = [part.strip() for part in value.split(",") if part.strip()]
+    unknown = [slug for slug in wanted if slug not in specs]
+    if unknown:
+        raise ValueError(f"unknown channel: {', '.join(unknown)}")
+    return [specs[slug] for slug in wanted]
 
 
 def ensure_runtime_dirs() -> None:
