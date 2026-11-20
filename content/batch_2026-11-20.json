@@ -1,0 +1,495 @@
+{
+  "batch_id": "2026-11-20-nine-short-batch",
+  "created_at": "2026-11-20T00:00:00+00:00",
+  "channels": {
+    "nexus-node": [
+      {
+        "id": "nexus-agents-leave-chat",
+        "slot": 1,
+        "topic": "AI agents are moving from chat to computer control",
+        "title": "AI Is Leaving the Chat",
+        "hook": "Your next AI assistant will not just answer questions. It will click, type, and browse for you.",
+        "hook_headline": "AI leaves the chat",
+        "hook_visual": "network",
+        "beats": [
+          {
+            "text": "Computer-use agents look at a screen and operate it through mouse and keyboard actions.",
+            "headline": "It sees the screen",
+            "visual": "screen",
+            "sfx": "pop"
+          },
+          {
+            "text": "The model plans a step, calls a tool, checks the result, and retries when something fails.",
+            "headline": "Plan, act, check",
+            "visual": "loop",
+            "sfx": "pop"
+          },
+          {
+            "text": "That turns a chatbot into a worker that can finish multi-step tasks on a desktop.",
+            "headline": "From chat to work",
+            "visual": "robot",
+            "sfx": "pop"
+          },
+          {
+            "text": "The hard part is safety, because one wrong click can delete files or expose private data.",
+            "headline": "One click risk",
+            "visual": "shield",
+            "sfx": "warning"
+          },
+          {
+            "text": "So useful agents run inside sandboxes with limited permissions and human approval.",
+            "headline": "Sandbox first",
+            "visual": "sandbox",
+            "sfx": "ding"
+          }
+        ],
+        "payoff": "The real race is not smarter chat. It is reliable action with guardrails.",
+        "payoff_headline": "Action needs guardrails",
+        "cta": "Follow Nexus Node for the systems behind the headlines.",
+        "cta_headline": "Follow Nexus Node",
+        "sources": [
+          "Anthropic computer use announcement: https://www.anthropic.com/news/3-5-models-and-computer-use",
+          "OpenAI Operator: https://openai.com/index/introducing-operator/",
+          "OSWorld benchmark: https://arxiv.org/abs/2404.07972"
+        ],
+        "tags": ["ai agents", "computer use", "automation", "ai safety"]
+      },
+      {
+        "id": "nexus-small-models",
+        "slot": 2,
+        "topic": "Small language models are becoming the practical choice",
+        "title": "Small Models, Big Upgrade",
+        "hook": "The most useful AI model this year might be the one that runs on your laptop.",
+        "hook_headline": "The small model shift",
+        "hook_visual": "chip",
+        "beats": [
+          {
+            "text": "Small models are trained to imitate larger models, a process called distillation.",
+            "headline": "Distillation",
+            "visual": "flow",
+            "sfx": "pop"
+          },
+          {
+            "text": "Quantization shrinks their numbers, so they use less memory and run faster.",
+            "headline": "Smaller numbers",
+            "visual": "chip",
+            "sfx": "pop"
+          },
+          {
+            "text": "On narrow tasks like summarizing or routing, a small model can match a giant one.",
+            "headline": "Narrow wins",
+            "visual": "target",
+            "sfx": "ding"
+          },
+          {
+            "text": "Running locally cuts latency, cloud cost, and the risk of sending private data away.",
+            "headline": "Local advantage",
+            "visual": "laptop",
+            "sfx": "pop"
+          },
+          {
+            "text": "The catch is range, because small models forget more and fail on open-ended reasoning.",
+            "headline": "The trade-off",
+            "visual": "scale",
+            "sfx": "warning"
+          }
+        ],
+        "payoff": "The future is not one giant model. It is the right-sized model for each job.",
+        "payoff_headline": "Right-size the model",
+        "cta": "Subscribe for practical AI breakdowns.",
+        "cta_headline": "Subscribe",
+        "sources": [
+          "Distilling Step-by-Step: https://arxiv.org/abs/2305.02301",
+          "Hugging Face quantization guide: https://huggingface.co/docs/transformers/main/en/quantization/overview",
+          "MobileLLM: https://arxiv.org/abs/2402.14905"
+        ],
+        "tags": ["small language models", "on-device ai", "quantization", "distillation"]
+      },
+      {
+        "id": "nexus-ai-memory-cost",
+        "slot": 3,
+        "topic": "The hidden cost of giving AI a memory",
+        "title": "AI Memory Is Not Free",
+        "hook": "Giving an AI a perfect memory sounds great, until it remembers the wrong thing.",
+        "hook_headline": "Memory has a cost",
+        "hook_visual": "memory",
+        "beats": [
+          {
+            "text": "Long context lets a model read more at once, but attention cost grows with every token.",
+            "headline": "More tokens, more cost",
+            "visual": "scale",
+            "sfx": "pop"
+          },
+          {
+            "text": "Retrieval systems store notes outside the model and fetch only what seems relevant.",
+            "headline": "Fetch, do not cram",
+            "visual": "database",
+            "sfx": "pop"
+          },
+          {
+            "text": "Bad retrieval is worse than no memory, because the model confidently uses stale or private notes.",
+            "headline": "Stale notes",
+            "visual": "warning",
+            "sfx": "warning"
+          },
+          {
+            "text": "Good memory needs permissions, expiry dates, and a way to forget on request.",
+            "headline": "Forget on purpose",
+            "visual": "shield",
+            "sfx": "ding"
+          },
+          {
+            "text": "The product question is not can it remember. It is what should it remember.",
+            "headline": "What, not can",
+            "visual": "question",
+            "sfx": "pop"
+          }
+        ],
+        "payoff": "Memory is a design decision, not a feature checkbox.",
+        "payoff_headline": "Design the memory",
+        "cta": "Follow for more AI systems thinking.",
+        "cta_headline": "Follow",
+        "sources": [
+          "Lost in the Middle: https://arxiv.org/abs/2307.03172",
+          "Retrieval-Augmented Generation: https://arxiv.org/abs/2005.11401",
+          "NIST AI Risk Management Framework: https://www.nist.gov/itl/ai-risk-management-framework"
+        ],
+        "tags": ["ai memory", "context window", "rag", "ai privacy"]
+      }
+    ],
+    "academic-biohacker": [
+      {
+        "id": "academic-brain-wash",
+        "slot": 1,
+        "topic": "How sleep helps the brain clear waste",
+        "title": "Your Brain's Night Shift",
+        "hook": "While you sleep, your brain may be washing itself with cerebrospinal fluid.",
+        "hook_headline": "The brain at night",
+        "hook_visual": "brain",
+        "beats": [
+          {
+            "text": "The glymphatic system is a waste-clearance pathway described in rodent studies.",
+            "headline": "The glymphatic pathway",
+            "visual": "brain",
+            "sfx": "pop"
+          },
+          {
+            "text": "During sleep, fluid flow around the brain increases and may help clear metabolic waste.",
+            "headline": "Flow while you sleep",
+            "visual": "wave",
+            "sfx": "pop"
+          },
+          {
+            "text": "One waste product is amyloid beta, which is linked to Alzheimer's disease.",
+            "headline": "Amyloid beta",
+            "visual": "cell",
+            "sfx": "warning"
+          },
+          {
+            "text": "Human evidence is still developing, so scientists avoid promising a simple detox.",
+            "headline": "Promising, not proven",
+            "visual": "flask",
+            "sfx": "pop"
+          },
+          {
+            "text": "What you can do is protect regular sleep and treat chronic sleep loss seriously.",
+            "headline": "Protect your sleep",
+            "visual": "moon",
+            "sfx": "ding"
+          }
+        ],
+        "payoff": "Sleep is not idle time. It is active maintenance.",
+        "payoff_headline": "Sleep is maintenance",
+        "cta": "Follow Academic Biohacker for evidence-first health.",
+        "cta_headline": "Follow",
+        "sources": [
+          "NIH: how sleep clears brain waste: https://www.nih.gov/news-events/nih-research-matters/brain-clears-waste-during-sleep",
+          "Glymphatic system review: https://pubmed.ncbi.nlm.nih.gov/37316937/",
+          "Sleep and amyloid beta: https://pubmed.ncbi.nlm.nih.gov/30531871/"
+        ],
+        "tags": ["sleep", "brain health", "glymphatic system", "neuroscience"]
+      },
+      {
+        "id": "academic-morning-light",
+        "slot": 2,
+        "topic": "Morning light resets the body clock",
+        "title": "Morning Light Is a Drug",
+        "hook": "Ten minutes of morning light can do more for your body clock than a late-night scroll.",
+        "hook_headline": "Light sets the clock",
+        "hook_visual": "sun",
+        "beats": [
+          {
+            "text": "Light hits the retina and signals the suprachiasmatic nucleus, your master clock.",
+            "headline": "Your master clock",
+            "visual": "clock",
+            "sfx": "pop"
+          },
+          {
+            "text": "Morning light advances the clock, helping you feel awake earlier and sleep earlier.",
+            "headline": "Advance the clock",
+            "visual": "sun",
+            "sfx": "pop"
+          },
+          {
+            "text": "Evening light does the opposite, delaying melatonin and pushing sleep later.",
+            "headline": "Late light delays",
+            "visual": "moon",
+            "sfx": "warning"
+          },
+          {
+            "text": "Outdoor light is far brighter than a screen, even on a cloudy day.",
+            "headline": "Outdoors wins",
+            "visual": "cloud",
+            "sfx": "pop"
+          },
+          {
+            "text": "A short morning walk, without sunglasses, is a simple clock-setting habit.",
+            "headline": "Set it with a walk",
+            "visual": "walk",
+            "sfx": "ding"
+          }
+        ],
+        "payoff": "Your body clock is trainable. Light is the training signal.",
+        "payoff_headline": "Train your clock",
+        "cta": "Follow for practical, evidence-based routines.",
+        "cta_headline": "Follow",
+        "sources": [
+          "NIH: morning light and sleep: https://www.nih.gov/news-events/nih-research-matters/morning-light-may-help-people-sleep-better",
+          "Circadian light review: https://www.ncbi.nlm.nih.gov/pmc/articles/PMC6751071/",
+          "Light, melatonin, and circadian timing: https://pubmed.ncbi.nlm.nih.gov/32040585/"
+        ],
+        "tags": ["circadian rhythm", "morning light", "sleep", "body clock"]
+      },
+      {
+        "id": "academic-gut-brain",
+        "slot": 3,
+        "topic": "The gut-brain axis and the microbiome",
+        "title": "Your Gut Has a Phone Line to Your Brain",
+        "hook": "Your gut and brain are constantly sending messages. The question is what they are saying.",
+        "hook_headline": "The gut-brain line",
+        "hook_visual": "gut",
+        "beats": [
+          {
+            "text": "The gut-brain axis links the digestive tract, the nervous system, and the microbiome.",
+            "headline": "The gut-brain axis",
+            "visual": "gut",
+            "sfx": "pop"
+          },
+          {
+            "text": "The vagus nerve carries signals upward, and the gut makes many signaling molecules.",
+            "headline": "The vagus nerve",
+            "visual": "nerve",
+            "sfx": "pop"
+          },
+          {
+            "text": "Microbes can influence those signals, but cause and effect in humans is still unclear.",
+            "headline": "Correlation, not cause",
+            "visual": "microbe",
+            "sfx": "warning"
+          },
+          {
+            "text": "Fiber feeds beneficial microbes and supports a more diverse gut community.",
+            "headline": "Feed the good ones",
+            "visual": "fiber",
+            "sfx": "pop"
+          },
+          {
+            "text": "Probiotic supplements are not a shortcut. Food and sleep still matter most.",
+            "headline": "No magic pill",
+            "visual": "capsule",
+            "sfx": "ding"
+          }
+        ],
+        "payoff": "A healthy gut is a system, not a single supplement.",
+        "payoff_headline": "Think in systems",
+        "cta": "Subscribe for science without the hype.",
+        "cta_headline": "Subscribe",
+        "sources": [
+          "NIH: the gut-brain connection: https://www.nih.gov/news-events/nih-research-matters/gut-brain-connection",
+          "Microbiome and gut-brain signaling: https://pubmed.ncbi.nlm.nih.gov/34738954/",
+          "Diet, fiber, and the gut microbiome: https://pubmed.ncbi.nlm.nih.gov/33336247/"
+        ],
+        "tags": ["gut health", "microbiome", "gut brain axis", "fiber"]
+      }
+    ],
+    "natkhat-toons": [
+      {
+        "id": "natkhat-haveli-e1",
+        "slot": 1,
+        "topic": "Chiku and Gappu spend their first night in the haunted haveli",
+        "title": "चीकू और गप्पू: हवेली की पहली रात",
+        "hook": "पुरानी हवेली में आधी रात को एक अजीब आवाज़ गूँजी।",
+        "series": "haunted-haveli",
+        "series_title": "हवेली का रहस्य",
+        "episode": 1,
+        "moral": "डरने से पहले देखो और समझो।",
+        "scenes": [
+          {
+            "speaker": "narrator",
+            "dialogue": "आधी रात को चीकू और गप्पू पुरानी हवेली के दरवाज़े पर पहुँचे।",
+            "chiku_pose": "excited_jump",
+            "gappu_pose": "observing",
+            "camera": "medium_pan",
+            "bg": "haunted_haveli",
+            "sfx": "whoosh"
+          },
+          {
+            "speaker": "chiku",
+            "dialogue": "गप्पू! आज मैं इस हवेली का भूत पकड़ कर दिखाऊँगा!",
+            "chiku_pose": "boast_proud",
+            "gappu_pose": "skeptical_eyebrow",
+            "camera": "close_up_chiku",
+            "bg": "haunted_haveli",
+            "sfx": "boing"
+          },
+          {
+            "speaker": "gappu",
+            "dialogue": "यह तो टूटी खिड़की की सीटी है! डरने से पहले देखो, समझो।",
+            "chiku_pose": "shocked_freeze",
+            "gappu_pose": "observing",
+            "camera": "two_shot_zoom",
+            "bg": "haunted_haveli",
+            "sfx": "twinkle"
+          },
+          {
+            "speaker": "narrator",
+        "dialogue": "तभी चीकू को खिड़की पर एक पीतल की चाबी मिली। हवेली का रहस्य अभी बाकी था!",
+        "chiku_pose": "embarrassed_smile",
+        "gappu_pose": "satisfied_nod",
+        "camera": "wide_finish",
+        "bg": "haunted_haveli",
+        "sfx": "success_ding"
+      },
+      {
+        "speaker": "narrator",
+        "dialogue": "अगली बार: चाबी कौन सा दरवाज़ा खोलेगी? जानने के लिए जुड़े रहो!",
+        "chiku_pose": "excited_jump",
+        "gappu_pose": "observing",
+        "camera": "wide_finish",
+        "bg": "haunted_haveli",
+        "sfx": "pop"
+      }
+    ],
+        "tags": ["hindi kahani", "kids story", "haunted haveli", "chiku gappu"]
+      },
+      {
+        "id": "natkhat-haveli-e2",
+        "slot": 2,
+        "topic": "Chiku and Gappu find a hidden door in the haveli",
+        "title": "चीकू और गप्पू: दीवार में छिपी आवाज़",
+        "hook": "हवेली की दीवार के पीछे से हल्की संगीत की आवाज़ आई।",
+        "series": "haunted-haveli",
+        "series_title": "हवेली का रहस्य",
+        "episode": 2,
+        "moral": "जल्दबाज़ी नहीं, धैर्य से रास्ता मिलता है।",
+        "scenes": [
+          {
+            "speaker": "narrator",
+            "dialogue": "अगली शाम, हवेली की दीवार से हल्की संगीत की आवाज़ आई।",
+            "chiku_pose": "excited_jump",
+            "gappu_pose": "observing",
+            "camera": "medium_pan",
+            "bg": "haunted_haveli",
+            "sfx": "whoosh"
+          },
+          {
+            "speaker": "chiku",
+            "dialogue": "मैं दीवार तोड़कर देखता हूँ! अंदर ज़रूर कोई खज़ाना है!",
+            "chiku_pose": "boast_proud",
+            "gappu_pose": "skeptical_eyebrow",
+            "camera": "close_up_chiku",
+            "bg": "haunted_haveli",
+            "sfx": "boing"
+          },
+          {
+            "speaker": "gappu",
+            "dialogue": "रुको! चाबी से एक छोटा दरवाज़ा दिख रहा है। धैर्य से खोलो।",
+            "chiku_pose": "shocked_freeze",
+            "gappu_pose": "observing",
+            "camera": "two_shot_zoom",
+            "bg": "haunted_haveli",
+            "sfx": "twinkle"
+          },
+          {
+            "speaker": "narrator",
+        "dialogue": "दरवाज़े के पीछे एक संगीत का डिब्बा और पुरानी चिट्ठी थी। चिट्ठी में छत का नक्शा था!",
+        "chiku_pose": "embarrassed_smile",
+        "gappu_pose": "satisfied_nod",
+        "camera": "wide_finish",
+        "bg": "haunted_haveli",
+        "sfx": "success_ding"
+      },
+      {
+        "speaker": "narrator",
+        "dialogue": "अगली बार: छत के नक्शे में छिपा राज़ क्या है? जानने के लिए जुड़े रहो!",
+        "chiku_pose": "excited_jump",
+        "gappu_pose": "observing",
+        "camera": "wide_finish",
+        "bg": "haunted_haveli",
+        "sfx": "pop"
+      }
+    ],
+        "tags": ["hindi kahani", "kids story", "haunted haveli", "chiku gappu"]
+      },
+      {
+        "id": "natkhat-haveli-e3",
+        "slot": 3,
+        "topic": "Chiku and Gappu meet the shadow on the haveli roof",
+        "title": "चीकू और गप्पू: छत पर चलती परछाईं",
+        "hook": "हवेली की छत पर एक काली परछाईं टहल रही थी।",
+        "series": "haunted-haveli",
+        "series_title": "हवेली का रहस्य",
+        "episode": 3,
+        "moral": "हिम्मत और दोस्ती से डर छोटा लगता है।",
+        "scenes": [
+          {
+            "speaker": "narrator",
+            "dialogue": "रात को हवेली की छत पर एक काली परछाईं टहल रही थी।",
+            "chiku_pose": "observing",
+            "gappu_pose": "observing",
+            "camera": "medium_pan",
+            "bg": "haunted_haveli",
+            "sfx": "whoosh"
+          },
+          {
+            "speaker": "chiku",
+            "dialogue": "देखा? मैंने कहा था, हवेली में भूत रहता है!",
+            "chiku_pose": "boast_proud",
+            "gappu_pose": "skeptical_eyebrow",
+            "camera": "close_up_chiku",
+            "bg": "haunted_haveli",
+            "sfx": "boing"
+          },
+          {
+            "speaker": "gappu",
+            "dialogue": "वह भूत नहीं, चौकीदार का लालटेन है! मुस्कुराओ और दोस्ती करो।",
+            "chiku_pose": "shocked_freeze",
+            "gappu_pose": "laughing_point",
+            "camera": "two_shot_zoom",
+            "bg": "haunted_haveli",
+            "sfx": "twinkle"
+          },
+          {
+            "speaker": "narrator",
+        "dialogue": "चौकीदार ने उन्हें हवेली की दूसरी चाबी दी। दूसरी चाबी किस दरवाज़े की थी?",
+        "chiku_pose": "embarrassed_smile",
+        "gappu_pose": "satisfied_nod",
+        "camera": "wide_finish",
+        "bg": "haunted_haveli",
+        "sfx": "success_ding"
+      },
+      {
+        "speaker": "narrator",
+        "dialogue": "अगली बार: दूसरी चाबी और हवेली का आखिरी राज़! जानने के लिए जुड़े रहो!",
+        "chiku_pose": "excited_jump",
+        "gappu_pose": "observing",
+        "camera": "wide_finish",
+        "bg": "haunted_haveli",
+        "sfx": "pop"
+      }
+    ],
+        "tags": ["hindi kahani", "kids story", "haunted haveli", "chiku gappu"]
+      }
+    ]
+  }
+}
