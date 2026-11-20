@@ -180,6 +180,12 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     import os
     import shutil
 
+    from .config import ensure_runtime_dirs
+
+    # A fresh CI checkout has no build/state/log directories yet; create them the same
+    # way the pipeline does so a missing directory is not reported as a broken setup.
+    ensure_runtime_dirs()
+
     checks = []
     for command in ("ffmpeg", "ffprobe"):
         checks.append({"name": command, "ok": shutil.which(command) is not None, "path": shutil.which(command)})
