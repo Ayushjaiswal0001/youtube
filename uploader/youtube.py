@@ -10,7 +10,7 @@ from .errors import ApiError, UploaderError
 from .http import HttpClient
 
 API_BASE = "https://www.googleapis.com/youtube/v3"
-UPLOAD_URL = f"{API_BASE}/videos"
+UPLOAD_URL = "https://www.googleapis.com/upload/youtube/v3/videos"
 DEFAULT_CHUNK_SIZE = 8 * 1024 * 1024
 _RANGE_RE = re.compile(r"bytes=0-(\d+)")
 

@@ -73,6 +73,11 @@ class YouTubeTests(unittest.TestCase):
             )
             self.assertEqual(result["id"], "video-id")
             self.assertEqual(http.requests[0]["method"], "POST")
+            self.assertTrue(
+                http.requests[0]["url"].startswith(
+                    "https://www.googleapis.com/upload/youtube/v3/videos?"
+                )
+            )
             self.assertIn("uploadType=resumable", http.requests[0]["url"])
             self.assertIn("notifySubscribers=false", http.requests[0]["url"])
             self.assertEqual(http.requests[1]["method"], "PUT")
