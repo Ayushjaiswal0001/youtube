@@ -11,6 +11,7 @@ from PIL import Image
 from ..config import ChannelSpec
 from ..content.models import Script
 from ..util import atomic_write_json, ffprobe_duration, ffprobe_streams, iso_now, run
+from studio.audio.loudness import measure as measure_loudness, within_tolerance
 
 TITLE_BANNED = re.compile(r"[<>]")
 PLACEHOLDER = re.compile(r"\?{3,}")
@@ -130,6 +131,9 @@ def validate_episode(
                 f"mean={mean_db} dB, peak={max_db} dB",
             )
         )
+        loudness = measure_loudness(video_path)
+        ok, detail = within_tolerance(loudness)
+        checks.append(_check("audio_loudness", ok, f"EBU R128: {detail}"))
         if mean_db is not None and mean_db < -32.0:
             warnings.append(
                 _check(

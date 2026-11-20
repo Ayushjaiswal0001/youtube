@@ -123,6 +123,9 @@ Status markers: `[ ]` todo, `[~]` in progress, `[x]` done.
 - [x] **T35. Camera direction and lens** — `CameraDirector` styles (close-ups that actually
   frame their subject, push-in, pull-out, drift), background overscan so a panned frame is
   never bare, and a lens vignette; 13 tests.
+- [x] **T36. Loudness normalisation on the Shorts path** — two-pass linear EBU R128 per scene
+  mix, padding to the video length so sync cannot drift; QC gate rejects anything outside
+  -16.5..-11.5 LUFS; measured -24.3 → -14.0 LUFS on the same episode.
 - [ ] **T35b. Character-to-character interaction** — contact reactions (hand-off, grab),
   shared attention on an object, and dialogue-driven gestures beyond nodding.
 - [x] **T33. Locomotion** — walk/run cycles with contact/passing/up poses and foot planting.

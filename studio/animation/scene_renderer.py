@@ -13,6 +13,7 @@ from typing import Dict, Any, Optional
 import cairo
 
 from studio.config import VIDEO_WIDTH, VIDEO_HEIGHT, FPS, INTERMEDIATE_DIR
+from studio.audio.loudness import normalize_file
 from studio.characters.chiku import ChikuRig
 from studio.characters.gappu import GappuRig
 from studio.characters.gaze import (
@@ -250,6 +251,22 @@ class SceneRenderer:
         )
         if audio_result.returncode != 0:
             raise RuntimeError(f"Scene {scene_num} audio mix failed: {audio_result.stderr[-2000:]}")
+
+        # EBU R128 normalisation (T36). The animated path used to ship at about -24 LUFS,
+        # ten LU below reference; a linear gain fixes the level without touching duration,
+        # so A/V sync and lip-sync stay exact. A file that cannot be measured is reported
+        # rather than silently replaced.
+        loudness = normalize_file(mixed_audio, keep_duration=total_duration)
+        measured = loudness.get("after") or {}
+        if loudness.get("applied"):
+            print(f"[Render] Scene {scene_num}: loudness "
+                  f"{(loudness.get('before') or {}).get('integrated_lufs', float('nan')):.1f} -> "
+                  f"{measured.get('integrated_lufs', float('nan')):.1f} LUFS "
+                  f"(peak {measured.get('true_peak_dbtp', float('nan')):.1f} dBTP, "
+                  f"delta {loudness.get('duration_delta')}s)")
+        else:
+            print(f"[Render] Scene {scene_num}: WARNING loudness not applied: "
+                  f"{loudness.get('error', 'unknown')}")
 
         output_mp4.parent.mkdir(parents=True, exist_ok=True)
         print(f"[Render] Scene {scene_num}: Rendering {total_frames} frames ({total_duration:.2f}s)...")

@@ -14,6 +14,7 @@ Snapshot: 2026-11-21, branch `feat/landscape-16x9` (base `main` @ `567e63c`).
 | Audio-driven mouth amplitude | VERIFIED | envelope from narration, 0.06 silence gate, 10 lipsync tests |
 | Viseme mouth shapes with timing | PARTIALLY VERIFIED | sentence-window approximation; placement is proportional, not phoneme-accurate |
 | Eyelids, blinks, saccades, gaze, expressions | VERIFIED locally | 32 tests, 28/20 blinks per minute, gaze moves measured, blink strip inspected |
+| Loudness on the Shorts path | VERIFIED locally | -24.3 → -14.0 LUFS, -1.4 dBTP, QC gate added |
 | Reaction beats from dialogue (nods, recoils, bounces) | VERIFIED locally | 33 tests, 23 beats measured, eye-centroid shift 22 px during a recoil, kill switch |
 | Body locomotion (16 motions) | VERIFIED locally | 25 tests, real 5-scene demo render inspected |
 | Characters in the 16:9 renderer | NOT IMPLEMENTED | long-form draws diagrams/cards only |

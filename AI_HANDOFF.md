@@ -50,6 +50,19 @@ They are disjoint, so there is no conflict either way. Recommended order: **#2 f
 (it fixes the runner install that T12 needs), then **#3**. Both stay unmerged until the
 owner approves.
 
+### Loudness (T36)
+
+`studio/audio/loudness.py` → `measure()`, `normalize_file()`, `within_tolerance()`.
+
+- `LOUDNESS_TARGET = {I: -14.0, TP: -1.5, LRA: 11.0}`; accepted publishing window is
+  **-16.5 … -11.5 LUFS** with true peak ≤ -1.0 dBTP.
+- `normalize_file(..., keep_duration=<video length>)` uses a *linear* gain from a measured
+  pass: the duration cannot change, so A/V and lip-sync cannot drift. The pad to the scene's
+  video length is deliberate and appears as a +0.5 s delta.
+- The scene renderer normalises each mixed scene; `validate_episode` re-measures the finished
+  MP4 as the `audio_loudness` gate. A file that cannot be measured is reported, never
+  replaced with silence.
+
 ### Camera direction (T35)
 
 `studio/animation/camera.py` → `CameraDirector(style, duration, viewport)`.

@@ -279,6 +279,21 @@ strip where the background art ended.
 | Render | `natkhat-haveli-e1` 1080×1920, 961 frames, 32.066 s, 3 495 763 B, `qc_ok: true`, full decode clean |
 | Black frames | `blackdetect` finds none |
 
+## 3l. Shorts loudness (T36) — measured
+
+Found by measuring rather than listening: the finished Short shipped at **-24.3 LUFS**, ten LU
+below reference, because only the long-form renderer normalised.
+
+| Check | Result |
+| --- | --- |
+| Before (this episode) | scene mixes measured -24.3, -28.2, -27.4, -23.2, -22.4 LUFS |
+| After normalisation | -14.1, -14.7, -13.8, -14.5, -14.0 LUFS |
+| Final episode | **-14.0 LUFS, -1.4 dBTP** (`loudnorm` summary on the muxed MP4) |
+| Duration drift | scene audio padded to the video length; per-scene delta +0.500 s is the intended pad, episode 32.066 → 32.135 s |
+| QC gate | new `audio_loudness` check; the old -24.3 LUFS output fails it, the new one passes |
+| Tests | 11 in `tests/factory/test_loudness.py`; suite **285 passed** |
+| True peak | loudest scene -1.5 dBTP, final -1.4 dBTP, no clipping |
+
 ## 4. Not yet executed
 
 | Test | Status |
