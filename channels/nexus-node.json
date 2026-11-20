@@ -5,6 +5,22 @@
   "expected_channel_id": "UCx9O8VivWkiEylDjs5_Zzag",
   "requires_made_for_kids_confirmation": false,
   "allow_public_upload": false,
+  "factory": {
+    "language": "en",
+    "format": "shorts",
+    "style": "deep-dive",
+    "voice": "en-US-AndrewNeural",
+    "rate": "+10%",
+    "pitch": "+0Hz",
+    "palette": "nexus",
+    "niche": "AI, emerging tech, and the systems behind the headlines",
+    "queries": [
+      "artificial intelligence agents",
+      "small language models",
+      "AI memory context"
+    ],
+    "publish_time_ist": "20:00"
+  },
   "defaults": {
     "category_id": "27",
     "privacy_status": "private",

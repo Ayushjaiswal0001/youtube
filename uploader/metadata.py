@@ -5,6 +5,7 @@ import json
 import re
 import subprocess
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -27,6 +28,10 @@ class UploadRequest:
     notify_subscribers: bool
     force_made_for_kids: bool = False
     playlist_id: str | None = None
+    publish_at: str | None = None
+    thumbnail_path: Path | None = None
+    default_language: str | None = None
+    default_audio_language: str | None = None
 
     @classmethod
     def from_data(
@@ -89,6 +94,22 @@ class UploadRequest:
             "playlistId",
             data.get("playlist_id", channel.defaults.playlist_id),
         )
+        publish_at = data.get("publishAt", data.get("publish_at"))
+        if publish_at is not None:
+            publish_at = str(publish_at).strip() or None
+        thumbnail_value = data.get(
+            "thumbnail",
+            data.get("thumbnail_path", data.get("thumbnailPath")),
+        )
+        thumbnail_path = Path(str(thumbnail_value)) if thumbnail_value else None
+        default_language = data.get(
+            "defaultLanguage",
+            data.get("default_language"),
+        )
+        default_audio_language = data.get(
+            "defaultAudioLanguage",
+            data.get("default_audio_language"),
+        )
         return cls(
             channel_slug=channel.slug,
             video_path=Path(video_path),
@@ -101,6 +122,12 @@ class UploadRequest:
             notify_subscribers=notify_subscribers,
             force_made_for_kids=channel.force_made_for_kids,
             playlist_id=str(playlist_id) if playlist_id else None,
+            publish_at=publish_at,
+            thumbnail_path=thumbnail_path,
+            default_language=str(default_language) if default_language else None,
+            default_audio_language=(
+                str(default_audio_language) if default_audio_language else None
+            ),
         )
 
     def validate(self, *, allow_public: bool = False) -> None:
@@ -126,6 +153,37 @@ class UploadRequest:
             raise SafetyError(
                 "public upload is disabled; pass --allow-public and use explicit approval"
             )
+        if self.publish_at is not None:
+            try:
+                scheduled = datetime.fromisoformat(
+                    self.publish_at.replace("Z", "+00:00")
+                )
+            except ValueError as exc:
+                raise ValidationError(
+                    "publishAt must be an RFC3339 timestamp"
+                ) from exc
+            if scheduled.tzinfo is None:
+                raise ValidationError("publishAt must include a timezone")
+            if self.privacy_status != "private":
+                raise ValidationError(
+                    "publishAt requires privacyStatus=private so YouTube can release it"
+                )
+        if self.thumbnail_path is not None:
+            if not self.thumbnail_path.is_file():
+                raise ValidationError(
+                    f"thumbnail file not found: {self.thumbnail_path}"
+                )
+            if self.thumbnail_path.suffix.lower() not in {".jpg", ".jpeg", ".png"}:
+                raise ValidationError("thumbnail must be a .jpg, .jpeg, or .png")
+            if self.thumbnail_path.stat().st_size > 2 * 1024 * 1024:
+                raise ValidationError("thumbnail must be 2 MB or smaller")
+        language_re = re.compile(r"^[a-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$")
+        for label, value in (
+            ("defaultLanguage", self.default_language),
+            ("defaultAudioLanguage", self.default_audio_language),
+        ):
+            if value is not None and not language_re.match(value):
+                raise ValidationError(f"{label} must be a language tag such as en or hi")
         if not isinstance(self.made_for_kids, bool):
             raise ValidationError(
                 "madeForKids is required for this channel and must be true or false"
@@ -151,13 +209,17 @@ class UploadRequest:
         }
         if self.tags:
             snippet["tags"] = list(self.tags)
-        return {
-            "snippet": snippet,
-            "status": {
-                "privacyStatus": self.privacy_status,
-                "selfDeclaredMadeForKids": bool(self.made_for_kids),
-            },
+        if self.default_language:
+            snippet["defaultLanguage"] = self.default_language
+        if self.default_audio_language:
+            snippet["defaultAudioLanguage"] = self.default_audio_language
+        status: dict[str, Any] = {
+            "privacyStatus": self.privacy_status,
+            "selfDeclaredMadeForKids": bool(self.made_for_kids),
         }
+        if self.publish_at:
+            status["publishAt"] = self.publish_at
+        return {"snippet": snippet, "status": status}
 
     def video_sha256(self) -> str:
         digest = hashlib.sha256()
@@ -177,6 +239,10 @@ class UploadRequest:
             "made_for_kids": self.made_for_kids,
             "notify_subscribers": self.notify_subscribers,
             "playlist_id": self.playlist_id,
+            "publish_at": self.publish_at,
+            "thumbnail": str(self.thumbnail_path) if self.thumbnail_path else None,
+            "default_language": self.default_language,
+            "default_audio_language": self.default_audio_language,
         }
         encoded = json.dumps(
             canonical, ensure_ascii=False, sort_keys=True, separators=(",", ":")
@@ -245,6 +311,10 @@ class UploadRequest:
             "made_for_kids": self.made_for_kids,
             "notify_subscribers": self.notify_subscribers,
             "playlist_id": self.playlist_id,
+            "publish_at": self.publish_at,
+            "thumbnail": str(self.thumbnail_path) if self.thumbnail_path else None,
+            "default_language": self.default_language,
+            "default_audio_language": self.default_audio_language,
             "video_sha256": self.video_sha256(),
             "metadata_sha256": self.metadata_sha256(),
         }

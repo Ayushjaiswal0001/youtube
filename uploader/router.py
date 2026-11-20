@@ -49,6 +49,14 @@ class PreparedUpload:
             "made_for_kids": self.request.made_for_kids,
             "notify_subscribers": self.request.notify_subscribers,
             "playlist_id": self.request.playlist_id,
+            "publish_at": self.request.publish_at,
+            "thumbnail": (
+                str(self.request.thumbnail_path)
+                if self.request.thumbnail_path
+                else None
+            ),
+            "default_language": self.request.default_language,
+            "default_audio_language": self.request.default_audio_language,
             "video_file": self.request.video_path.name,
             "video_size": self.request.video_path.stat().st_size,
             "video_sha256": self.video_sha256,
@@ -106,6 +114,11 @@ class ChannelRouter:
         self.channel(slug)
         _, _, scopes = self._refresh(slug)
         return list(scopes)
+
+    def refresh_api(self, slug: str) -> Any:
+        self.channel(slug)
+        _, api, _ = self._refresh(slug)
+        return api
 
     def verify_channel(self, slug: str) -> dict[str, Any]:
         channel = self.channel(slug)
@@ -242,6 +255,21 @@ class ChannelRouter:
                 video_url=f"https://www.youtube.com/watch?v={video_id}",
                 attempts=1,
             )
+            thumbnail_applied = False
+            thumbnail_error = None
+            if prepared.request.thumbnail_path is not None:
+                try:
+                    prepared.api.set_thumbnail(
+                        video_id, prepared.request.thumbnail_path
+                    )
+                    thumbnail_applied = True
+                except Exception as exc:  # noqa: BLE001 - upload already succeeded
+                    thumbnail_error = f"{type(exc).__name__}: {exc}"
+                    logger.warning(
+                        "video %s uploaded but thumbnail failed: %s",
+                        video_id,
+                        thumbnail_error,
+                    )
             result = prepared.public_dict()
             result.update(
                 {
@@ -251,6 +279,8 @@ class ChannelRouter:
                     "video_id": entry.video_id,
                     "video_url": entry.video_url,
                     "playlist_applied": False,
+                    "thumbnail_applied": thumbnail_applied,
+                    "thumbnail_error": thumbnail_error,
                 }
             )
             return result

@@ -6,6 +6,19 @@
   "requires_made_for_kids_confirmation": true,
   "force_made_for_kids": true,
   "allow_public_upload": false,
+  "factory": {
+    "language": "hi",
+    "format": "shorts",
+    "style": "tall-tale",
+    "voice": "hi-IN-MadhurNeural",
+    "rate": "+8%",
+    "pitch": "+0Hz",
+    "palette": "natkhat",
+    "niche": "original Hindi kids' stories with Chiku and Gappu",
+    "queries": [],
+    "publish_time_ist": "18:00",
+    "series_key": "haunted-haveli"
+  },
   "defaults": {
     "category_id": "1",
     "privacy_status": "private",
