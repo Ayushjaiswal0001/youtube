@@ -5,6 +5,24 @@ Status rubric: **VERIFIED** (executed and inspected) Â· **PARTIALLY VERIFIED** Â
 
 Snapshot: 2026-11-21, branch `feat/landscape-16x9` (base `main` @ `567e63c`).
 
+### Character animation capability (after T30/T31/T32/T33)
+
+| Capability | Status | Evidence |
+| --- | --- | --- |
+| Character definitions as data | VERIFIED | two JSON files, strict validation, 31 schema tests, 8 byte-identical golden frames |
+| Per-pose drawing pinned | VERIFIED | 78-frame pose golden set (`tools/capture_goldens.py`) |
+| Audio-driven mouth amplitude | VERIFIED | envelope from narration, 0.06 silence gate, 10 lipsync tests |
+| Viseme mouth shapes with timing | PARTIALLY VERIFIED | sentence-window approximation; placement is proportional, not phoneme-accurate |
+| Eyelids, blinks, saccades, gaze, expressions | VERIFIED locally | 32 tests, 28/20 blinks per minute, gaze moves measured, blink strip inspected |
+| Body locomotion (16 motions) | VERIFIED locally | 25 tests, real 5-scene demo render inspected |
+| Characters in the 16:9 renderer | NOT IMPLEMENTED | long-form draws diagrams/cards only |
+| Character-to-character interaction (grab, hand-off, group) | NOT IMPLEMENTED | proximity is staged by positions only |
+| Speech-driven body gestures | NOT IMPLEMENTED | gestures are scene-authored, not derived from dialogue |
+
+Nothing here is production-verified: no scheduled job has run on GitHub with these commits,
+and no upload has been made since the earlier verified uploads.
+
+
 ## 1. Subsystem status
 
 | Subsystem | Status | Evidence / gap |
