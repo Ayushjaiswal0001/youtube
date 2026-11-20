@@ -33,6 +33,7 @@ from studio.characters.performance import (
 from studio.characters.visemes import VisemeTimeline
 from studio.animation.background import BackgroundRenderer
 from studio.animation.camera import Camera, CameraDirector
+from studio.animation.transitions import ffmpeg_fade_filters
 from studio.animation.effects import (
     draw_sparkle, draw_dust_puff, draw_exclamation_pop, draw_vignette,
 )
@@ -270,6 +271,15 @@ class SceneRenderer:
 
         output_mp4.parent.mkdir(parents=True, exist_ok=True)
         print(f"[Render] Scene {scene_num}: Rendering {total_frames} frames ({total_duration:.2f}s)...")
+        # Scene transitions (T37): a location change dips to black, a beat in the same
+        # location cuts directly. Time-based, so it never touches the frame loop.
+        fade_filters = ffmpeg_fade_filters(
+            float(scene_data.get("fade_in") or 0.0),
+            float(scene_data.get("fade_out") or 0.0),
+            total_duration,
+        )
+        if fade_filters:
+            print(f"[Render] Scene {scene_num}: transitions {'; '.join(fade_filters)}")
         encode_cmd = [
             "ffmpeg",
             "-y",
@@ -294,6 +304,7 @@ class SceneRenderer:
             "veryfast",
             "-crf",
             "22",
+            *(["-vf", ",".join(fade_filters)] if fade_filters else []),
             "-pix_fmt",
             "yuv420p",
             "-c:a",

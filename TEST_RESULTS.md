@@ -294,6 +294,22 @@ below reference, because only the long-form renderer normalised.
 | Tests | 11 in `tests/factory/test_loudness.py`; suite **285 passed** |
 | True peak | loudest scene -1.5 dBTP, final -1.4 dBTP, no clipping |
 
+## 3m. Scene transitions (T37) — measured
+
+Scenes were hard-concatenated, so a cut between two different locations was indistinguishable
+from a cut between two beats in the same place. The policy is now the editor's rule: a location
+change dips to black, the same location cuts directly, the episode opens and closes on black.
+
+| Check | Result |
+| --- | --- |
+| Tests | 14 in `tests/factory/test_transitions.py`; suite **299 passed** |
+| Episode (one location throughout) | fades only at the two ends; no internal dip |
+| Two-location demo (`haunted_haveli` → `cave_entrance`) | `blackdetect` finds black at **5.899–6.033 s**, exactly the scene boundary, plus the opening fade |
+| Opening | scene 1 frame 0 measures **mean 0.0** (fully black), fade-up completes by 0.45 s |
+| Closing | final episode at 32.0 s measures **mean 5.4** vs 34.7 at 31.5 s |
+| No fades requested | `ffmpeg_fade_filters(0, 0, d)` returns an empty list, so nothing is added to the command |
+| Clamping | fades longer than half the scene are clamped so they cannot overlap |
+
 ## 4. Not yet executed
 
 | Test | Status |

@@ -50,6 +50,21 @@ They are disjoint, so there is no conflict either way. Recommended order: **#2 f
 (it fixes the runner install that T12 needs), then **#3**. Both stay unmerged until the
 owner approves.
 
+### Transitions (T37)
+
+`studio/animation/transitions.py` → `plan_transitions(scenes)` and `ffmpeg_fade_filters()`.
+
+- A change of `bg` between consecutive scenes dips to black (0.22 s out, 0.22 s in); the same
+  location cuts directly; scene 1 fades up from black over 0.45 s and the last scene fades down
+  over 0.65 s.
+- `EpisodePipeline` computes the plan once and passes `fade_in` / `fade_out` into each scene's
+  data; the renderer turns them into `fade` filters on the encode command, so the frame loop is
+  untouched.
+- Traps: the pipeline only applies this when scenes are actually re-rendered — a resume from
+  the checkpoint keeps the old, unfaded scene files. Use `--force` after changing the policy.
+  Also, `build/` inside the repo and `FACTORY_BUILD_DIR` are different trees; check which one a
+  render wrote before measuring an artifact (that mistake cost a false "fades not applied").
+
 ### Loudness (T36)
 
 `studio/audio/loudness.py` → `measure()`, `normalize_file()`, `within_tolerance()`.

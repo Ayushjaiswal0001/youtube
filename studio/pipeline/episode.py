@@ -20,6 +20,7 @@ if sys.stdout and hasattr(sys.stdout, "reconfigure"):
 from studio.config import EPISODES_DIR, INTERMEDIATE_DIR, LOGS_DIR
 from studio.audio.tts_engine import TTSEngine
 from studio.animation.scene_renderer import SceneRenderer
+from studio.animation.transitions import plan_transitions
 from studio.story_engine import StoryEngine
 
 
@@ -86,6 +87,7 @@ class EpisodePipeline:
 
         scene_mp4_paths = []
         total_scenes = len(story["scenes"])
+        transitions = plan_transitions(story["scenes"])
 
         # 2. Sequential Scene Production (Conserves RAM: ~120MB per scene)
         for i, scene in enumerate(story["scenes"], 1):
@@ -114,10 +116,12 @@ class EpisodePipeline:
             )
 
             # Step 2b: Render Scene
+            fade_in, fade_out = transitions[i - 1] if i - 1 < len(transitions) else (0.0, 0.0)
             self.renderer.render_scene(
                 # The renderer seeds eye/gaze animation from story_id + scene number, so
                 # pass it explicitly instead of letting it guess from a directory name.
-                scene_data=dict(scene, story_id=story_id),
+                scene_data=dict(scene, story_id=story_id, fade_in=fade_in,
+                                fade_out=fade_out),
                 audio_data=audio_info,
                 output_mp4=scene_mp4,
                 sfx_delay_ms=350
