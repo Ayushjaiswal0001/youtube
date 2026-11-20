@@ -213,6 +213,19 @@ bit-identical for scene 1 but differs in scenes 2–5 (PSNR ≥48.4 dB, backgrou
 identical, i.e. no camera change). Those poses (`boast_proud`, `skeptical_eyebrow`) are not
 covered by the golden set, which is a real gap in the goldens, not a rendering defect.
 
+## 3h. Per-pose goldens (T30b, partial) — measured
+
+The four-pose golden set could not see a change to `boast_proud` or `skeptical_eyebrow`,
+which is how the T33 state reset slipped past the suite.
+
+- `tools/capture_goldens.py` renders **78 frames**: 13 story poses × 3 timestamps ×
+  (silent, talking) for both characters, and records SHA-256 in
+  `tests/factory/goldens/poses.json`.
+- `tests/factory/test_pose_goldens.py` (3 tests) re-renders and compares, checks every pose
+  is covered and that the manifest has no orphans. Suite total: **228 passed**.
+- This pins the drawing of every pose the story engine can request, so the next refactor
+  cannot change one silently.
+
 ## 4. Not yet executed
 
 | Test | Status |
