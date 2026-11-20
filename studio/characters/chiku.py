@@ -5,6 +5,7 @@ The cheeky, energetic monkey protagonist.
 import math
 from typing import Optional, Tuple
 import cairo
+from studio.characters.eyes import draw_brows, draw_eyes
 from studio.characters.mouth import draw_mouth
 from studio.characters.schema import CharacterSchema, load_schema
 from studio.characters.rig_base import (
@@ -54,6 +55,9 @@ class ChikuRig:
         self.eyebrow_y = 0.0
         self.viseme = Viseme.SMILE
         self.mouth_open = 0.0  # 0.0 to 1.0 for talking
+        # Set by FaceController (T32). When None the original eye rendering is used, so
+        # golden frames and older callers keep their exact look.
+        self.eye_state = None
 
         # Limb Angles (radians)
         self.arm_l_angle = 0.2
@@ -62,6 +66,26 @@ class ChikuRig:
         self.leg_r_angle = 0.0
         self.tail_wave = 0.0
         self.jump_y = 0.0
+
+    @property
+    def colors(self) -> dict:
+        return {
+            "eye_white": COLOR_EYE_WHITE,
+            "pupil": COLOR_PUPIL,
+            "outline": COLOR_OUTLINE,
+            "lid": COLOR_FUR,
+            "brow": COLOR_OUTLINE,
+        }
+
+    def attach_face(self, controller) -> None:
+        """Drive eyes, gaze and brows from a FaceController while drawing."""
+
+        self._face = controller
+
+    def face_state_at(self, t: float):
+        face = getattr(self, "_face", None)
+        self.eye_state = face.state_at(t) if face is not None else None
+        return self.eye_state
 
     def update_pose(self, pose: str, t: float, is_talking: bool = False, phoneme_intensity: float = 0.5,
                     lipsync: object | None = None, timeline: object | None = None):
@@ -321,45 +345,19 @@ class ChikuRig:
 
         cr.restore()  # restore muzzle
 
-        # Eyes
-        for eye_x in [-P.eye_x, P.eye_x]:
-            cr.save()
-            cr.translate(eye_x, P.eye_y)
+        # Eyes (shared renderer; legacy path when no FaceController is attached)
+        draw_eyes(cr, P, self.schema.eyes, colors=self.colors,
+                  state=self.eye_state, blink_t=self.blink_t,
+                  look_x=self.look_x, look_y=self.look_y,
+                  pupil_range=(self.schema.mouth.pupil_x_range,
+                               self.schema.mouth.pupil_y_range))
 
-            if self.blink_t > 0.8:
-                # Closed blinking eye arc
-                cr.set_source_rgba(*COLOR_OUTLINE)
-                cr.set_line_width(3.5)
-                cr.move_to(-14, 0)
-                cr.curve_to(-6, 6, 6, 6, 14, 0)
-                cr.stroke()
-            else:
-                # Open Eye
-                eye_h = P.eye_ry * (1.0 - self.blink_t)
-                draw_ellipse(cr, 0, 0, P.eye_rx, eye_h, fill_color=COLOR_EYE_WHITE, stroke_color=COLOR_OUTLINE, stroke_width=3.5)
-                # Iris / Pupil
-                pupil_px = self.look_x * self.schema.mouth.pupil_x_range
-                pupil_py = self.look_y * self.schema.mouth.pupil_y_range
-                draw_ellipse(cr, pupil_px, pupil_py, P.pupil_rx,
-                             P.pupil_ry * (1.0 - self.blink_t), fill_color=COLOR_PUPIL)
-                # Catchlight twinkle
-                draw_ellipse(cr, pupil_px - 3, pupil_py - 4, 3.5, 3.5, fill_color=(1.0, 1.0, 1.0, 0.95))
-
-            cr.restore()
-
-        # Eyebrows
-        for is_right, eb_x in [(False, -P.brow_anchor_x), (True, P.brow_anchor_x)]:
-            cr.save()
-            cr.translate(eb_x, P.brow_y + self.eyebrow_y)
-            rot = self.eyebrow_tilt if not is_right else -self.eyebrow_tilt
-            cr.rotate(rot)
-            cr.set_source_rgba(*COLOR_OUTLINE)
-            cr.set_line_width(4.5)
-            cr.set_line_cap(cairo.LINE_CAP_ROUND)
-            cr.move_to(-P.brow_rx, 0)
-            cr.curve_to(-P.brow_ctrl_x, -P.brow_ctrl_y, P.brow_ctrl_x, -P.brow_ctrl_y, P.brow_rx, 0)
-            cr.stroke()
-            cr.restore()
+        # Eyebrows (expression adds to the pose's brow offset)
+        state = self.eye_state
+        draw_brows(cr, P, self.schema.eyes, colors=self.colors,
+                   y_offset=self.eyebrow_y + (state.brow_y if state else 0.0),
+                   tilt_left=self.eyebrow_tilt + (state.brow_tilt_left if state else 0.0),
+                   tilt_right=self.eyebrow_tilt + (state.brow_tilt_right if state else 0.0))
 
         cr.restore()  # Head restore
         cr.restore()  # Torso restore

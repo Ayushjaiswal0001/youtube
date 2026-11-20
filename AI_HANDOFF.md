@@ -13,7 +13,7 @@ Read this block first; it is the exact state another agent needs.
 | PR #2 | OPEN, unmerged, 1 commit `2a810f0`, runner-install hardening. **Leave untouched until the owner approves.** |
 | Workflows | `ci.yml` active; `produce.yml` active but reusable-only; the three `produce-*` are `disabled_manually` |
 | Secrets | `YT_<PREFIX>_*` NOT provisioned → any `upload: true` dispatch will skip the upload with a warning |
-| Tests | `python -m pytest tests -q` → **168 passed**; `python -m unittest discover -s tests` → 50 passed |
+| Tests | `python -m pytest tests -q` → **200 passed**; `python -m unittest discover -s tests` → 50 passed |
 | Shorts plans | 13 plans intact (5 nexus, 5 academic, 3 natkhat), history/state untouched |
 | Long-form plan | `content/longform/nexus-node.json` → `long-nexus-power-grid`, rendered (see below) |
 | Publishing actions this session | **none** — no upload, no ledger write, no schedule enabled |
@@ -49,6 +49,42 @@ delta 9 ms, remix 15.5 s. Tests: `tests/factory/test_audio.py` (4).
 They are disjoint, so there is no conflict either way. Recommended order: **#2 first**
 (it fixes the runner install that T12 needs), then **#3**. Both stay unmerged until the
 owner approves.
+
+### Eyes, gaze and blinking (T32)
+
+`FaceController` (in `studio/characters/gaze.py`) is built per character per scene and
+answers one question per frame: *what are this character's eyes doing right now?* It owns:
+
+- `BlinkPattern` — seeded schedule, jittered intervals (0.45–1.55x the schema period),
+  double blinks, asymmetric close/open, partial blinks, and blink suppression during shock.
+- `SaccadeSchedule` — scripted targets first (eye contact), idle scanning between them,
+  fast eased travel (60–140 ms), micro-saccade tremor, no two identical consecutive targets.
+- `EXPRESSIONS` — 13 named eye poses (neutral, happy, excited, surprised, suspicious,
+  thinking, sad, angry, fear, confused, shy, proud, listening) that cross-fade over 0.35 s.
+  A character may override any field per expression in its JSON `expressions` block.
+- Pose names from older stories map through `expression_for_pose()`; nothing in existing
+  story JSON had to change.
+
+Rendering lives in `studio/characters/eyes.py` (`draw_eyes`, `draw_brows`). **`draw_eyes(
+state=None)` is the original rendering, kept bit-for-bit** — that is why the eight golden
+frames still pass. When a controller is attached (`rig.attach_face(controller)` then
+`rig.face_state_at(t)` each frame) the expressive path draws an asymmetric aperture with
+real eyelids, clipped pupils, dilation, catchlights and three closed-eye shapes.
+
+Integration points that matter:
+- `studio/animation/scene_renderer.py` builds the controllers, seeds them from
+  `story_id + scene_num + character` (deterministic re-renders), and alternates gaze
+  between the partner and away from them every ~2.1 s (speaker) / 2.8 s (listener).
+  Screen-space gaze is multiplied by `rig.facing` because rigs draw mirrored.
+- `studio/pipeline/episode.py` passes `story_id` into `scene_data`; without it the seed
+  falls back to the episode directory name.
+- `tools/report_face.py <episode_dir>` prints blinks/min, gaze moves/min, blink intervals,
+  shut-frame percentage and the expression mix per scene. Use it to prove animation
+  actually happened instead of eyeballing a still.
+
+Known rough edges: pupil travel is capped at 50 % of the eye radius (uncapped it reads as a
+"crazy eye"); `pupil_min` is 0.82 so shock never produces a pinprick pupil; brow offset is
+clamped to ±18 px.
 
 ### Character schema (T30)
 

@@ -167,5 +167,48 @@
       4.0,
       3.0
     ]
+  },
+  "eyes": {
+    "lash_width": 3.0,
+    "brow_width": 3.5,
+    "closed_curve": [
+      [
+        -10,
+        0
+      ],
+      [
+        -4,
+        4
+      ],
+      [
+        4,
+        4
+      ],
+      [
+        10,
+        0
+      ]
+    ],
+    "catchlight_r": 3.0,
+    "catchlight_offset": [
+      -3,
+      -3
+    ],
+    "catchlight_follow": [
+      4,
+      3
+    ],
+    "catchlight_alpha": 0.9,
+    "lid_open_max": 1.12,
+    "lower_lid_max": 0.5,
+    "lid_curvature": 1.0,
+    "pupil_min": 0.45,
+    "pupil_max": 1.25,
+    "blink_jitter": 0.62,
+    "double_blink_chance": 0.18,
+    "blink_close_fraction": 0.42,
+    "saccade_rate": 0.72,
+    "saccade_travel": 0.085,
+    "micro_saccade": 0.045
   }
 }

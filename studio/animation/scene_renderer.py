@@ -6,6 +6,7 @@ and mixes dialogue audio, sound effects, and background music with FFmpeg.
 
 import math
 import subprocess
+import zlib
 from pathlib import Path
 from typing import Dict, Any, Optional
 import cairo
@@ -13,12 +14,77 @@ import cairo
 from studio.config import VIDEO_WIDTH, VIDEO_HEIGHT, FPS, INTERMEDIATE_DIR
 from studio.characters.chiku import ChikuRig
 from studio.characters.gappu import GappuRig
+from studio.characters.gaze import (
+    ANCHOR_CAMERA,
+    FaceController,
+    expression_for_pose,
+    gaze_toward,
+)
 from studio.characters.lipsync import VisemeTrack
 from studio.characters.visemes import VisemeTimeline
 from studio.animation.background import BackgroundRenderer
 from studio.animation.camera import Camera
 from studio.animation.effects import draw_sparkle, draw_dust_puff, draw_exclamation_pop
 from studio.audio.sfx_library import SFXLibrary
+
+
+CHIKU_X = 380.0
+GAPPU_X = 780.0
+CHARACTER_Y = 1450.0
+EYE_HEIGHT = 1180.0
+
+
+def _seed_for(*parts) -> int:
+    """Stable seed so a re-render of the same scene animates identically."""
+
+    return zlib.crc32(":".join(str(part) for part in parts).encode("utf-8"))
+
+
+def _gaze_beats(own_x: float, partner_x: float, span: float,
+                speaking: bool, facing: float = 1.0) -> list:
+    """Alternate eye contact with looks away, so nobody stares unblinkingly.
+
+    A speaker looks at their partner more than a listener does, but both keep returning
+    to the other character: that is what reads as a conversation instead of two solos.
+    """
+
+    screen_x, screen_y = gaze_toward(own_x, partner_x, EYE_HEIGHT, EYE_HEIGHT)
+    # Rigs draw with scale * facing, so screen-space gaze is mirrored for a left-facing
+    # character: convert to the rig's local axis before handing it to the pupil offset.
+    partner = (screen_x * facing, screen_y)
+    away = (-partner[0] * 0.55, partner[1] - 0.3) if speaking else ANCHOR_CAMERA
+    events: list = []
+    period = 2.1 if speaking else 2.8
+    index = 0
+    at = 0.0
+    while at < span:
+        events.append((at, partner if index % 2 == 0 else away))
+        at += period
+        index += 1
+    return events
+
+
+def _expression_schedule(scene_data, character: str, pose: str,
+                         speaking: bool) -> list:
+    """Build the expression timeline for one character in one scene."""
+
+    posed = expression_for_pose(pose)
+    if speaking:
+        base = scene_data.get(f"{character}_expression") or posed
+    else:
+        # A listener keeps whatever their pose says, unless the pose is plain neutral, in
+        # which case they get the attentive listening face.
+        base = (scene_data.get(f"{character}_listening_expression")
+                or (posed if posed != "neutral" else "listening"))
+    schedule = [(0.0, base)]
+    for change in scene_data.get(f"{character}_expressions") or []:
+        try:
+            at = float(change["at"])
+            name = str(change["name"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        schedule.append((max(0.0, at), name))
+    return schedule
 
 
 class SceneRenderer:
@@ -40,6 +106,8 @@ class SceneRenderer:
         total_frames = max(int(total_duration * self.fps), 15)
 
         scene_num = scene_data.get("scene_num", 1)
+        story_id = str(scene_data.get("story_id") or audio_data.get("story_id")
+                       or Path(output_mp4).parent.name)
         speaker = scene_data.get("speaker", "narrator")
         dialogue = scene_data.get("dialogue", "")
         chiku_pose = scene_data.get("chiku_pose", "idle")
@@ -80,6 +148,30 @@ class SceneRenderer:
                 title_surface = cairo.ImageSurface.create_from_png(str(title_path))
             except Exception as exc:
                 print(f"[Render] WARNING: could not load title overlay {title_path}: {exc}")
+
+        # Face controllers (T32): gaze, saccades, blinks and expressions per character.
+        chiku_face = FaceController(
+            chiku.schema,
+            seed=_seed_for(story_id, scene_num, "chiku"),
+            span=total_duration + 2.0,
+            schedule=_expression_schedule(scene_data, "chiku", chiku_pose,
+                                          speaker == "chiku"),
+            scripted_gaze=_gaze_beats(CHIKU_X, GAPPU_X, total_duration,
+                                      speaking=speaker == "chiku",
+                                      facing=chiku.facing),
+        )
+        gappu_face = FaceController(
+            gappu.schema,
+            seed=_seed_for(story_id, scene_num, "gappu"),
+            span=total_duration + 2.0,
+            schedule=_expression_schedule(scene_data, "gappu", gappu_pose,
+                                          speaker == "gappu"),
+            scripted_gaze=_gaze_beats(GAPPU_X, CHIKU_X, total_duration,
+                                      speaking=speaker == "gappu",
+                                      facing=gappu.facing),
+        )
+        chiku.attach_face(chiku_face)
+        gappu.attach_face(gappu_face)
 
         # Mix the audio bed first so the video encoder can mux it directly.
         sfx_path = self.sfx_lib.get_sfx(sfx_name)
@@ -196,6 +288,8 @@ class SceneRenderer:
                                   lipsync=lipsync_track, timeline=viseme_timeline)
                 gappu.update_pose(gappu_pose, t, is_talking=gappu_talking, phoneme_intensity=0.7,
                                   lipsync=lipsync_track, timeline=viseme_timeline)
+                chiku.face_state_at(t)
+                gappu.face_state_at(t)
 
                 if sfx_name == "twinkle" or "\u092a\u0924\u094d\u0925\u0930" in dialogue:
                     sparkle_rot = t * 2.5

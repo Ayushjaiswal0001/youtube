@@ -115,7 +115,9 @@ class EpisodePipeline:
 
             # Step 2b: Render Scene
             self.renderer.render_scene(
-                scene_data=scene,
+                # The renderer seeds eye/gaze animation from story_id + scene number, so
+                # pass it explicitly instead of letting it guess from a directory name.
+                scene_data=dict(scene, story_id=story_id),
                 audio_data=audio_info,
                 output_mp4=scene_mp4,
                 sfx_delay_ms=350

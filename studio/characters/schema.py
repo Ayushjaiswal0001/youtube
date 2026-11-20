@@ -21,7 +21,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Mapping, Sequence
+from typing import Any, Dict, List, Mapping, Sequence, Tuple
 
 CHARACTER_DIR = Path(__file__).resolve().parent.parent.parent / "content" / "characters"
 
@@ -46,6 +46,12 @@ REQUIRED_PROPORTIONS = (
 
 REQUIRED_PALETTE = (
     "fur", "muzzle", "eye_white", "pupil", "outline", "shadow",
+)
+
+# Tunable fields an expression may override, per character.
+EXPRESSION_FIELDS = (
+    "lid_closed", "lower_lid", "brow_y", "brow_tilt", "brow_asymmetry",
+    "pupil_scale", "gaze_x", "gaze_y", "saccade_scale", "blink_scale",
 )
 
 REQUIRED_TIMING = (
@@ -128,6 +134,106 @@ class MouthConfig:
     pupil_y_range: float
 
 
+EYE_DEFAULTS: Mapping[str, Any] = {
+    "lash_width": 3.5,
+    "brow_width": 4.5,
+    "closed_curve": [[-14.0, 0.0], [-6.0, 6.0], [6.0, 6.0], [14.0, 0.0]],
+    "catchlight_r": 3.5,
+    "catchlight_offset": [-3.0, -4.0],
+    "catchlight_follow": [4.0, 3.0],
+    "catchlight_alpha": 0.95,
+    "lid_open_max": 1.12,
+    "lower_lid_max": 0.5,
+    "lid_curvature": 1.0,
+    "pupil_min": 0.82,
+    "pupil_max": 1.25,
+    "blink_jitter": 0.55,
+    "double_blink_chance": 0.12,
+    "blink_close_fraction": 0.4,
+    "saccade_rate": 0.55,
+    "saccade_travel": 0.09,
+    "micro_saccade": 0.03,
+}
+
+EYE_POSITIVE = ("lash_width", "brow_width", "catchlight_r", "lid_open_max", "pupil_min", "pupil_max", "saccade_rate")
+EYE_FRACTIONS = ("catchlight_alpha", "blink_jitter", "double_blink_chance", "blink_close_fraction")
+
+
+@dataclass(frozen=True)
+class EyeConfig:
+    """Eyelid geometry, blink rhythm and saccade behaviour.
+
+    Every field has a default, so character files written before T32 still load.
+    """
+
+    lash_width: float
+    brow_width: float
+    closed_curve: Tuple[Tuple[float, float], ...]
+    catchlight_r: float
+    catchlight_offset: Tuple[float, float]
+    catchlight_follow: Tuple[float, float]
+    catchlight_alpha: float
+    lid_open_max: float
+    lower_lid_max: float
+    lid_curvature: float
+    pupil_min: float
+    pupil_max: float
+    blink_jitter: float
+    double_blink_chance: float
+    blink_close_fraction: float
+    saccade_rate: float
+    saccade_travel: float
+    micro_saccade: float
+
+    @classmethod
+    def from_dict(cls, data: Mapping[str, Any] | None, source: str = "<dict>") -> "EyeConfig":
+        data = dict(data or {})
+        unknown = [key for key in data if key not in EYE_DEFAULTS]
+        if unknown:
+            raise SchemaError(
+                f"{source}: unknown eye option(s): {', '.join(sorted(unknown))} "
+                f"(known: {', '.join(sorted(EYE_DEFAULTS))})"
+            )
+        merged = dict(EYE_DEFAULTS)
+        merged.update(data)
+        for key in EYE_POSITIVE:
+            if float(merged[key]) <= 0:
+                raise SchemaError(f"{source}: eyes.{key} must be positive")
+        for key in EYE_FRACTIONS:
+            if not 0.0 <= float(merged[key]) <= 1.0:
+                raise SchemaError(f"{source}: eyes.{key} must be within 0..1")
+        curve = merged["closed_curve"]
+        if not isinstance(curve, Sequence) or len(curve) != 4:
+            raise SchemaError(f"{source}: eyes.closed_curve must be 4 points")
+        points = tuple((float(p[0]), float(p[1])) for p in curve)
+        for name in ("catchlight_offset", "catchlight_follow"):
+            value = merged[name]
+            if not isinstance(value, Sequence) or len(value) != 2:
+                raise SchemaError(f"{source}: eyes.{name} must be [x, y]")
+        return cls(
+            lash_width=float(merged["lash_width"]),
+            brow_width=float(merged["brow_width"]),
+            closed_curve=points,
+            catchlight_r=float(merged["catchlight_r"]),
+            catchlight_offset=(float(merged["catchlight_offset"][0]),
+                               float(merged["catchlight_offset"][1])),
+            catchlight_follow=(float(merged["catchlight_follow"][0]),
+                               float(merged["catchlight_follow"][1])),
+            catchlight_alpha=float(merged["catchlight_alpha"]),
+            lid_open_max=float(merged["lid_open_max"]),
+            lower_lid_max=float(merged["lower_lid_max"]),
+            lid_curvature=float(merged["lid_curvature"]),
+            pupil_min=float(merged["pupil_min"]),
+            pupil_max=float(merged["pupil_max"]),
+            blink_jitter=float(merged["blink_jitter"]),
+            double_blink_chance=float(merged["double_blink_chance"]),
+            blink_close_fraction=float(merged["blink_close_fraction"]),
+            saccade_rate=float(merged["saccade_rate"]),
+            saccade_travel=float(merged["saccade_travel"]),
+            micro_saccade=float(merged["micro_saccade"]),
+        )
+
+
 @dataclass(frozen=True)
 class CharacterSchema:
     schema_version: int
@@ -141,6 +247,8 @@ class CharacterSchema:
     timing: Timing
     features: List[str] = field(default_factory=list)
     mouth: MouthConfig = MouthConfig(12.0, 1.0, 3.5, 5.0, 4.0)
+    eyes: EyeConfig = field(default_factory=EyeConfig.from_dict)
+    expressions: Mapping[str, Mapping[str, float]] = field(default_factory=dict)
     source_path: str = ""
 
     # -- lookups -------------------------------------------------------------
@@ -236,6 +344,23 @@ class CharacterSchema:
             pupil_y_range=float(pupil_range[1]),
         )
 
+        eye_config = EyeConfig.from_dict(data.get("eyes"), source=source)
+
+        expressions: Dict[str, Dict[str, float]] = {}
+        raw_expressions = data.get("expressions") or {}
+        if not isinstance(raw_expressions, Mapping):
+            raise SchemaError(f"{source}: expressions must be an object")
+        for name, overrides in raw_expressions.items():
+            if not isinstance(overrides, Mapping):
+                raise SchemaError(f"{source}: expression '{name}' must be an object")
+            bad = [key for key in overrides if key not in EXPRESSION_FIELDS]
+            if bad:
+                raise SchemaError(
+                    f"{source}: expression '{name}' has unknown field(s): {', '.join(bad)} "
+                    f"(known: {', '.join(EXPRESSION_FIELDS)})"
+                )
+            expressions[str(name)] = {str(k): float(v) for k, v in overrides.items()}
+
         return cls(
             schema_version=int(version),
             character_id=str(data["id"]),
@@ -248,6 +373,8 @@ class CharacterSchema:
             timing=timing,
             features=features,
             mouth=mouth_config,
+            eyes=eye_config,
+            expressions=expressions,
             source_path=source,
         )
 

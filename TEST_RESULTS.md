@@ -167,6 +167,27 @@ tuft, vest curves, whiskers, spectacles and bowtie are archetype-level drawing r
 *positions* come from the schema but their *shape* is code. Moving those curves into data is
 T30b.
 
+## 3f. Eyes, gaze, blinking and expressions (T32) — measured
+
+New `studio/characters/gaze.py` (behaviour) + `studio/characters/eyes.py` (rendering), shared by
+both rigs. Eyes are now driven by a per-character `FaceController` built from the scene.
+
+| Check | Result |
+| --- | --- |
+| Tests | `tests/factory/test_gaze.py` **32 passed**; full suite **200 passed** |
+| Legacy parity | the golden frames are still **byte-identical** — the old eye path is preserved inside `draw_eyes(state=None)` |
+| Render | `natkhat-haveli-e1` re-rendered: 1080x1920, 30 fps, **961 frames**, 32.066 s, 3 459 072 B, h264+aac, QC ok, 0 errors, 81 s wall |
+| Blinks | chiku **28.1/min**, gappu **20.6/min**; median interval 2.1–5.4 s; 12-frame 30 fps strip shows real eyelid travel (open → half → slit → open), not a cut |
+| Gaze | chiku **41 gaze moves/min**, gappu **58/min**; a frame sampled mid-scene shows gappu's pupils rotated to his left, i.e. at chiku |
+| Expressions used in the episode | chiku: excited 39 %, shy 24 %, surprised 21 %, proud 16 % · gappu: thinking 60 %, happy 24 %, suspicious 16 % |
+| Eyelid geometry | aperture height by expression (chiku, 1.8x rig): neutral 71 px, surprised 75, suspicious 67, happy 61, angry 60 |
+| Data-driven | blink jitter, double-blink chance, close fraction, saccade rate, travel time, micro-saccade, lash/brow width, catchlight size/offset/alpha and closed-eye curve all come from `content/characters/*.json` |
+
+**Limitations (stated, not hidden):** gaze is a 2D plane model with a fixed small convergence
+term — there is no depth/vergence target; blink intervals are seeded jitter, not a biological
+distribution; eyebrow offset is clamped to ±18 px so a pose + expression cannot climb into the
+hairline; the 0.05 convergence constant is an artistic choice, not a measurement.
+
 ## 4. Not yet executed
 
 | Test | Status |
