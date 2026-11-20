@@ -235,3 +235,6 @@ output/
 *.mp4
 *.wav
 *.log
+
+# Renderer assets are part of the pipeline and must be tracked
+!assets/**/*.wav
