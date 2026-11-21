@@ -65,6 +65,7 @@ CAMERA_STYLES: Tuple[str, ...] = (
 # Read from the character schemas, which are the single source of truth for where a character
 # stands. The camera used to carry its own copy of these numbers, and the renderer a third, so
 # moving a character desynchronised the framing from the drawing (T39).
+from studio.animation.framing import MAX_ZOOM, MIN_ZOOM  # noqa: E402
 from studio.characters.schema import load_schema  # noqa: E402  (kept below Camera on purpose)
 
 _SUBJECT_X_CACHE: dict = {}
@@ -122,7 +123,9 @@ class CameraDirector:
     """
 
     def __init__(self, style: str = "medium_pan", duration: float = 6.0,
-                 viewport: Tuple[int, int] = (1080, 1920), shot=None) -> None:
+                 viewport: Tuple[int, int] = (1080, 1920), shot=None,
+                 face_y: Optional[float] = None,
+                 zoom_range: Optional[Tuple[float, float]] = None) -> None:
         self.style = style if style in CAMERA_STYLES else "medium_pan"
         self.duration = max(0.1, float(duration))
         self.vw, self.vh = viewport
@@ -131,6 +134,11 @@ class CameraDirector:
         # A planned shot (T39) says what must be on screen and how tight the frame may get.
         # With no shot the director behaves exactly as it did before shot planning existed.
         self.shot = shot
+        # The eye line is a stage property (T41): a 16:9 floor stands the cast higher, so a
+        # close-up that centred on the portrait value would frame a character's chest.
+        self.face_y = FACE_Y if face_y is None else float(face_y)
+        # A stage may allow a wider pull-back than a portrait background can paint.
+        self.zoom_range = zoom_range or (MIN_ZOOM, MAX_ZOOM)
 
     @property
     def subject(self) -> Optional[str]:
@@ -158,7 +166,7 @@ class CameraDirector:
 
         pan_x = subject_x(subject) - self.center_x
         target_y = self.vh * target_y_ratio
-        pan_y = FACE_Y - self.center_y + (self.center_y - target_y) / zoom
+        pan_y = self.face_y - self.center_y + (self.center_y - target_y) / zoom
         return pan_x, pan_y
 
     def project(self, x: float, y: float, frame: CameraFrame) -> Tuple[float, float]:
@@ -198,7 +206,7 @@ class CameraDirector:
             live_x = float((positions or {}).get(name, subject_x(name)))
             zoom = 1.06 + max(0.0, shot.zoom - 1.06) * _smoothstep(min(1.0, t / 0.9))
             target_y = self.vh * 0.42
-            pan_y = FACE_Y - self.center_y + (self.center_y - target_y) / zoom
+            pan_y = self.face_y - self.center_y + (self.center_y - target_y) / zoom
             settle = _smoothstep(min(1.0, t / 0.6))
             return CameraFrame(zoom=zoom, pan_x=(live_x - self.center_x) * settle,
                                pan_y=pan_y * settle)

@@ -152,7 +152,8 @@ def overflow(bounds: Tuple[float, float, float, float], zoom: float, pan_x: floa
 
 def fit_zoom(bounds: Iterable[Tuple[float, float, float, float]],
              viewport: Tuple[int, int], margin: float = DEFAULT_MARGIN,
-             clamp: bool = True) -> float:
+             clamp: bool = True, min_zoom: float = MIN_ZOOM,
+             max_zoom: float = MAX_ZOOM) -> float:
     """Widest zoom (i.e. least crop) that still fits every box.
 
     Zoom is a magnification: a *larger* zoom shows *less* world. So the constraint is an upper
@@ -180,7 +181,7 @@ def fit_zoom(bounds: Iterable[Tuple[float, float, float, float]],
     zoom = min(usable_w / span_w, usable_h / span_h)
     if not clamp:
         return max(1e-3, zoom)
-    return max(MIN_ZOOM, min(MAX_ZOOM, zoom))
+    return max(min_zoom, min(max_zoom, zoom))
 
 
 def screen_box(bounds: Tuple[float, float, float, float], zoom: float, pan_x: float,
@@ -294,7 +295,8 @@ def plan_shot(scripted: str, subjects: Mapping[str, Subject], viewport: Tuple[in
               *, speaker: Optional[str] = None, must_show: Sequence[str] = (),
               reach: Mapping[str, float] | None = None,
               extras: Sequence[Tuple[float, float, float, float]] = (),
-              margin: float = DEFAULT_MARGIN) -> Shot:
+              margin: float = DEFAULT_MARGIN,
+              zoom_range: Tuple[float, float] = (MIN_ZOOM, MAX_ZOOM)) -> Shot:
     """Choose the framing for one scene.
 
     The script's style is a request, not an order, and a shot kind carries an implied cast:
@@ -338,7 +340,8 @@ def plan_shot(scripted: str, subjects: Mapping[str, Subject], viewport: Tuple[in
             if set(must_show) - {name}:
                 continue
             box = available[name].bounds(reserve([name])[name])
-            limit = min(fit_zoom([box], viewport, margin), MAX_ZOOM)
+            limit = min(fit_zoom([box], viewport, margin, min_zoom=zoom_range[0],
+                                 max_zoom=zoom_range[1]), zoom_range[1])
             zoom = min(_kind_zoom("close_up"), limit)
             return Shot("close_up", (name,), zoom, available[name].x, centre_of([box])[1],
                         scripted, escalated=(candidate != kind),
@@ -353,7 +356,8 @@ def plan_shot(scripted: str, subjects: Mapping[str, Subject], viewport: Tuple[in
         # change which characters the shot holds, only how wide the frame has to be.
         boxes = [available[name].bounds(reserved[name]) for name in required]
         boxes += [tuple(box) for box in extras]
-        limit = min(fit_zoom(boxes, viewport, margin), MAX_ZOOM)
+        limit = min(fit_zoom(boxes, viewport, margin, min_zoom=zoom_range[0],
+                             max_zoom=zoom_range[1]), zoom_range[1])
         zoom = min(_kind_zoom(candidate), limit)
         cx, cy = centre_of(boxes)
         return Shot(candidate, tuple(required), zoom, cx, cy, scripted,
@@ -364,7 +368,8 @@ def plan_shot(scripted: str, subjects: Mapping[str, Subject], viewport: Tuple[in
     required = list(cast)
     reserved = reserve(required)
     boxes = [available[name].bounds(reserved[name]) for name in required]
-    limit = min(fit_zoom(boxes, viewport, margin), MAX_ZOOM)
+    limit = min(fit_zoom(boxes, viewport, margin, min_zoom=zoom_range[0],
+                         max_zoom=zoom_range[1]), zoom_range[1])
     zoom = min(_kind_zoom("wide"), limit)
     cx, cy = centre_of(boxes)
     return Shot("wide", tuple(required), zoom, cx, cy, scripted, True, "fallback wide",

@@ -67,10 +67,10 @@ from studio.animation.effects import (
 from studio.audio.sfx_library import SFXLibrary
 
 
-CHIKU_X = 380.0
-GAPPU_X = 780.0
-CHARACTER_Y = 1450.0
-EYE_HEIGHT = 1180.0
+# Stage (T41): the cast's placement, ground and eye line now come from a `Stage` rather than from
+# four constants, so the same animation engine stages a 9:16 and a 16:9 scene. The portrait stage
+# carries these exact values, which is why the portrait goldens still reproduce byte-for-byte.
+from studio.animation.stage import Stage, stage_for
 
 
 def _seed_for(*parts) -> int:
@@ -80,14 +80,14 @@ def _seed_for(*parts) -> int:
 
 
 def _gaze_beats(own_x: float, partner_x: float, span: float,
-                speaking: bool, facing: float = 1.0) -> list:
+                speaking: bool, facing: float = 1.0, eye_y: float = 1180.0) -> list:
     """Alternate eye contact with looks away, so nobody stares unblinkingly.
 
     A speaker looks at their partner more than a listener does, but both keep returning
     to the other character: that is what reads as a conversation instead of two solos.
     """
 
-    screen_x, screen_y = gaze_toward(own_x, partner_x, EYE_HEIGHT, EYE_HEIGHT)
+    screen_x, screen_y = gaze_toward(own_x, partner_x, eye_y, eye_y)
     # Rigs draw with scale * facing, so screen-space gaze is mirrored for a left-facing
     # character: convert to the rig's local axis before handing it to the pupil offset.
     partner = (screen_x * facing, screen_y)
@@ -129,10 +129,12 @@ def _expression_schedule(scene_data, character: str, pose: str,
 class SceneRenderer:
     """Renders a single animated scene into a high-quality vertical MP4."""
 
-    def __init__(self, width: int = VIDEO_WIDTH, height: int = VIDEO_HEIGHT, fps: int = FPS):
+    def __init__(self, width: int = VIDEO_WIDTH, height: int = VIDEO_HEIGHT, fps: int = FPS,
+                 stage: Optional[Stage] = None):
         self.width = width
         self.height = height
         self.fps = fps
+        self.stage = stage or stage_for(width, height)
         self.bg_renderer = BackgroundRenderer(width, height)
         self.sfx_lib = SFXLibrary()
 
@@ -156,14 +158,16 @@ class SceneRenderer:
         bg_name = scene_data.get("bg", "jungle_clearing")
 
         # Camera direction (T35): a style is a short deterministic move, not a static zoom.
+        stage = self.stage
         camera = Camera(self.width, self.height)
-        director = CameraDirector(camera_style, total_duration, (self.width, self.height))
+        director = CameraDirector(camera_style, total_duration, (self.width, self.height),
+                                  face_y=stage.eye_y, zoom_range=stage.zoom_range)
 
         # Initialize Character Rigs
         # Chiku stands on left, Gappu on right
-        chiku = ChikuRig(x=380, y=1450, scale=1.35)
-        chiku.facing = 1.0  # looking right
-        gappu = GappuRig(x=780, y=1450, scale=1.12)
+        chiku = ChikuRig(**stage.anchor("chiku"))
+        chiku.facing = stage.facing("chiku")  # looking at the partner
+        gappu = GappuRig(**stage.anchor("gappu"))
         gappu.facing = -1.0  # looking left
 
         surface = cairo.ImageSurface(cairo.FORMAT_ARGB32, self.width, self.height)
@@ -199,9 +203,10 @@ class SceneRenderer:
             span=total_duration + 2.0,
             schedule=_expression_schedule(scene_data, "chiku", chiku_pose,
                                           speaker == "chiku"),
-            scripted_gaze=_gaze_beats(CHIKU_X, GAPPU_X, total_duration,
+            scripted_gaze=_gaze_beats(stage.slot("chiku").x, stage.slot("gappu").x,
+                                      total_duration,
                                       speaking=speaker == "chiku",
-                                      facing=chiku.facing),
+                                      facing=chiku.facing, eye_y=stage.eye_y),
         )
         gappu_face = FaceController(
             gappu.schema,
@@ -209,9 +214,10 @@ class SceneRenderer:
             span=total_duration + 2.0,
             schedule=_expression_schedule(scene_data, "gappu", gappu_pose,
                                           speaker == "gappu"),
-            scripted_gaze=_gaze_beats(GAPPU_X, CHIKU_X, total_duration,
+            scripted_gaze=_gaze_beats(stage.slot("gappu").x, stage.slot("chiku").x,
+                                      total_duration,
                                       speaking=speaker == "gappu",
-                                      facing=gappu.facing),
+                                      facing=gappu.facing, eye_y=stage.eye_y),
         )
         # Interaction layer (T35b): keeps the two bodies apart, turns them toward each
         # other, and lets a speaker's emphasis reach the listener. With the plan empty and
@@ -286,7 +292,7 @@ class SceneRenderer:
         shot = plan_shot(camera_style, subjects, (self.width, self.height),
                          extras=[prop_probe] if prop_probe else [],
                          speaker=speaker if speaker in subjects else None,
-                         must_show=must_show)
+                         must_show=must_show, zoom_range=stage.zoom_range)
         if os.environ.get("FACTORY_CAMERA_FRAMING", "1") == "1":
             director.shot = shot
         if shot.escalated:
@@ -567,26 +573,29 @@ class SceneRenderer:
 
                 if sfx_name == "twinkle" or "\u092a\u0924\u094d\u0925\u0930" in dialogue:
                     sparkle_rot = t * 2.5
+                    spark_x, spark_y = stage.at("chiku", 80.0, -300.0)
                     draw_sparkle(
                         cr,
-                        460 + math.sin(t * 3) * 15,
-                        1150 + math.cos(t * 3) * 15,
+                        spark_x + math.sin(t * 3) * 15,
+                        spark_y + math.cos(t * 3) * 15,
                         32 + math.sin(t * 6) * 8,
                         sparkle_rot,
                     )
                     draw_sparkle(
                         cr,
-                        520,
-                        1100,
+                        spark_x + 60.0,
+                        spark_y - 50.0,
                         20 + math.cos(t * 5) * 6,
                         -sparkle_rot * 1.2,
                     )
 
                 if chiku_pose == "excited_jump" and (t % 0.78 < 0.25):
-                    draw_dust_puff(cr, 380, 1460, progress=(t % 0.78) / 0.25, scale=1.2)
+                    dust_x, dust_y = stage.at("chiku", 0.0, 10.0)
+                    draw_dust_puff(cr, dust_x, dust_y, progress=(t % 0.78) / 0.25, scale=1.2)
 
                 if chiku_pose == "shocked_freeze" and t < 1.2:
-                    draw_exclamation_pop(cr, 380, 1020, progress=min(1.0, t / 0.8))
+                    bang_x, bang_y = stage.at("chiku", 0.0, -430.0)
+                    draw_exclamation_pop(cr, bang_x, bang_y, progress=min(1.0, t / 0.8))
 
                 # A close-up frames one character: drawing the other would leave a sliver
                 # of them at the frame edge, which reads as a mistake rather than a shot.
