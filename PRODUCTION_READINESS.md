@@ -120,3 +120,12 @@ Visual quality is "clean motion graphics" for Nexus/Academic. It is **not** the 
 2D character animation described in §E of the directive: Natkhat has procedural rigs, but
 landscape long-form has no characters at all, and there is no squash/stretch, anticipation
 or reaction-shot library.
+
+## Frame rate and container conformance
+
+| Item | Status | Evidence |
+| --- | --- | --- |
+| Delivered frame rate is exactly 30 | VERIFIED | `avg_frame_rate = 30/1` after `-r 30 -fps_mode cfr`; was 29.969 |
+| Frame rate is gated by QC | VERIFIED | `frame_rate True - 30.00 fps, expected 30`; 19/19 checks pass |
+| Full decode of the delivered file | VERIFIED | `ffmpeg -v error -i video.mp4 -f null -` produced no output |
+| Frame-rate stability across scenes | PARTIALLY VERIFIED | one 5-scene episode measured; 1 duplicate frame in the first 12 s |

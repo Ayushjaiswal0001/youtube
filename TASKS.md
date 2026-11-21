@@ -128,6 +128,9 @@ Status markers: `[ ]` todo, `[~]` in progress, `[x]` done.
   -16.5..-11.5 LUFS; measured -24.3 → -14.0 LUFS on the same episode.
 - [x] **T37. Scene transitions** — `studio/animation/transitions.py`: location change dips to
   black, same location cuts, opening/closing fades; 14 tests; verified with `blackdetect`.
+- [x] **T38. Pin the delivered frame rate and gate it** — concat now writes `-r 30 -fps_mode
+  cfr`; QC gained a `frame_rate` check at +/-0.01; `tests/factory/test_qc.py` (8 tests).
+  Nothing failed before because no gate looked at frame rate.
 - [ ] **T35b. Character-to-character interaction** — contact reactions (hand-off, grab),
   shared attention on an object, and dialogue-driven gestures beyond nodding.
 - [x] **T33. Locomotion** — walk/run cycles with contact/passing/up poses and foot planting.

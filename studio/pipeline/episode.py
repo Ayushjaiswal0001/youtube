@@ -154,6 +154,10 @@ class EpisodePipeline:
             "-c:v", "libx264",
             "-preset", "veryfast",
             "-crf", "20",
+            # Pin the frame rate: without it the muxer derives the rate from the input
+            # timestamps and the episode came out at 14415/481 (29.97) instead of 30.
+            "-r", "30",
+            "-fps_mode", "cfr",
             "-pix_fmt", "yuv420p",
             "-c:a", "aac",
             "-b:a", "192k",

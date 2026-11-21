@@ -50,6 +50,16 @@ They are disjoint, so there is no conflict either way. Recommended order: **#2 f
 (it fixes the runner install that T12 needs), then **#3**. Both stay unmerged until the
 owner approves.
 
+### Frame rate (T38)
+
+The episode concat in `studio/pipeline/episode.py` now passes `-r 30 -fps_mode cfr`. Without it
+the delivered MP4 was 29.969 fps (`14415/481`) while the scenes were rendered at 30, and no QC
+check looked at frame rate. `factory/qa/validator.py` now emits a `frame_rate` check with a
+**+/-0.01** tolerance, tight on purpose: a looser value (0.05, or a half frame) would have passed
+the original defect and also passes NTSC 29.97, which this engine never writes.
+
+If a future render fails the gate, do not widen it -- find what wrote the wrong rate.
+
 ### Transitions (T37)
 
 `studio/animation/transitions.py` → `plan_transitions(scenes)` and `ffmpeg_fade_filters()`.

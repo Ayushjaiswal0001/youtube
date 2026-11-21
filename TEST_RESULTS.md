@@ -310,6 +310,31 @@ change dips to black, the same location cuts directly, the episode opens and clo
 | No fades requested | `ffmpeg_fade_filters(0, 0, d)` returns an empty list, so nothing is added to the command |
 | Clamping | fades longer than half the scene are clamped so they cannot overlap |
 
+## 3n. Episode frame rate pinned to 30 and gated (QC) — measured
+
+The concat step let the muxer derive the rate from input timestamps, so the delivered episode
+was `avg_frame_rate = 14415/481` (**29.969**) although every scene was rendered at 30. QC never
+looked at frame rate, so nothing failed.
+
+| Check | Before | After |
+| --- | --- | --- |
+| `avg_frame_rate` | `14415/481` = 29.969 | **30/1** |
+| `r_frame_rate` | 30/1 | 30/1 |
+| Frame count | 961 | **963** (+2 from constant-frame-rate padding) |
+| Duration | 32.1346 s | 32.1346 s |
+| Loudness | -14.0 LUFS / -1.4 dBTP | **-14.0 LUFS / -1.4 dBTP** |
+| Full decode | 0 errors | **0 errors** |
+| QC checks | 18, no frame-rate gate | **19, `frame_rate True - 30.00 fps, expected 30`** |
+| Duplicate frames (first 12 s, `mpdecimate`) | not measured | 359 of 360 kept, so padding is invisible |
+
+The gate is deliberately tight (`|fps - 30| <= 0.01`). A half-frame or 0.05 tolerance would have
+accepted the original 29.969 defect, and would also accept NTSC 29.97, which this engine never
+intends to write.
+
+`tests/factory/test_qc.py` (8 tests) pins the parsing: exact 30 passes, `14415/481` and
+`30000/1001` fail, a `30/0` denominator is reported as unknown rather than assumed correct, and
+malformed text cannot crash the gate. Suite **307 passed**.
+
 ## 4. Not yet executed
 
 | Test | Status |

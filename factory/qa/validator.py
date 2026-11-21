@@ -103,6 +103,19 @@ def validate_episode(
                     str(video_stream.get("codec_name")),
                 )
             )
+            rate_text = str(video_stream.get("avg_frame_rate") or "0/0")
+            try:
+                numerator, denominator = rate_text.split("/")
+                fps = float(numerator) / float(denominator or 1)
+            except (ValueError, ZeroDivisionError):
+                fps = 0.0
+            checks.append(
+                _check(
+                    "frame_rate",
+                    abs(fps - 30.0) <= 0.01,
+                    f"{fps:.2f} fps, expected 30",
+                )
+            )
         if audio_stream:
             checks.append(
                 _check(
