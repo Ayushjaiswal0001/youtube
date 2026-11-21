@@ -238,3 +238,21 @@ or reaction-shot library.
 | Real YouTube upload | BLOCKED | 0 repository secrets; OAuth status unknown |
 | Scheduled production | DISABLED | owner disabled all three crons; nothing re-enabled |
 | Notifications | NOT IMPLEMENTED | no provider configured in the repo |
+
+## Animation quality (T43b, T44, T45)
+
+| Item | Status | Evidence |
+| --- | --- | --- |
+| Two-segment arm IK with a stable pole | VERIFIED | 32 tests, 5 rendered demos |
+| Body mechanics (bend, squash, head counter-rotation) | VERIFIED | ground reach for both rigs, inspected frames |
+| Ground pickup | RENDERED, VISUALLY-INSPECTED | contact -14.0 px on the drawn wrist |
+| Table pickup | RENDERED, VISUALLY-INSPECTED | contact -20.0 px; cup occluded by the character (defect) |
+| Character handoff | RENDERED, VISUALLY-INSPECTED | contact -3.5 px, key visible between hands |
+| Two-hand object handling | RENDERED, VISUALLY-INSPECTED | contact -3.2 px |
+| Failed reach + recovery | RENDERED, VISUALLY-INSPECTED | FAILED then COMPLETE |
+| Lighting presets (6) | RENDERED, VISUALLY-INSPECTED | sheet + jump clip, offsets measured |
+| Directional shadow response to height | VERIFIED | offsets and opacity measured per preset |
+| Six locations rendered | RENDERED, VISUALLY-INSPECTED | contact sheet, per-location JSON |
+| Ground contact | VERIFIED | 0.0 px error, both rigs |
+| Foreground occlusion of the cast | NOT IMPLEMENTED | measured 0.0 |
+| Pickup integrated into `render_episode` | NOT IMPLEMENTED | demos drive the modules directly |

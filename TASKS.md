@@ -164,13 +164,15 @@ Status markers: `[ ]` todo, `[~]` in progress, `[x]` done.
   exists (`wide_establishing`, `tracking_left/right`, `medium_*`, `reaction_*`, `two_shot_hold`) and
   escalation is logged, but eyeline-matching across a cut and shot/reverse-shot alternation are not
   implemented: scenes currently choose their own shot independently.
-- [ ] **T43. Object pickup from a world position.** `contact_error` exists for timing a pickup; a
+- [x] **T43. Object pickup from a world position.** `contact_error` exists for timing a pickup; a
   reach-toward-a-target solver does not. Hand-off between two hands is done (T40, T41).
-- [ ] **T44. Lighting and shadow depth.** Contact shadows, moon glow, rim light and distance haze
+- [x] **T44. Lighting and shadow depth.** Contact shadows, moon glow, rim light and distance haze
   exist. Cast shadows with direction/penumbra, a secondary light, and character-to-ground shadow
   contact by pose are not implemented.
-- [ ] **T45. Environment breadth.** Six palettes defined, one rendered end to end. Mid-ground
-  legibility and per-location scenery are outstanding.
+- [x] **T45. Environment breadth (partial).** All six locations rendered with the cast and measured
+  (`build/locations/`), distinct identity per location, ground contact fixed to 0 px error via
+  `studio/animation/grounding.py`. Outstanding: the foreground layer never occludes a character
+  (measured 0.0), and depth sorting is a single y comparison so furniture can occlude a prop wrongly.
 - [ ] **T46. Unified orchestration.** `render-stage` is a separate command; the publish orchestrator
   still routes every Hindi episode through the Shorts pipeline.
 - [x] **T40. Object interaction and hand contact** - `studio/characters/props.py`:
@@ -217,3 +219,10 @@ Status markers: `[ ]` todo, `[~]` in progress, `[x]` done.
 3. The scheduled workflow runs unattended for 7 consecutive days with 1 video/channel/day.
 4. No duplicate topics, no wrong-channel uploads, no shared-state loss between runs.
 5. Any failure is visible (artifact + notification) and self-recovers on the next run.
+
+- [ ] **T45b. Foreground that actually occludes.** The near layer is a bottom grass strip; measured
+  occlusion of the cast is 0.0 in all six locations. Needs near-camera elements that cross the cast.
+- [ ] **T45c. Layer groups instead of one depth key.** A cup on a table in front of a character sorts
+  behind them because its screen y is higher. Needs explicit layer groups.
+- [ ] **T43c. Comfortable ground reach.** After the grounding fix the shoulder sits 32 px higher, so
+  the ground pickup needs a 96-degree fold. Leg joints (a real knee) would let the fold stay shallow.

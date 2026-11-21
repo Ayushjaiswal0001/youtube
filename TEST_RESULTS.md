@@ -781,6 +781,20 @@ Defects found while building this:
    now part of the table rather than an exception in the caller.
 5. **A manifest step in the workflow contained a dead Python block** that did nothing; removed.
 
+## 3w. Interaction, lighting, grounding and locations (T43b/T44/T45) - measured
+
+| Area | Result |
+| --- | --- |
+| Full suite | **631 passed** (49 new: 32 IK/pickup, 12 lighting, 5 grounding) |
+| Golden frames | 78 frames, 0 changed, 0 new |
+| Interaction demos | 5 clips, 1920x1080, 30/1 CFR, 90-126 frames each |
+| Contact (drawn wrist) | ground -14.0, table -20.0, handoff -3.5, two-hand -3.2, recovery -4.2 px |
+| Crouch solution | Chiku 96 deg / 0.72 squash, Gappu 115 deg (both reach the floor) |
+| Shadow offsets | standing -> 180 px airborne: 8 -> 48 (day), 8 -> 296 (sunset), -8 -> -212 (cool evening) |
+| Ground contact | 0.0 px error for both rigs after the fix; was 32 px (Chiku) and 22 px (Gappu) |
+| Foreground occlusion | 0.0 in all six locations (not achieved) |
+| Locations rendered | 6 of 6, contact sheet inspected |
+
 ## 4. Not yet executed
 
 | Test | Status |

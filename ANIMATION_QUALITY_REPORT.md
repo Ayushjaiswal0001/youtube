@@ -65,3 +65,65 @@ merely because the object is visually close" - and it was caught by re-measuring
 * T43 is **not integrated into `render_episode`**: no authored episode can request a pickup yet.
 * T44 (lighting) and T45 (environment breadth) are untouched in this milestone.
 * The crouch/bend solver in defect 1 is the prerequisite for every ground-level interaction.
+
+## 2026-11-21 - T43b / T44 / T45
+
+### T43b: body mechanics (closes T43)
+
+| Piece | Evidence |
+| --- | --- |
+| `BodyPose(bend, squash)`, `solve_crouch`, `plan_crouch`, head counter-rotation | UNIT-TESTED, RENDERED, VISUALLY-INSPECTED |
+| Ground pickup for both rigs | RENDERED, VISUALLY-INSPECTED, contact measured on the drawn wrist |
+| Table pickup, handoff, two-hand, failed-reach recovery | RENDERED, VISUALLY-INSPECTED |
+
+Measured contact on the drawn wrist: ground -14.0, table -20.0, handoff -3.5, two-hand -3.2,
+recovery -4.2 px (negative = inside the object). All five reach COMPLETE.
+
+The first attempt drew an 83° fold with upright legs and looked like a character lying on the floor.
+Instrumenting the render found the arm reaches 83.8 px while the shoulder sits 195.8 px above the
+ground, so *some* deep pose is unavoidable for this rig. Three fixes made it read correctly: prefer
+squash (a knee-bend proxy) over folding, counter-rotate the head by 78% of the fold so the face stays
+up, and frame the camera on the action.
+
+**Disclosed error.** In the previous milestone I reported the shoulder as ~294 px above the ground.
+It is 195.8 px. The 294 figure came from a portrait-scale measurement carried into a landscape
+conversation and was never re-measured. Every conclusion drawn from it was directionally right and
+numerically wrong, and the corrected number is why an 83° bend was needed rather than something
+impossible outright.
+
+Side effect of fixing the ground: raising the cast onto the floor plane raises the shoulder by 32 px,
+so the ground reach needs a deeper bend (Chiku 60° -> 96°). The two-hand pot reports `crouch_ok=False`
+against a 92% reach margin while still making contact, which means the margin is conservative rather
+than the reach being impossible. Recorded, not hidden.
+
+### T44: lighting and shadows
+
+Six presets, directional shadows derived from elevation and body height, ambient and grade overlays,
+and the environment accepting a preset without changing any render that does not opt in.
+
+Measured standing -> 180 px airborne shadow offsets: daylight 8 -> 48, warm_afternoon 8 -> 114,
+sunset 8 -> 296, cool_evening -8 -> -212, moonlight -8 -> -130. Opposite light directions produce
+opposite shadows.
+
+Two defects found in the first sheet and fixed: the standing contact shadow was invisible (an 8 px
+offset hid it behind the character's own feet), and the airborne tile was cropped because the camera
+was framed for a standing character only.
+
+### T45: six locations
+
+All six render with a distinct identity (jungle clearing, forest path, riverbank, haunted haveli,
+cave entrance, village night) with the cast inside them. Per-location measurements are in
+`build/locations/locations.json`.
+
+**Defect found and fixed:** the cast stood 32 px *through* the floor in every landscape render,
+because a rig's anchor is not its feet. `studio/animation/grounding.py` measures the drawn silhouette
+once per rig and places the feet exactly on the ground plane (`ground_error` now 0.0 for both rigs at
+every ground height). Chiku's offset is 32 px, Gappu's 22 px.
+
+**Defect found and not fixed:** the near-camera layer never occludes a character - measured
+foreground occlusion is 0.0 in all six locations. It is a bottom strip of grass, so "foreground depth"
+in T45's sense is not achieved yet.
+
+**Defect found and not fixed:** compositing by world depth is not sufficient for furniture. In the
+table demo the cup sits on the table in front of the character but sorts behind him, because its
+screen y is higher. Depth-aware layering needs explicit layer groups, not one y comparison.

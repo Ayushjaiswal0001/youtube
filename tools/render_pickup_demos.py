@@ -29,6 +29,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import cairo
 
 from studio.animation.environment import ForegroundLayer, LandscapeEnvironment
+from studio.animation.grounding import place_on_ground
 from studio.animation.stage import stage_for
 from studio.characters.chiku import ChikuRig
 from studio.characters.crouch import BodyPose, apply_pose, plan_crouch, save_pose, solve_crouch
@@ -167,6 +168,7 @@ def render_demo(name: str, *, background: str, cast: List[dict], duration: float
     for spec in cast:
         cls = ChikuRig if spec["who"] == "chiku" else GappuRig
         rig = cls(**STAGE.anchor(spec["who"]))
+        place_on_ground(rig, STAGE.ground_y)
         rig.facing = spec.get("facing", 1.0)
         if "x" in spec:
             rig.x = spec["x"]

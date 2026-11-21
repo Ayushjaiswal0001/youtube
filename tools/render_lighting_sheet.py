@@ -27,6 +27,7 @@ from PIL import Image
 
 from studio.animation.environment import LandscapeEnvironment
 from studio.animation.lighting import PRESETS, draw_shadow, preset_for
+from studio.animation.grounding import place_on_ground
 from studio.animation.stage import stage_for
 from studio.characters.chiku import ChikuRig
 from studio.characters.crouch import BodyPose, apply_pose
@@ -51,6 +52,7 @@ STATES = {
 def _frame(preset_name: str, state: str, *, surface=None, t: float = 0.0):
     preset = preset_for(preset_name)
     rig = ChikuRig(**STAGE.anchor("chiku"))
+    place_on_ground(rig, STAGE.ground_y)
     pose, height = STATES[state]
     apply_pose(rig, pose)
     rig.y = STAGE.ground_y - height
@@ -150,6 +152,7 @@ def render_shadow_clip() -> dict:
     samples = []
     preset = preset_for("warm_afternoon")
     rig = ChikuRig(**STAGE.anchor("chiku"))
+    place_on_ground(rig, STAGE.ground_y)
     environment = LandscapeEnvironment(WIDTH, HEIGHT, STAGE.ground_y)
 
     try:
