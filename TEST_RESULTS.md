@@ -361,6 +361,46 @@ Fixes
 Process change: a commit is only "CI-verified" after `gh run list --json conclusion` is read for
 that exact SHA. Local green is not evidence about the runner.
 
+## 3p. Character-to-character interaction (T35b) — measured
+
+Two rigs animated *near* each other, never *with* each other: nothing prevented overlap, and a
+speaker's emphasis never reached the listener.
+
+`studio/characters/interaction.py` adds three things, all translation/angle addition:
+
+| Capability | Status | Evidence |
+| --- | --- | --- |
+| Separation guard (min 210 px between body centres) | IMPLEMENTED, unit-tested, guard only | `close anchors: gap 210.0px`; with current anchors (380/780) the closest motion still leaves 400 px, so it never engages in shipped content |
+| Forward-arm gesture (speaker reaches toward the partner) | VERIFIED VISUALLY | probe render of 4 delta combinations on both rigs; additive `arm_r_delta=-0.85, arm_l_delta=-0.30` puts the forward pinion out and the near arm tucked |
+| Listener reaction (lean + head tilt) | VERIFIED VISUALLY | same probe / rendered episode |
+| Facing tracker with hysteresis | IMPLEMENTED, unit-tested, not exercised | no shipped scene puts a partner behind the other, so no flip occurs |
+| Identity path | VERIFIED | `idle/walk_in/walk_out/jump: bit-identical frames 180/180` |
+
+Mistakes made and corrected while building this, recorded because they are the useful part:
+
+1. The first version set **absolute** arm angles (`arm_l = arm_r = 0.85`). Rendered frames
+   showed a T-pose, and the reach pointed **away** from the partner. Arms are now an **additive**
+   delta (`arm_l_delta` / `arm_r_delta` on `BodyState`), so a gesture composes with the pose
+   instead of erasing it.
+2. The sign was **guessed**. A probe render settled it: the rigs are mirrored by `facing`, so
+   local +x is "in front" for both, and a negative right-arm delta is the forward pinion. The
+   proof is the mirrored pair: chiku points screen-right, gappu points screen-left, each at its
+   partner.
+3. `resolve()` round-tripped `anchor + offset -> anchor`, perturbing `hip_x` by ulps on frames
+   that needed no clamp. It now returns the inputs unchanged, which is what keeps "no interaction
+   means bit-identical" true.
+4. A pairwise 3-body `separate()` helper was written, measured, and found to **under-separate**
+   (265 vs 450 against a 210 gap). The cast is exactly two characters, so it was deleted rather
+   than shipped wrong; the test now asserts it does not exist.
+
+Episode re-rendered at this HEAD: 1080x1920, **963 frames**, `avg_frame_rate 30/1`, full decode
+0 errors, **-14.0 LUFS / -1.4 dBTP**, `qc_ok: true`, 246 gesture frames planned across 5 scenes.
+Golden frames still reproduce exactly: `78 frames, 0 changed, 0 new`. Suite **350 passed**.
+
+Known limitation: the gesture is aimed at the partner, but a `close_up_*` camera can crop the
+partner out, leaving a character reaching into empty frame. Camera and gesture planning are not
+yet aware of each other.
+
 ## 4. Not yet executed
 
 | Test | Status |

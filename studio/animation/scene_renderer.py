@@ -24,6 +24,11 @@ from studio.characters.gaze import (
 )
 from studio.characters.lipsync import VisemeTrack
 from studio.characters.locomotion import MotionController, motions_for
+from studio.characters.interaction import (
+    InteractionDirector,
+    plan_interaction,
+    replace_body_hip,
+)
 from studio.characters.performance import (
     PerformanceFace,
     PerformancePlan,
@@ -179,6 +184,20 @@ class SceneRenderer:
                                       speaking=speaker == "gappu",
                                       facing=gappu.facing),
         )
+        # Interaction layer (T35b): keeps the two bodies apart, turns them toward each
+        # other, and lets a speaker's emphasis reach the listener. With the plan empty and
+        # the anchors already apart this resolves to the identity transform, so existing
+        # episodes render unchanged. FACTORY_NO_INTERACTION=1 removes it entirely.
+        interaction = InteractionDirector(
+            anchor_a=chiku.schema.anchor["x"], anchor_b=gappu.schema.anchor["x"],
+            plan=(None if os.environ.get("FACTORY_NO_INTERACTION")
+                  else plan_interaction(dialogue, duration=total_duration, speaker=speaker,
+                                        listener=("gappu" if speaker == "chiku" else "chiku"),
+                                        seed=_seed_for(story_id, scene_num, "interaction"))),
+            facing_a=int(math.copysign(1, chiku.facing)),
+            facing_b=int(math.copysign(1, gappu.facing)),
+        )
+
         # Locomotion layer (T33). Scenes without a motion keep the pose exactly as it was,
         # so every existing episode renders unchanged.
         chiku_motion = MotionController(
@@ -347,14 +366,32 @@ class SceneRenderer:
 
                 cr.save()
                 camera.apply(cr, t)
+                # Interaction resolves the two bodies together, so it has to run after both
+                # motions are known and before either rig is posed.
+                chiku_body = chiku_perf.accent_at(t).on_body(chiku_motion.state_at(t))
+                gappu_body = gappu_perf.accent_at(t).on_body(gappu_motion.state_at(t))
+                hip_a, hip_b = interaction.resolve(chiku_body.hip_x, gappu_body.hip_x)
+                chiku_body = replace_body_hip(chiku_body, hip_a)
+                gappu_body = replace_body_hip(gappu_body, hip_b)
+                layer_a, layer_b = interaction.bodies(t, hip_a, hip_b, speaker)
+                if layer_a is not None:
+                    chiku_body = chiku_body.merged_with(layer_a)
+                if layer_b is not None:
+                    gappu_body = gappu_body.merged_with(layer_b)
+                face_a, face_b = interaction.facing(hip_a, hip_b)
+                if face_a != int(math.copysign(1, chiku.facing)):
+                    chiku.facing = float(face_a)
+                if face_b != int(math.copysign(1, gappu.facing)):
+                    gappu.facing = float(face_b)
+
                 chiku.update_pose(
                     chiku_pose, t, is_talking=chiku_talking, phoneme_intensity=0.8,
                     lipsync=lipsync_track, timeline=viseme_timeline,
-                    body=chiku_perf.accent_at(t).on_body(chiku_motion.state_at(t)))
+                    body=chiku_body)
                 gappu.update_pose(
                     gappu_pose, t, is_talking=gappu_talking, phoneme_intensity=0.7,
                     lipsync=lipsync_track, timeline=viseme_timeline,
-                    body=gappu_perf.accent_at(t).on_body(gappu_motion.state_at(t)))
+                    body=gappu_body)
                 chiku.face_state_at(t)
                 gappu.face_state_at(t)
 

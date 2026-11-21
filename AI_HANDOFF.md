@@ -50,6 +50,27 @@ They are disjoint, so there is no conflict either way. Recommended order: **#2 f
 (it fixes the runner install that T12 needs), then **#3**. Both stay unmerged until the
 owner approves.
 
+### Interaction (T35b)
+
+`studio/characters/interaction.py`, wired in `scene_renderer.py` once per scene
+(`FACTORY_NO_INTERACTION=1` disables it).
+
+- `resolve_separation()` keeps body centres at least **210 px** apart and is symmetric about the
+  old centre of mass. `InteractionDirector.resolve()` returns the inputs **unchanged** when no
+  clamp is needed; that is deliberate, because the round trip through `anchor + offset` perturbs
+  `hip_x` by ulps and breaks golden-frame equality.
+- Gestures are **additive**: `BodyState.arm_l_delta` / `arm_r_delta`, added by both rigs'
+  `apply_body`. Never set `arm_l`/`arm_r` for a gesture -- those *replace* the pose's arms and
+  turn every pose into the same T-pose.
+- Direction convention, measured with a probe render: the rigs are mirrored by `facing`, so
+  local +x is "in front" for both characters. **`arm_r_delta` negative is the forward pinion**;
+  `arm_l_delta` slightly negative tucks the near arm. Do not "fix" the sign per character.
+- `resolve()` clamps explain why the guard almost never fires: anchors are 400 px apart, the
+  widest motion still leaves 400 px, so with shipped content the clamp is a guard.
+- Untested in a rendered episode: facing flips (no scene puts a partner behind the other).
+- Known interaction/camera conflict: a `close_up_*` camera can crop the partner out, so a
+  character gestures into empty frame.
+
 ### Test portability (do not repeat this)
 
 Never hard-code an absolute Windows path in a test. `Path("C:/Users/...")` is a *relative* path

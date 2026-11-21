@@ -237,6 +237,8 @@ class ChikuRig:
             self.arm_l_angle = body.arm_l
         if body.arm_r is not None:
             self.arm_r_angle = body.arm_r
+        self.arm_l_angle += body.arm_l_delta
+        self.arm_r_angle += body.arm_r_delta
         self.squash = body.squash
 
     def draw(self, cr: cairo.Context):

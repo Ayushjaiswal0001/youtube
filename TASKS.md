@@ -131,8 +131,10 @@ Status markers: `[ ]` todo, `[~]` in progress, `[x]` done.
 - [x] **T38. Pin the delivered frame rate and gate it** — concat now writes `-r 30 -fps_mode
   cfr`; QC gained a `frame_rate` check at +/-0.01; `tests/factory/test_qc.py` (8 tests).
   Nothing failed before because no gate looked at frame rate.
-- [ ] **T35b. Character-to-character interaction** — contact reactions (hand-off, grab),
-  shared attention on an object, and dialogue-driven gestures beyond nodding.
+- [x] **T35b. Character-to-character interaction** — `studio/characters/interaction.py`:
+  separation guard, additive forward-arm gesture toward the partner, listener reaction, facing
+  hysteresis with a bit-exact identity path; 38 tests. Contact/hand-off and shared attention on
+  an object remain open.
 - [x] **T33. Locomotion** — walk/run cycles with contact/passing/up poses and foot planting.
 - [ ] **T34. Reaction library** — anticipation, impact, settle, with the existing easing set.
 - [ ] **T35. Two-character blocking** — eye-line, overlap, and shared framing.

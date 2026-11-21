@@ -47,6 +47,10 @@ class BodyState:
     leg_r: float = 0.0
     arm_l: Optional[float] = None   # None = leave the pose's arm angle alone
     arm_r: Optional[float] = None
+    # Additive overlays, unlike arm_l/arm_r which replace the pose. A gesture is a movement
+    # *from* whatever the pose is doing, so it must not throw the pose's arms away.
+    arm_l_delta: float = 0.0
+    arm_r_delta: float = 0.0
     head_tilt: float = 0.0
     squash: float = 1.0
     mode: str = "idle"
@@ -62,6 +66,8 @@ class BodyState:
             leg_r=self.leg_r + other.leg_r,
             arm_l=other.arm_l if other.arm_l is not None else self.arm_l,
             arm_r=other.arm_r if other.arm_r is not None else self.arm_r,
+            arm_l_delta=self.arm_l_delta + other.arm_l_delta,
+            arm_r_delta=self.arm_r_delta + other.arm_r_delta,
             head_tilt=self.head_tilt + other.head_tilt,
             squash=self.squash * other.squash,
             mode=other.mode,

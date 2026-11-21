@@ -129,3 +129,14 @@ or reaction-shot library.
 | Frame rate is gated by QC | VERIFIED | `frame_rate True - 30.00 fps, expected 30`; 19/19 checks pass |
 | Full decode of the delivered file | VERIFIED | `ffmpeg -v error -i video.mp4 -f null -` produced no output |
 | Frame-rate stability across scenes | PARTIALLY VERIFIED | one 5-scene episode measured; 1 duplicate frame in the first 12 s |
+
+## Two-character interaction
+
+| Item | Status | Evidence |
+| --- | --- | --- |
+| Bodies cannot overlap | VERIFIED (unit) / guard only | clamp to 210 px, symmetric; not reached by shipped motions |
+| Speaker gestures toward partner | RENDER-VERIFIED | probe render of both rigs; rendered episode inspected at gesture peaks |
+| Listener reacts | RENDER-VERIFIED | lean/tilt layer visible in rendered episode |
+| Facing flips when a partner is behind | IMPLEMENTED BUT UNTESTED | unit tests only; no scene exercises it |
+| Gesture survives a close-up camera | NOT IMPLEMENTED | camera plan can crop the partner out |
+| Hand-off / object contact | NOT IMPLEMENTED | not started |
