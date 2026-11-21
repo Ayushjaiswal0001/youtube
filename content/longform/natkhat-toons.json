@@ -33,7 +33,8 @@
             "gappu_pose": "observing",
             "camera": "auto",
             "bg": "haunted_haveli",
-            "sfx": "whoosh"
+            "sfx": "whoosh",
+            "lighting": "sunset"
           },
           {
             "n": 2,
@@ -76,7 +77,8 @@
             "sfx": "pop",
             "prop": "brass_key",
             "prop_holder": "chiku",
-            "prop_side": "right"
+            "prop_side": "right",
+            "lighting": "cool_evening"
           },
           {
             "n": 6,

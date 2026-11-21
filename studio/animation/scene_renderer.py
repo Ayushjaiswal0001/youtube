@@ -61,6 +61,9 @@ from studio.animation.framing import (
     world_y_for_screen,
 )
 from studio.animation.silhouette import subject_from_rig
+from studio.animation.compositor import (DrawQueue, Layer, actor_depth, ground_prop_depth,
+                                         held_prop_depth)
+from studio.animation.lighting import (ambient_overlay, apply_grade, preset_for)
 from studio.animation.transitions import ffmpeg_fade_filters
 from studio.animation.effects import (
     draw_sparkle, draw_dust_puff, draw_exclamation_pop, draw_vignette,
@@ -164,6 +167,10 @@ class SceneRenderer:
         camera_style = scene_data.get("camera", "medium_pan")
         sfx_name = scene_data.get("sfx", "whoosh")
         bg_name = scene_data.get("bg", "jungle_clearing")
+        # Time of day (T44): a scene may name a lighting preset. Without one, `lighting` stays None
+        # and every draw below behaves exactly as it did before presets existed.
+        lighting_name = str(scene_data.get("lighting") or "").strip()
+        lighting = preset_for(lighting_name) if lighting_name else None
 
         # Camera direction (T35): a style is a short deterministic move, not a static zoom.
         stage = self.stage
@@ -611,21 +618,37 @@ class SceneRenderer:
                 # over it.
                 shadow = getattr(self.environment, "draw_character_shadow", None)
                 if shadow is not None:
-                    shadow(cr, chiku.x + hip_a, stage.ground_y,
-                           subject_from_rig(chiku, chiku_pose).half_w, 1.0)
-                    shadow(cr, gappu.x + hip_b, stage.ground_y,
-                           subject_from_rig(gappu, gappu_pose).half_w, 0.9)
+                    for _rig, _hip, _shade, _scale in ((chiku, hip_a, shadow, 1.0),
+                                                       (gappu, hip_b, shadow, 0.9)):
+                        _half = subject_from_rig(_rig, chiku_pose if _rig is chiku
+                                                 else gappu_pose).half_w
+                        try:
+                            _shade(cr, _rig.x + _hip, stage.ground_y, _half, _scale,
+                                   lighting=lighting)
+                        except TypeError:  # an environment that does not take a preset
+                            _shade(cr, _rig.x + _hip, stage.ground_y, _half, _scale)
                 face_a, face_b = interaction.facing(hip_a, hip_b)
                 if face_a != int(math.copysign(1, chiku.facing)):
                     chiku.facing = float(face_a)
                 if face_b != int(math.copysign(1, gappu.facing)):
                     gappu.facing = float(face_b)
 
-                # Props are drawn in the same world space as the rigs, after them, so a held
-                # object sits on top of the hand that holds it.
+                # Compositing (T45c): staged layers, then world depth within a layer. A held prop
+                # belongs above the actor holding it; a prop on the floor belongs with the cast and
+                # is ordered against them by depth. The old fixed order drew every prop under the
+                # hand that was holding it, which is visible in any pickup shot.
+                queue = DrawQueue()
                 if prop_track is not None and prop_point is not None:
-                    draw_prop(cr, prop_track.spec.name, prop_point,
-                              angle=prop_track.angle_at(t))
+                    holder = prop_track.held_by(t)
+                    held = holder in ("chiku", "gappu")
+                    depth = (held_prop_depth(stage.ground_y) if held
+                             else ground_prop_depth(prop_point[1]))
+                    _prop_point, _angle = prop_point, prop_track.angle_at(t)
+                    queue.add_prop(
+                        depth,
+                        (lambda c, pt=_prop_point, ang=_angle:
+                         draw_prop(c, prop_track.spec.name, pt, angle=ang)),
+                        held=held, name="prop")
 
                 if sfx_name == "twinkle" or "\u092a\u0924\u094d\u0925\u0930" in dialogue:
                     sparkle_rot = t * 2.5
@@ -656,9 +679,12 @@ class SceneRenderer:
                 # A close-up frames one character: drawing the other would leave a sliver
                 # of them at the frame edge, which reads as a mistake rather than a shot.
                 if director.subject != "gappu":
-                    chiku.draw(cr)
+                    queue.add_actor(actor_depth(stage.ground_y + hip_a),
+                                    lambda c: chiku.draw(c), name="chiku")
                 if director.subject != "chiku":
-                    gappu.draw(cr)
+                    queue.add_actor(actor_depth(stage.ground_y + hip_b),
+                                    lambda c: gappu.draw(c), name="gappu")
+                draw_order = queue.flush(cr)
                 cr.restore()
 
                 # Foreground (T41): drawn after the cast so the near foliage overlaps them. This
@@ -669,6 +695,13 @@ class SceneRenderer:
                         bg_name, cr, t, camera.pan_x, camera.pan_y,
                         zoom=(camera.zoom if os.environ.get("FACTORY_CAMERA_ZOOM_BG", "1") == "1"
                               else 1.0))
+
+                # Time of day (T44): one ambient lift and one multiply grade for the whole frame,
+                # after the near layer so foreground scenery is lit with the scene rather than
+                # pasted on top of it, and before the caption band so captions keep full contrast.
+                if lighting is not None:
+                    ambient_overlay(cr, lighting, self.width, self.height)
+                    apply_grade(cr, lighting, self.width, self.height)
 
                 # Lens vignette (T35): screen space, above the scene and below the
                 # subtitle band so captions keep full contrast.

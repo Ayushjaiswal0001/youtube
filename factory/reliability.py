@@ -60,15 +60,18 @@ ACTIVE_STATES = frozenset({"QUEUED", "PREFLIGHT", "GENERATING", "RENDERING", "VA
 
 # Which transitions are legal. Kept explicit so a bug that jumps from RENDERING to PUBLISHED is
 # rejected rather than recorded as history.
+# Restarting is a real operation, not an error: the same day's job id is reused by design, so a
+# forced re-render or a resume after a reboot legitimately begins again at QUEUED. Every active state
+# may therefore return to QUEUED, and a state may re-declare itself (see JobJournal.transition).
 ALLOWED_TRANSITIONS: Dict[str, frozenset] = {
     "QUEUED": frozenset({"PREFLIGHT", "FAILED", "RECOVERABLE"}),
     # A resumed job goes straight from preflight to rendering when its plan and script already
     # exist, so the skip edges are part of the machine rather than an exception in the caller.
-    "PREFLIGHT": frozenset({"GENERATING", "RENDERING", "VALIDATING", "FAILED", "RECOVERABLE"}),
-    "GENERATING": frozenset({"RENDERING", "FAILED", "RECOVERABLE", "VALIDATING"}),
-    "RENDERING": frozenset({"VALIDATING", "FAILED", "RECOVERABLE", "PACKAGING"}),
-    "VALIDATING": frozenset({"PACKAGING", "FAILED", "RECOVERABLE", "READY_TO_PUBLISH"}),
-    "PACKAGING": frozenset({"READY_TO_PUBLISH", "FAILED", "RECOVERABLE"}),
+    "PREFLIGHT": frozenset({"GENERATING", "RENDERING", "VALIDATING", "FAILED", "RECOVERABLE", "QUEUED"}),
+    "GENERATING": frozenset({"RENDERING", "FAILED", "RECOVERABLE", "VALIDATING", "QUEUED"}),
+    "RENDERING": frozenset({"VALIDATING", "FAILED", "RECOVERABLE", "PACKAGING", "QUEUED"}),
+    "VALIDATING": frozenset({"PACKAGING", "FAILED", "RECOVERABLE", "READY_TO_PUBLISH", "QUEUED"}),
+    "PACKAGING": frozenset({"READY_TO_PUBLISH", "FAILED", "RECOVERABLE", "QUEUED"}),
     "READY_TO_PUBLISH": frozenset({"PUBLISHING", "PUBLISHED", "FAILED", "RECOVERABLE"}),
     "PUBLISHING": frozenset({"PUBLISHED", "FAILED", "RECOVERABLE"}),
     "PUBLISHED": frozenset(),
@@ -142,6 +145,10 @@ class JobJournal:
     # -- writing ---------------------------------------------------------
     def transition(self, to: str, **detail: Any) -> dict[str, Any]:
         current = self.state()
+        if current == to:
+            # Re-declaring the current state carries no information and must not fail a render:
+            # a re-run of the same day's job legitimately re-enters QUEUED.
+            return {"job_id": self.job_id, "state": to, "previous": current, "repeat": True}
         if current and to not in ALLOWED_TRANSITIONS.get(current, frozenset()):
             raise InvalidTransition(f"{self.job_id}: {current} -> {to} is not a legal transition")
         record = {
