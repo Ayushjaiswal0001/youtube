@@ -60,6 +60,7 @@ from studio.animation.framing import (
     subject_from_schema,
     world_y_for_screen,
 )
+from studio.animation.silhouette import subject_from_rig
 from studio.animation.transitions import ffmpeg_fade_filters
 from studio.animation.effects import (
     draw_sparkle, draw_dust_puff, draw_exclamation_pop, draw_vignette,
@@ -130,12 +131,19 @@ class SceneRenderer:
     """Renders a single animated scene into a high-quality vertical MP4."""
 
     def __init__(self, width: int = VIDEO_WIDTH, height: int = VIDEO_HEIGHT, fps: int = FPS,
-                 stage: Optional[Stage] = None):
+                 stage: Optional[Stage] = None, environment: Any = None,
+                 foreground: Any = None):
         self.width = width
         self.height = height
         self.fps = fps
         self.stage = stage or stage_for(width, height)
+        # Environment (T41): the aspect-specific part of a scene. A landscape scene plugs in a 16:9
+        # environment that also casts shadows and supplies a foreground layer; a portrait scene
+        # keeps the vertical backgrounds and has neither. Everything between them - rigs, faces,
+        # gaze, lipsync, motion, interaction, props, camera - is shared, which is the point.
         self.bg_renderer = BackgroundRenderer(width, height)
+        self.environment = environment or self.bg_renderer
+        self.foreground = foreground
         self.sfx_lib = SFXLibrary()
 
     def render_scene(self, scene_data: Dict[str, Any], audio_data: Dict[str, Any],
@@ -237,9 +245,13 @@ class SceneRenderer:
         # from the character schemas - the same source the rigs use - so the framing can never
         # disagree with the drawing. A character that gestures must be fully in frame, so the
         # scripted style is treated as a request and widened when it would crop one.
+        # Subject boxes are measured from the rigs, not predicted from the schema (T41): the old
+        # formula put Chiku at 278 units tall against 335 drawn, and read the anchor out of the
+        # character file, so a restaged character was framed where its file said it lived rather
+        # than where the stage put it.
         subjects = {
-            "chiku": subject_from_schema("chiku", chiku.schema),
-            "gappu": subject_from_schema("gappu", gappu.schema),
+            "chiku": subject_from_rig(chiku, chiku_pose),
+            "gappu": subject_from_rig(gappu, gappu_pose),
         }
         # The planner applies each kind's own semantics: a close-up must belong to the character
         # who is performing, and a relational shot (medium/two_shot/wide) must hold the whole
@@ -292,7 +304,8 @@ class SceneRenderer:
         shot = plan_shot(camera_style, subjects, (self.width, self.height),
                          extras=[prop_probe] if prop_probe else [],
                          speaker=speaker if speaker in subjects else None,
-                         must_show=must_show, zoom_range=stage.zoom_range)
+                         must_show=must_show, zoom_range=stage.zoom_range,
+                         kind_zoom=stage.kind_zoom())
         if os.environ.get("FACTORY_CAMERA_FRAMING", "1") == "1":
             director.shot = shot
         if shot.escalated:
@@ -301,6 +314,10 @@ class SceneRenderer:
         framing = FramingReport(
             (self.width, self.height),
             required=tuple(shot.subjects) + (("prop",) if prop_track is not None else ()))
+        # Subtitle collision (T41): a character standing behind the caption band is unreadable and
+        # the caption is unreadable too. Measured per frame from the same boxes the framing
+        # report uses, against the band rectangle taken from the overlay's own alpha.
+        band_collision_frames = 0
         prop_occluded_frames = 0
         prop_worst_overlap = 0.0
         prop_lifted_frames = 0
@@ -523,8 +540,8 @@ class SceneRenderer:
                             # Lift the frame, but never at the cost of cropping a character:
                             # the characters are the shot, the band is a constraint.
                             lifted = camera.pan_y + shortfall / camera.zoom
-                            if all(fits(subjects[name].bounds(1.0), camera.zoom, camera.pan_x,
-                                        lifted, (self.width, self.height))
+                            if all(fits(live_subjects[name].bounds(1.0), camera.zoom,
+                                        camera.pan_x, lifted, (self.width, self.height))
                                    for name in shot.subjects):
                                 prop_lift = shortfall / camera.zoom
                                 camera.pan_y = lifted
@@ -540,7 +557,37 @@ class SceneRenderer:
                         prop_worst_overlap = max(prop_worst_overlap, shared)
                 extra_boxes = ({"prop": prop_box(prop_point, prop_track.spec)}
                                if prop_point else None)
-                framing.add(t, camera.zoom, camera.pan_x, camera.pan_y, subjects,
+                # Per-frame subjects: a jumping or gesturing character is not where the idle
+                # silhouette was, and the report exists to catch exactly that.
+                live_subjects = {
+                    "chiku": subject_from_rig(chiku, chiku_pose, chiku_body),
+                    "gappu": subject_from_rig(gappu, gappu_pose, gappu_body),
+                }
+                if band_rect is not None:
+                    for name in shot.subjects:
+                        if name not in live_subjects:
+                            continue
+                        # The *drawn* extent, without the framing safety padding: a padded box
+                        # crosses the caption band on every frame (which is what the first
+                        # version reported) while the character itself does not.
+                        rig = chiku if name == "chiku" else gappu
+                        pose = chiku_pose if name == "chiku" else gappu_pose
+                        body = chiku_body if name == "chiku" else gappu_body
+                        drawn = subject_from_rig(rig, pose, body, pad=0.0, reach=0.0)
+                        box = drawn.bounds(0.0)
+                        # The face, not the whole body: a close-up legitimately has the character's
+                        # torso behind the caption band, but a face behind it is unreadable. The
+                        # first version measured the whole silhouette and reported every frame of
+                        # every scene, which is a measurement of the wrong thing.
+                        head_height = (box[3] - box[1]) * 0.38
+                        box = (box[0], box[1], box[2], box[1] + head_height)
+                        if overlap_area(screen_box(box, camera.zoom, camera.pan_x,
+                                                   camera.pan_y, (self.width, self.height)),
+                                        band_rect) > 0.0:
+                            band_collision_frames += 1
+                            break
+
+                framing.add(t, camera.zoom, camera.pan_x, camera.pan_y, live_subjects,
                             reach={"chiku": reach_a, "gappu": reach_b},
                             extras=extra_boxes)
                 if camera_style == "action_shake" and 0.3 < t < 1.2:
@@ -552,13 +599,22 @@ class SceneRenderer:
                 cr.paint()
                 cr.restore()
 
-                self.bg_renderer.render_by_name(
+                self.environment.render_by_name(
                     bg_name, cr, t, camera.pan_x, camera.pan_y,
                     zoom=(camera.zoom if os.environ.get("FACTORY_CAMERA_ZOOM_BG", "1") == "1"
                           else 1.0))
 
                 cr.save()
                 camera.apply(cr, t)
+                # Contact shadows (T41): only an environment with a floor can take them, and they
+                # are drawn under the cast so a character stands on the ground instead of floating
+                # over it.
+                shadow = getattr(self.environment, "draw_character_shadow", None)
+                if shadow is not None:
+                    shadow(cr, chiku.x + hip_a, stage.ground_y,
+                           subject_from_rig(chiku, chiku_pose).half_w, 1.0)
+                    shadow(cr, gappu.x + hip_b, stage.ground_y,
+                           subject_from_rig(gappu, gappu_pose).half_w, 0.9)
                 face_a, face_b = interaction.facing(hip_a, hip_b)
                 if face_a != int(math.copysign(1, chiku.facing)):
                     chiku.facing = float(face_a)
@@ -604,6 +660,15 @@ class SceneRenderer:
                 if director.subject != "chiku":
                     gappu.draw(cr)
                 cr.restore()
+
+                # Foreground (T41): drawn after the cast so the near foliage overlaps them. This
+                # is what makes a character read as standing inside the scene rather than on top
+                # of a backdrop.
+                if self.foreground is not None:
+                    self.foreground.render_by_name(
+                        bg_name, cr, t, camera.pan_x, camera.pan_y,
+                        zoom=(camera.zoom if os.environ.get("FACTORY_CAMERA_ZOOM_BG", "1") == "1"
+                              else 1.0))
 
                 # Lens vignette (T35): screen space, above the scene and below the
                 # subtitle band so captions keep full contrast.
@@ -660,6 +725,7 @@ class SceneRenderer:
             "escalated": shot.escalated,
             "reason": shot.reason,
             "gesture_frames": framing_gesture_frames,
+            "subtitle_collision_frames": band_collision_frames,
             "occlusion": ({"prop": {"frames": prop_occluded_frames,
                                     "lifted_frames": prop_lifted_frames,
                                     "worst_overlap_px": round(prop_worst_overlap, 1),

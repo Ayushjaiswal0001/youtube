@@ -169,3 +169,21 @@ or reaction-shot library.
 | Arm-only clearance when the band is unreachable | NOT SOLVED | solver returns 0; camera lift compensates |
 | Pick-up from a world position | NOT IMPLEMENTED | `contact_error` exists for timing it |
 | Object-specific grips / two-handed props | NOT IMPLEMENTED | one grip offset, right/left only |
+
+## Landscape (16:9) character production
+
+| Item | Status | Evidence |
+| --- | --- | --- |
+| Native 16:9 character rendering | VERIFIED | 1920x1080, 30/1, three artifacts rendered and inspected |
+| Identity preserved (no stretching) | VERIFIED | same rigs, same scale, same art as 9:16 |
+| Viseme lip-sync in 16:9 | VERIFIED | mouths change per frame in inspected frames |
+| Blink, gaze, locomotion, performance beats | VERIFIED | shared engine; framing reports show gesture frames |
+| Two-character interaction and hand-off | VERIFIED | prop track + interaction plan run in the stage renderer |
+| Character-aware framing | VERIFIED | 0 cropped required subjects; escalations logged per scene |
+| Landscape camera vocabulary | PARTIAL | establishing, tracking, subject-medium, reaction, hold exist; cut-to-cut eyeline matching does not |
+| Multi-layer environment, parallax, atmosphere | VERIFIED | sky, ridge x2, mid scenery, haze, ground, motes, foreground |
+| Contact shadows and lighting | PARTIAL | soft contact shadow + moon glow + rim light; no directional cast shadows |
+| Caption and title overlays | VERIFIED | QC measures the band; 0 face collisions |
+| QC coverage for landscape | VERIFIED | 24 checks including frame_rate, av_sync, frozen_frames, subtitle_collision, prop_visibility |
+| Portrait regression safety | VERIFIED | frame-identical (963/963) to the pre-T41 render |
+| Wired into the publish orchestrator | NOT IMPLEMENTED | `render-stage` is a separate command |

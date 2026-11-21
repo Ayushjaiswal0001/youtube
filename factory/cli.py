@@ -93,6 +93,54 @@ def cmd_plans(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_render_stage(args: argparse.Namespace) -> int:
+    """Render a landscape character episode, then run the same QA gate as any episode."""
+
+    import json as _json
+
+    from .config import load_channel_specs
+    from .media.landscape_stage import render_stage_episode
+    from .media.captions import build_srt
+    from .media.thumbnail import make_thumbnail
+    from .orchestrator import episode_out_dir, find_plan
+    from .qa.validator import validate_episode
+
+    specs = load_channel_specs()
+    if args.channel not in specs:
+        raise ValueError(f"unknown channel {args.channel!r}; known: {', '.join(sorted(specs))}")
+    spec = replace(specs[args.channel], format="long")
+    plan = find_plan(spec, args.plan_id)
+    only = ([int(part) for part in str(args.scenes).split(",") if part.strip()]
+            if getattr(args, "scenes", None) else None)
+    result = render_stage_episode(spec, plan, force=args.force, only_scenes=only)
+    out_dir = result["out_dir"]
+    video_path = result["video_path"]
+
+    thumbnail = out_dir / "thumbnail.jpg"
+    try:
+        make_thumbnail(spec, result["script"], video_path, thumbnail, force=True)
+    except Exception as exc:  # a missing thumbnail must not hide the render
+        print(f"[Stage] WARNING: thumbnail failed: {exc}")
+    srt_path = out_dir / "captions.srt"
+    build_srt(spec, result["script"], read_json(out_dir / "timeline.json"), srt_path,
+              story=result["story"])
+    qc = validate_episode(spec, result["script"], video_path, thumbnail=thumbnail,
+                          srt=srt_path, report_path=out_dir / "qc.json",
+                          demo=bool(getattr(args, "demo", False)))
+    payload = {
+        "story_id": result["story"]["story_id"],
+        "video": str(video_path),
+        "duration": result["duration"],
+        "scenes": result["scenes"],
+        "qc_ok": qc.get("ok"),
+        "checks": len(qc.get("checks", [])),
+        "failures": [check for check in qc.get("checks", []) if not check.get("ok")],
+    }
+    print(_json.dumps(payload, ensure_ascii=False, indent=2) if args.json
+          else f"rendered {video_path} ({result['duration']:.1f}s) qc_ok={qc.get('ok')}")
+    return 0 if qc.get("ok") else 1
+
+
 def cmd_render(args: argparse.Namespace) -> int:
     if args.plan_id and args.channel == "all":
         raise ValueError("--plan-id requires one --channel")
@@ -259,6 +307,19 @@ def build_parser() -> argparse.ArgumentParser:
     render.add_argument("--force", action="store_true")
     render.add_argument("--json", action="store_true", help=argparse.SUPPRESS)
     render.set_defaults(func=cmd_render)
+
+    stage = subparsers.add_parser(
+        "render-stage",
+        help="render a 16:9 character episode from a landscape stage plan")
+    stage.add_argument("--channel", required=True)
+    stage.add_argument("--plan-id", required=True)
+    stage.add_argument("--force", action="store_true")
+    stage.add_argument("--scenes", default=None,
+                       help="comma separated scene numbers, e.g. 1,2,5 (for demos)")
+    stage.add_argument("--demo", action="store_true",
+                       help="a deliberate fragment: waives the duration lower bound")
+    stage.add_argument("--json", action="store_true", help=argparse.SUPPRESS)
+    stage.set_defaults(func=cmd_render_stage)
 
     qc = subparsers.add_parser("qc")
     qc.add_argument("--channel", required=True)

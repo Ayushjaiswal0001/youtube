@@ -131,6 +131,24 @@ Status markers: `[ ]` todo, `[~]` in progress, `[x]` done.
 - [x] **T38. Pin the delivered frame rate and gate it** — concat now writes `-r 30 -fps_mode
   cfr`; QC gained a `frame_rate` check at +/-0.01; `tests/factory/test_qc.py` (8 tests).
   Nothing failed before because no gate looked at frame rate.
+- [x] **T41. Landscape character rendering.** `studio/animation/stage.py`,
+  `silhouette.py`, `environment.py`, `factory/media/landscape_stage.py`,
+  `python -m factory.cli render-stage`. Same animation engine, landscape stage: 1920x1080, 30/1,
+  64.5 s episode with QC 24/24, 0 cropped required subjects, 0 face/band collisions, portrait
+  frame-identical. See TEST_RESULTS 3s.
+- [ ] **T42. Landscape continuity and narrative camera intelligence.** Landscape camera vocabulary
+  exists (`wide_establishing`, `tracking_left/right`, `medium_*`, `reaction_*`, `two_shot_hold`) and
+  escalation is logged, but eyeline-matching across a cut and shot/reverse-shot alternation are not
+  implemented: scenes currently choose their own shot independently.
+- [ ] **T43. Object pickup from a world position.** `contact_error` exists for timing a pickup; a
+  reach-toward-a-target solver does not. Hand-off between two hands is done (T40, T41).
+- [ ] **T44. Lighting and shadow depth.** Contact shadows, moon glow, rim light and distance haze
+  exist. Cast shadows with direction/penumbra, a secondary light, and character-to-ground shadow
+  contact by pose are not implemented.
+- [ ] **T45. Environment breadth.** Six palettes defined, one rendered end to end. Mid-ground
+  legibility and per-location scenery are outstanding.
+- [ ] **T46. Unified orchestration.** `render-stage` is a separate command; the publish orchestrator
+  still routes every Hindi episode through the Shorts pipeline.
 - [x] **T40. Object interaction and hand contact** - `studio/characters/props.py`:
   pixel-verified hand anchors, `PropTrack` with a continuous arc crossing, `contact_error` for
   timing a pick-up, caption-band clearance solver plus camera lift, occlusion measurement and a

@@ -60,6 +60,10 @@ class Camera:
 CAMERA_STYLES: Tuple[str, ...] = (
     "medium_pan", "two_shot", "two_shot_zoom", "close_up_chiku", "close_up_gappu",
     "wide_finish", "action_shake",
+    # Landscape vocabulary (T41). A 16:9 frame has somewhere for a camera to move sideways, and a
+    # dialogue needs shot/reverse-shot, so these exist as named moves rather than as one "medium".
+    "wide_establishing", "two_shot_hold", "tracking_left", "tracking_right",
+    "medium_chiku", "medium_gappu", "reaction_chiku", "reaction_gappu",
 )
 
 # Read from the character schemas, which are the single source of truth for where a character
@@ -155,7 +159,8 @@ class CameraDirector:
     # -- helpers ------------------------------------------------------------
 
     def _centre_on(self, subject: str, zoom: float,
-                   target_y_ratio: float = 0.42) -> Tuple[float, float]:
+                   target_y_ratio: float = 0.42,
+                   live_x: Optional[float] = None) -> Tuple[float, float]:
         """Pan that puts the subject's face on the frame's vertical centre-line.
 
         ``Camera.apply`` maps x to ``center + zoom * (x - center - pan)``, so centring x is
@@ -164,7 +169,7 @@ class CameraDirector:
         clear.
         """
 
-        pan_x = subject_x(subject) - self.center_x
+        pan_x = (live_x if live_x is not None else subject_x(subject)) - self.center_x
         target_y = self.vh * target_y_ratio
         pan_y = self.face_y - self.center_y + (self.center_y - target_y) / zoom
         return pan_x, pan_y
@@ -190,6 +195,23 @@ class CameraDirector:
             return CameraFrame(zoom=1.04 + 0.03 * u, pan_x=0.0, pan_y=0.0)
         if style == "two_shot":
             return CameraFrame(zoom=1.0, pan_x=0.0, pan_y=0.0)
+        if style == "two_shot_hold":
+            # The calm version: no drift at all, so a joke can land without the frame wandering.
+            return CameraFrame(zoom=1.25, pan_x=0.0, pan_y=0.0)
+        if style == "wide_establishing":
+            # Open wide and settle in, which is what an establishing shot is for.
+            return CameraFrame(zoom=0.86 + 0.16 * u, pan_x=0.0, pan_y=0.0)
+        if style == "tracking_left":
+            return CameraFrame(zoom=1.18, pan_x=-52.0 * u, pan_y=0.0)
+        if style == "tracking_right":
+            return CameraFrame(zoom=1.18, pan_x=52.0 * u, pan_y=0.0)
+        if style.startswith("reaction_"):
+            return CameraFrame(zoom=1.30 + 0.22 * u, pan_x=0.0, pan_y=0.0)
+        if style.startswith("medium_") and style != "medium_pan":
+            # `medium_pan` is the original portrait style and keeps its slow drift below; it only
+            # shares a prefix with the landscape subject-medium shots. Matching it here silently
+            # changed every portrait scene that uses it from zoom ~1.01 to 1.30.
+            return CameraFrame(zoom=1.30 + 0.04 * u, pan_x=0.0, pan_y=0.0)
         drift = math.sin(t * 0.36 - 0.4) * 26.0 * (0.35 + 0.65 * min(1.0, t / 1.5))
         return CameraFrame(zoom=1.01 + 0.03 * u, pan_x=drift, pan_y=0.0)
 
@@ -233,7 +255,8 @@ class CameraDirector:
         if style in ("close_up_chiku", "close_up_gappu"):
             subject = "chiku" if style.endswith("chiku") else "gappu"
             zoom = 1.06 + 0.64 * _smoothstep(min(1.0, t / 0.9))
-            pan_x, pan_y = self._centre_on(subject, zoom)
+            pan_x, pan_y = self._centre_on(
+                subject, zoom, live_x=float((positions or {}).get(subject, subject_x(subject))))
             # Ease in from a two-shot framing so the cut does not feel like a jump cut.
             settle = _smoothstep(min(1.0, t / 0.6))
             return CameraFrame(zoom=zoom, pan_x=pan_x * settle, pan_y=pan_y * settle)
@@ -249,6 +272,23 @@ class CameraDirector:
 
         if style == "two_shot":
             return CameraFrame(zoom=1.0, pan_x=0.0, pan_y=0.0)
+        if style == "two_shot_hold":
+            # The calm version: no drift at all, so a joke can land without the frame wandering.
+            return CameraFrame(zoom=1.25, pan_x=0.0, pan_y=0.0)
+        if style == "wide_establishing":
+            # Open wide and settle in, which is what an establishing shot is for.
+            return CameraFrame(zoom=0.86 + 0.16 * u, pan_x=0.0, pan_y=0.0)
+        if style == "tracking_left":
+            return CameraFrame(zoom=1.18, pan_x=-52.0 * u, pan_y=0.0)
+        if style == "tracking_right":
+            return CameraFrame(zoom=1.18, pan_x=52.0 * u, pan_y=0.0)
+        if style.startswith("reaction_"):
+            return CameraFrame(zoom=1.30 + 0.22 * u, pan_x=0.0, pan_y=0.0)
+        if style.startswith("medium_") and style != "medium_pan":
+            # `medium_pan` is the original portrait style and keeps its slow drift below; it only
+            # shares a prefix with the landscape subject-medium shots. Matching it here silently
+            # changed every portrait scene that uses it from zoom ~1.01 to 1.30.
+            return CameraFrame(zoom=1.30 + 0.04 * u, pan_x=0.0, pan_y=0.0)
 
         # medium_pan and the fallback: a slow lateral drift plus a hint of push-in.
         drift = math.sin(t * 0.36 - 0.4) * 26.0 * (0.35 + 0.65 * min(1.0, t / 1.5))

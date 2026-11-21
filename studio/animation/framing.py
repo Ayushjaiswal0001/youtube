@@ -275,14 +275,41 @@ class Shot:
         return self.subjects[0] if len(self.subjects) == 1 else None
 
 
+def _subject_style(style: str) -> Optional[str]:
+    """The character a single-subject style is about, if any.
+
+    Landscape dialogue needs a medium shot *of* one character (shot/reverse-shot), which is neither
+    a close-up nor a relational two-shot. The style name carries the subject, as it does for
+    close-ups.
+    """
+
+    for prefix in ("close_up_", "reaction_", "medium_"):
+        if style.startswith(prefix):
+            return style[len(prefix):]
+    return None
+
+
 def _scripted_kind(style: str) -> str:
     if style.startswith("close_up"):
         return "close_up"
-    if style in ("two_shot", "two_shot_zoom", "action_shake"):
+    if style.startswith("reaction_"):
+        return "close_up"
+    if style.startswith("medium_") and style != "medium_pan":
+        return "subject_medium"
+    if style in ("two_shot", "two_shot_zoom", "two_shot_hold", "action_shake",
+                 "tracking_left", "tracking_right"):
         return "two_shot"
-    if style == "wide_finish":
+    if style.startswith("wide"):
         return "wide"
     return "medium"
+
+
+def _order_index(kind: str) -> int:
+    """Where a kind sits in the widening order: a subject medium sits where a medium does."""
+
+    if kind == "subject_medium":
+        return SHOT_ORDER.index("medium")
+    return SHOT_ORDER.index(kind)
 
 
 def _kind_zoom(kind: str) -> float:
@@ -296,7 +323,8 @@ def plan_shot(scripted: str, subjects: Mapping[str, Subject], viewport: Tuple[in
               reach: Mapping[str, float] | None = None,
               extras: Sequence[Tuple[float, float, float, float]] = (),
               margin: float = DEFAULT_MARGIN,
-              zoom_range: Tuple[float, float] = (MIN_ZOOM, MAX_ZOOM)) -> Shot:
+              zoom_range: Tuple[float, float] = (MIN_ZOOM, MAX_ZOOM),
+              kind_zoom: Mapping[str, float] | None = None) -> Shot:
     """Choose the framing for one scene.
 
     The script's style is a request, not an order, and a shot kind carries an implied cast:
@@ -325,15 +353,22 @@ def plan_shot(scripted: str, subjects: Mapping[str, Subject], viewport: Tuple[in
         return reserved
 
     kind = _scripted_kind(scripted)
-    start = SHOT_ORDER.index(kind)
+    start = _order_index(kind)
+    # A stage may want a different composition per shot kind (T41): the same "two shot" is a
+    # different distance in 16:9 than in 9:16. Absent an override the module defaults apply.
+    wanted = dict(kind_zoom or {})
+
+    def aimed(candidate: str) -> float:
+        return float(wanted.get(candidate, _kind_zoom(candidate)))
 
     for candidate in SHOT_ORDER[start:]:
         if candidate == "close_up":
-            name = scripted.replace("close_up_", "") if scripted.startswith("close_up") else ""
+            name = _subject_style(scripted) or ""
             if name not in available:
                 continue
-            # A close-up is only honest if the character it points at is the one performing.
-            if speaker is not None and speaker in available and speaker != name:
+            # A close-up is only honest if the character it points at is the one performing. A
+            # medium *of* the listener is a legitimate shot and does not carry that rule.
+            if kind == "close_up" and speaker is not None and speaker in available and speaker != name:
                 continue
             # `must_show` adds characters a shot has to hold; it never narrows a shot. A
             # close-up can only survive it if the extra subjects are nobody but the subject.
@@ -342,11 +377,12 @@ def plan_shot(scripted: str, subjects: Mapping[str, Subject], viewport: Tuple[in
             box = available[name].bounds(reserve([name])[name])
             limit = min(fit_zoom([box], viewport, margin, min_zoom=zoom_range[0],
                                  max_zoom=zoom_range[1]), zoom_range[1])
-            zoom = min(_kind_zoom("close_up"), limit)
+            why = "close_up" if kind == "close_up" else "medium"
+            zoom = min(aimed(why), limit)
             return Shot("close_up", (name,), zoom, available[name].x, centre_of([box])[1],
                         scripted, escalated=(candidate != kind),
                         reason="" if candidate == kind
-                        else f"widened from {kind} to close_up of {name}", limit=limit)
+                        else f"widened from {kind} to {why} of {name}", limit=limit)
 
         # Relational shots hold the whole cast, and `must_show` can only add to that.
         required = list(cast)
@@ -358,7 +394,7 @@ def plan_shot(scripted: str, subjects: Mapping[str, Subject], viewport: Tuple[in
         boxes += [tuple(box) for box in extras]
         limit = min(fit_zoom(boxes, viewport, margin, min_zoom=zoom_range[0],
                              max_zoom=zoom_range[1]), zoom_range[1])
-        zoom = min(_kind_zoom(candidate), limit)
+        zoom = min(aimed(candidate), limit)
         cx, cy = centre_of(boxes)
         return Shot(candidate, tuple(required), zoom, cx, cy, scripted,
                     escalated=(candidate != kind),
@@ -370,7 +406,7 @@ def plan_shot(scripted: str, subjects: Mapping[str, Subject], viewport: Tuple[in
     boxes = [available[name].bounds(reserved[name]) for name in required]
     limit = min(fit_zoom(boxes, viewport, margin, min_zoom=zoom_range[0],
                          max_zoom=zoom_range[1]), zoom_range[1])
-    zoom = min(_kind_zoom("wide"), limit)
+    zoom = min(aimed("wide"), limit)
     cx, cy = centre_of(boxes)
     return Shot("wide", tuple(required), zoom, cx, cy, scripted, True, "fallback wide",
                 limit=limit)

@@ -534,6 +534,89 @@ dub). Two consecutive forced renders of the same episode now produce the **same 
 (`56b61c786a3a57e4f84a8ec3d18223955383bf782e121de7ca0ee565f834043a`), which is the property every
 before/after claim in this file depends on.
 
+## 3s. Landscape character rendering (T41) - measured
+
+Before T41 the 16:9 renderer drew editorial cards: a text column, a diagram plate, a caption band.
+Chiku and Gappu existed only in 9:16. `/factory/cli render-stage` now drives the *same* animation
+engine on a landscape stage, so viseme lip-sync, blinks, gaze, locomotion, performance beats,
+two-body interaction, props and hand-offs, camera direction and framing verification all work in
+16:9 without a second implementation of any of them.
+
+A landscape character is not a stretched portrait character: the rigs stand at the same scale with
+the same art on a 16:9 floor, and the frame's extra width becomes environment.
+
+### Artifacts actually rendered and inspected
+
+| Artifact | Resolution | FPS | Frames | Duration | Bytes | Decode | QC | Required crops | Face/band collisions |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Complete episode (12 scenes) | 1920x1080 | 30/1 | 1935 | 64.500 s | 9 147 275 | clean | 24/24 | 0 | 0 |
+| Dialogue cut (11 scenes) | 1920x1080 | 30/1 | 1729 | 57.633 s | 7 977 561 | clean | 24/24 | 0 | 0 |
+| Interaction demo (6 scenes) | 1920x1080 | 30/1 | 947 | 31.567 s | 4 484 977 | clean | 24/24 | 0 | 0 |
+
+* episode sha256 `ac3a85d3e13937da41690881016ae25d897592002a3d04a1b7c7de763599d57e`
+* dialogue cut sha256 `3c70ae14afc6b54c2d29158e02bf9c225a5c79d204cce75d858fce097a3360e9`
+* interaction demo sha256 `1a558414f44a4a4fddd783cac5ccf792b67ea0ab1df5927f58e51d256276a397`
+
+Measured properties:
+
+| Property | Result |
+| --- | --- |
+| Loudness (EBU R128) | -14.04 LUFS integrated, -1.5 dBTP true peak, LRA 3.9 |
+| A/V start offset | 0.000 s on both streams |
+| A/V length delta | 1 ms (video 64.500 s, audio 64.501 s) |
+| Peak zoom rate | 0.93/s against a 1.60 limit |
+| Shot escalation | scenes 3, 8, 11 widened from a subject medium to a relational medium, with the reason recorded |
+| Render wall time | 268 s for 64.5 s of 1080p (≈4.15x real time) |
+| Golden portrait frames | 78 frames, 0 changed, 0 new |
+| Portrait regression | frame-identical: 963/963 frames match the pre-T41 render (`0fac3ab3...`) |
+
+Frames were inspected, not only measured: a 2x2 contact sheet from each artifact, plus close-ups of
+the caption band, the title card and the foreground layer. Five composition defects were found that
+way and fixed (title card over the cast's heads, foreground foliage across the caption band,
+foreground blades crowding the text, an over-tall caption band, and a kicker drawn above the band so
+the measured band rectangle started 38 px too high).
+
+### Defects found by measurement, not by reading
+
+1. **The subject box was wrong by 62%.** `subject_from_schema` predicted Chiku at 278 world units
+   tall when his drawn silhouette is 335, and Gappu at 101 against 265. Every framing measurement
+   since T39 was measured against that box, including the "0 required subjects cropped" claim.
+   Fixed by *measuring* the rig (`studio/animation/silhouette.py`): one cached render per
+   (class, pose, facing), then the drawn alpha bounds. The box is asserted to contain the drawn
+   character in every pose.
+2. **The framing read the authored anchor, not the stage.** A character restaged for 16:9 was
+   framed where its JSON file said it lived. `subject_from_rig` reads the rig.
+3. **`medium_pan` was swallowed by a new `medium_` prefix branch** in the camera, so every portrait
+   scene using it jumped from zoom ~1.01 to 1.30 (PSNR 19.81 against the previous render). Caught
+   by comparing frames, fixed, and the portrait pipeline is now frame-identical again.
+4. **Concat delivered 29.93 fps.** Each scene's AAC stream is slightly longer than its video, so the
+   next scene started 0.023 s late and the container duration stopped being frames/30. Twelve scenes
+   would have accumulated about a third of a second of A/V drift. Fixed with `-vf fps=30` on the
+   join, and there is now a test that reproduces the defect with two synthetic scenes.
+5. **`--force` deleted the recorded dialogue**, so every render re-synthesised speech through
+   Edge-TTS and about a third of the frames changed by a barely visible amount - twice reported at
+   T39/T40 as an unexplained side effect of whatever I had just changed. Both attributions were
+   wrong. Fixed in the previous commit; two consecutive forced renders now hash identically.
+6. **Caption collision was measured on the wrong rectangle and the wrong body part.** The kicker was
+   drawn above the band, so the band rectangle started 38 px too high; and the check measured the
+   whole silhouette, so a close-up (whose torso legitimately sits behind the band) reported every
+   frame. It now measures the face against the band the viewer actually sees.
+7. **The episode aggregate mixed stale reports**: a 6-scene demo inherited collision counts from
+   scenes of an earlier 12-scene render. The aggregate is now filtered to this episode's scenes.
+
+### Honest limits
+
+* The mid-ground (trees, ruins) is still barely legible against the ridge behind it; the environment
+  reads as sky, ridge, floor and foreground, which is four layers of the five designed.
+* A close-up reserves the character's full gesture reach, so `close_up` lands at 1.62 rather than a
+  tighter framing. A close-up is exactly the shot where cropping the gesture is acceptable.
+* Foreground foliage is confined to the outer 12% of the frame; it does not yet occlude the cast,
+  so the "characters inside the scene" depth cue is only partly realised.
+* Only one location (`haunted_haveli`) has been rendered end to end, although six are defined.
+* The stage engine is **not** wired into the publish orchestrator: `factory/orchestrator.py` still
+  routes Hindi episodes through the Shorts pipeline. Landscape character episodes are produced by
+  `factory/cli render-stage`, which runs the same QC gate.
+
 ## 4. Not yet executed
 
 | Test | Status |

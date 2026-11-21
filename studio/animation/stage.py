@@ -63,6 +63,11 @@ class Stage:
     eye_y: float
     slots: Mapping[str, Slot]
     zoom_range: Tuple[float, float]
+    # What each shot kind asks for on this stage. A 16:9 frame has width to spare, so a landscape
+    # two-shot sits closer than a portrait one; the values are the measured compositions the
+    # landscape probe was tuned to, and the shot planner still lowers them when the cast needs more
+    # room.
+    shot_zoom: Mapping[str, float] = None  # type: ignore[assignment]
 
     # -- frame --------------------------------------------------------------
 
@@ -77,6 +82,9 @@ class Stage:
     @property
     def aspect(self) -> float:
         return self.width / float(self.height)
+
+    def kind_zoom(self) -> dict:
+        return dict(self.shot_zoom or {})
 
     @property
     def min_zoom(self) -> float:
@@ -140,12 +148,15 @@ PORTRAIT = Stage(
         "gappu": Slot("gappu", 780.0, 1450.0, 1.12, -1.0),
     },
     zoom_range=PORTRAIT_ZOOM,
+    shot_zoom={"close_up": 1.70, "medium": 1.04, "two_shot": 1.00, "wide": 1.12},
 )
 
-# The landscape stage stands the same cast, at the same scale, on a 16:9 floor. Feet sit at 0.93 of
-# the frame and the top of the head at 0.075 when the camera is at 0.95, which is the full-body
-# two-shot: 958 world units tall spanning 923 px of the 1080 available above the caption zone.
-LANDSCAPE_GROUND_Y = 1028.0
+# The landscape stage stands the same cast, at the same scale, on a 16:9 floor. The number is
+# derived, not chosen by eye: with the measured boxes, a two-shot centres the cast by panning, and
+# at ground 788 that pan is ~0 - the environment is then centred on its own composition rather than
+# sliding under it. Measured composition at zoom 1.00: head at 0.28 of frame height, feet at 0.82
+# (579 px tall), which leaves the caption zone clear and the cast standing inside the picture.
+LANDSCAPE_GROUND_Y = 788.0
 LANDSCAPE = Stage(
     name="landscape",
     width=1920,
@@ -159,6 +170,7 @@ LANDSCAPE = Stage(
         "gappu": Slot("gappu", 1320.0, LANDSCAPE_GROUND_Y, 1.12, -1.0),
     },
     zoom_range=LANDSCAPE_ZOOM,
+    shot_zoom={"close_up": 1.62, "medium": 1.34, "two_shot": 1.25, "wide": 1.02},
 )
 
 STAGES = {(stage.width, stage.height): stage for stage in (PORTRAIT, LANDSCAPE)}

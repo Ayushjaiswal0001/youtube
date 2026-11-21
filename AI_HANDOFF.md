@@ -50,6 +50,35 @@ They are disjoint, so there is no conflict either way. Recommended order: **#2 f
 (it fixes the runner install that T12 needs), then **#3**. Both stay unmerged until the
 owner approves.
 
+### Landscape character stage (T41)
+
+`python -m factory.cli render-stage --channel natkhat-toons --plan-id X [--scenes 1,2] [--demo]`
+renders a 16:9 character episode from a plan in `content/longform/<channel>.json` whose entry has
+`"engine": "stage"` and an explicit `scenes` list.
+
+Traps and invariants, in the order they bit:
+
+* **Subject boxes are measured, never predicted.** `studio/animation/silhouette.py` renders the rig
+  once per (class, pose, facing), caches the alpha bounds, and treats body motion as a translation
+  plus a 14% pad. The old schema formula was 62% short and framed the authored anchor instead of the
+  stage; do not reintroduce a proportions-based box.
+* **Stage placement comes from `stage.py`.** `stage_for(width, height)` returns a measured stage or
+  raises. Portrait carries the historical constants (that is why the goldens reproduce), landscape
+  carries derived ones (ground 788, slots 600/1320, zoom floor 0.62).
+* **Camera style prefixes are hazardous.** `medium_pan` (portrait) and `medium_<name>` (landscape
+  subject shots) share a prefix; matching the prefix naively silently retimed every portrait scene.
+  `_scripted_kind` and `_style_frame` both exclude `medium_pan` explicitly now.
+* **Two renderers, one engine.** `SceneRenderer(width, height, stage=, environment=, foreground=)`
+  takes the aspect-specific environment; rigs, faces, gaze, lipsync, motion, interaction, props and
+  camera are shared. Do not fork the frame loop for 16:9.
+* **Concat must re-time frames** (`-vf fps=30`) or AAC tails push each following scene late.
+* **Caption geometry is measured by QC.** The overlay's opaque rectangle is the band; drawing a
+  kicker above the band made the measured band 38 px too high and reported collisions on every
+  frame. Keep every caption element inside the band rectangle.
+* **Aggregated framing reports must be filtered by scene number**, or a short demo inherits the
+  counts of a longer earlier render.
+* The episode aggregate lands in `<out>/framing.json`; per-scene reports live beside the scene MP4s.
+
 ### Props (T40)
 
 `studio/characters/props.py`, opt-in through scene keys: `prop`, `prop_holder`, `prop_side`,

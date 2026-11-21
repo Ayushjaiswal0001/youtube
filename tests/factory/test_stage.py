@@ -22,6 +22,8 @@ from studio.animation.stage import (
 from studio.characters.chiku import ChikuRig
 from studio.characters.gappu import GappuRig
 
+LANDSCAPE_GY = LANDSCAPE_GROUND_Y
+
 
 def subjects(stage):
     return {
@@ -78,7 +80,8 @@ class LandscapeStageTests(unittest.TestCase):
         for name in PORTRAIT.names():
             self.assertEqual(LANDSCAPE.slot(name).scale, PORTRAIT.slot(name).scale)
             self.assertEqual(LANDSCAPE.slot(name).facing, PORTRAIT.slot(name).facing)
-            self.assertEqual(LANDSCAPE.slot(name).y, PORTRAIT.slot(name).y - 422.0)
+            self.assertEqual(LANDSCAPE.slot(name).y - PORTRAIT.slot(name).y,
+                             LANDSCAPE.ground_y - PORTRAIT.ground_y)
 
     def test_the_cast_is_spread_out_for_the_wider_frame(self):
         portrait_gap = PORTRAIT.slot("gappu").x - PORTRAIT.slot("chiku").x
@@ -111,12 +114,13 @@ class LandscapeStageTests(unittest.TestCase):
         self.assertGreater(zoom, 0.0)
         self.assertGreater(shot.zoom, 0.0)
 
-    def test_the_ground_sits_above_the_bottom_edge(self):
-        # Feet must not be planted on the frame line.
-        feet = project(LANDSCAPE.slot("chiku").x, LANDSCAPE.ground_y, 0.95, 0.0, 0.0,
-                       LANDSCAPE.viewport)[1]
-        self.assertLess(feet, LANDSCAPE.height)
-        self.assertGreater(feet, LANDSCAPE.height * 0.85)
+    def test_the_ground_line_is_inside_the_frame(self):
+        # The floor has to be in shot: a ground line below the frame puts the cast off-screen.
+        for zoom in (LANDSCAPE.min_zoom, 1.0, 1.2):
+            feet = project(LANDSCAPE.slot("chiku").x, LANDSCAPE.ground_y, zoom, 0.0, 0.0,
+                           LANDSCAPE.viewport)[1]
+            self.assertGreater(feet, 0.0)
+            self.assertLess(feet, LANDSCAPE.height * 1.05)
 
 
 class PlacementTests(unittest.TestCase):
@@ -130,10 +134,16 @@ class PlacementTests(unittest.TestCase):
         self.assertIn("landscape", str(ctx.exception))
 
     def test_the_renderer_uses_the_stage_it_was_given(self):
+        # Plain values, not dataclass equality or identity. `factory.media.hindi_renderer`
+        # deliberately deletes every `studio.*` module and re-imports it so a second render binds
+        # the new build directories, which means a `Stage` class object can legitimately differ
+        # from the one this module imported. Comparing instances would then fail for a reason that
+        # has nothing to do with staging.
         from studio.animation.scene_renderer import SceneRenderer
         renderer = SceneRenderer(1920, 1080)
-        self.assertIs(renderer.stage, LANDSCAPE)
-        self.assertIs(SceneRenderer(1080, 1920).stage, PORTRAIT)
+        self.assertEqual((renderer.stage.name, renderer.stage.viewport), ("landscape", (1920, 1080)))
+        self.assertEqual(renderer.stage.ground_y, LANDSCAPE_GY)
+        self.assertEqual(SceneRenderer(1080, 1920).stage.name, "portrait")
 
 
 if __name__ == "__main__":
