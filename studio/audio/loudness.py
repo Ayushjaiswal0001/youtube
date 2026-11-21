@@ -23,8 +23,31 @@ ACCEPTED_RANGE = (-16.5, -11.5)
 MAX_TRUE_PEAK = -1.0
 
 
-def measure(path: Path | str) -> dict[str, float]:
-    """Integrated loudness, true peak and loudness range from an EBU R128 pass."""
+# ffmpeg prints the loudnorm summary as one flat JSON object inside its stderr. Slicing from
+# the last "{" to the last "}" assumed that object was the final thing in the output; any
+# trailing brace in a warning made the slice unparseable and the measurement vanished without
+# a word. Match candidate objects and take the last one that actually decodes.
+_JSON_OBJECT = re.compile(r"\{[^{}]*\}")
+
+
+def _decode_summary(stderr_text: str) -> dict[str, object] | None:
+    for candidate in reversed(_JSON_OBJECT.findall(stderr_text or "")):
+        try:
+            raw = json.loads(candidate)
+        except ValueError:
+            continue
+        if isinstance(raw, dict) and "input_i" in raw:
+            return raw
+    return None
+
+
+def measure_with_diagnostics(path: Path | str) -> tuple[dict[str, float], str]:
+    """Measure a file, and say *why* when the measurement could not be read.
+
+    The second value is an empty string on success. It exists because a silent empty result
+    once made a CI failure look like a broken audio path when the real cause was the input
+    path being unusable.
+    """
 
     result = subprocess.run(
         [
@@ -35,22 +58,25 @@ def measure(path: Path | str) -> dict[str, float]:
         ],
         capture_output=True, text=True,
     )
-    text = result.stderr or ""
-    block = text[text.rfind("{"): text.rfind("}") + 1] if "{" in text else ""
+    raw = _decode_summary(result.stderr or "")
+    if raw is None:
+        lines = [line for line in (result.stderr or "").splitlines() if line.strip()]
+        detail = lines[-1].strip() if lines else "ffmpeg produced no output"
+        return {}, detail[:300]
     data: dict[str, float] = {}
-    if not block:
-        return data
-    try:
-        raw = json.loads(block)
-    except ValueError:
-        return data
     for key, name in (("integrated_lufs", "input_i"), ("true_peak_dbtp", "input_tp"),
                       ("lra_lu", "input_lra"), ("threshold_lufs", "input_thresh")):
         try:
             data[key] = float(raw[name])
         except (KeyError, TypeError, ValueError):
             continue
-    return data
+    return data, ""
+
+
+def measure(path: Path | str) -> dict[str, float]:
+    """Integrated loudness, true peak and loudness range from an EBU R128 pass."""
+
+    return measure_with_diagnostics(path)[0]
 
 
 def _duration(path: Path) -> float:
@@ -77,11 +103,11 @@ def normalize_file(path: Path | str, *, target: Mapping[str, float] | None = Non
     source = Path(path)
     destination = Path(output) if output is not None else source
     peaks = target or LOUDNESS_TARGET
-    before = measure(source)
+    before, before_error = measure_with_diagnostics(source)
+    if not before:
+        return {"before": {}, "after": {}, "applied": False,
+                "error": f"loudness could not be measured: {before_error}"}
     report: dict[str, object] = {"before": before, "applied": False}
-    if not before or "integrated_lufs" not in before:
-        report["error"] = "loudness could not be measured"
-        return report
 
     chain = ""
     if keep_duration is not None:

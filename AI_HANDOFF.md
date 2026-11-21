@@ -50,6 +50,20 @@ They are disjoint, so there is no conflict either way. Recommended order: **#2 f
 (it fixes the runner install that T12 needs), then **#3**. Both stay unmerged until the
 owner approves.
 
+### Test portability (do not repeat this)
+
+Never hard-code an absolute Windows path in a test. `Path("C:/Users/...")` is a *relative* path
+on Linux, and ffmpeg reads `C:` as a protocol, so the file appears unopenable and code that
+degrades gracefully (returning `{}`) hides the real cause. Use `tempfile.mkdtemp()`.
+
+Related: `studio/audio/loudness.py` used `text[rfind("{") : rfind("}")+1]` to pull the loudnorm
+summary out of stderr. Any trailing brace in a warning made that slice unparseable and the
+measurement vanished. Use `_decode_summary()`, which finds the last `{...}` that actually
+decodes, and `measure_with_diagnostics()` when you need to know why a measurement failed.
+
+And: read `gh run list --json conclusion` for the exact SHA before calling a commit
+CI-verified.
+
 ### Frame rate (T38)
 
 The episode concat in `studio/pipeline/episode.py` now passes `-r 30 -fps_mode cfr`. Without it

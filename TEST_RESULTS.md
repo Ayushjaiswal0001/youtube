@@ -335,6 +335,32 @@ intends to write.
 `30000/1001` fail, a `30/0` denominator is reported as unknown rather than assumed correct, and
 malformed text cannot crash the gate. Suite **307 passed**.
 
+## 3o. CI portability defect in the loudness tests — found by reading CI, fixed
+
+Commits `03f6d0b` and `42c9c16` were reported as "CI success" in this session. **That was
+wrong.** Both factory jobs failed. Reading the log (`gh run view 44830491764 --log-failed`)
+showed 5 failures in `tests/factory/test_loudness.py`, all of the form
+`{'before': {}, 'applied': False, 'error': 'loudness could not be measured'}`.
+
+Root cause: my own test hard-coded `WORK = Path("C:/Users/DELL/AppData/Local/Temp/loudness-test")`.
+On Linux that is a *relative* path whose first component is `C:`; ffmpeg reads `C:` as a
+**protocol** prefix, fails to open the input, emits no loudnorm summary, and `measure()`
+returned `{}` — which the tests then reported as a broken audio path. It passed on Windows
+where the path is genuine.
+
+Fixes
+- `tests/factory/test_loudness.py` uses `tempfile.mkdtemp()`; it is the only file in the repo
+  that contained an absolute Windows path (checked with `grep -rn "C:/Users\|D:/" --include=*.py`).
+- `studio/audio/loudness.py`: the summary parser now matches candidate `{...}` objects and takes
+  the last one that actually decodes (`_decode_summary`), instead of slicing from the last `{`
+  to the last `}`, which any trailing brace in a warning destroyed. New
+  `measure_with_diagnostics()` returns the reason a measurement failed, so a silent `{}` cannot
+  masquerade as a code fault again.
+- 6 new parsing/diagnostic tests; suite **313 passed** locally.
+
+Process change: a commit is only "CI-verified" after `gh run list --json conclusion` is read for
+that exact SHA. Local green is not evidence about the runner.
+
 ## 4. Not yet executed
 
 | Test | Status |
