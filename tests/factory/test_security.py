@@ -86,11 +86,20 @@ def test_allowlist_marker_suppresses_a_reviewed_fixture(tmp_path: Path) -> None:
 
 def test_the_same_value_without_the_marker_is_reported(tmp_path: Path) -> None:
     # Built at runtime so the probe string is not itself a literal in this file.
-    value = "client" + "-secret"  # pragma: allowlist secret
+    value = "hidden" + "-value-9"  # pragma: allowlist secret
     (tmp_path / "fixture.py").write_text(
         f'client_secret = "{value}"\n', encoding="utf-8")
     findings = scan_tree(tmp_path)
     assert [f["rule"] for f in findings] == ["keyed-secret-assignment"]
+
+
+def test_documented_fixture_values_are_allowlisted_by_value() -> None:
+    """The four fixture strings are fake and sit in history; the allowlist is by value, not by file."""
+
+    from tools.secret_scan import ALLOWED_VALUES
+
+    assert "client-secret" in ALLOWED_VALUES
+    assert all(len(v) < 20 for v in ALLOWED_VALUES)  # no provider issues a secret this short
 
 
 def test_a_finding_never_carries_the_full_value() -> None:

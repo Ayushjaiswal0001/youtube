@@ -83,11 +83,13 @@ RULES: tuple[Rule, ...] = (
 #: Whole-line opt-out, for fixture data that is obviously synthetic and must stay readable.
 ALLOW_MARKERS = ("pragma: allowlist secret", "noqa: secret", "example-placeholder")
 
-#: Values we accept even when matched, after review. Each entry must be demonstrably not a credential.
-ALLOWED_FINGERPRINTS = {
-    # 64-hex digests produced by tests/goldens are hashes, not keys; matched only by assignment rule.
-    "golden-sha256",
-}
+#: Exact values accepted even when matched, after review.
+#:
+#: These four appear in `tests/support.py` and `tests/test_oauth.py` in the history as well as the tree,
+#: and history is not being rewritten for cosmetics. They are allowlisted by value rather than by file,
+#: so a real credential placed in those same files is still reported - no provider issues a secret that
+#: is literally the string `refresh-token`.
+ALLOWED_VALUES = {"client-secret", "refresh-token", "access-secret", "refresh-secret"}
 
 
 def mask(value: str) -> str:
@@ -103,6 +105,8 @@ def _scan_text(text: str, where: str, out: list[dict]) -> None:
         for rule in RULES:
             for match in rule.pattern.finditer(line):
                 value = match.group(1) if match.groups() else match.group(0)
+                if value.strip() in ALLOWED_VALUES:
+                    continue
                 if PLACEHOLDER.match(value.strip()):
                     continue
                 # An environment lookup is a reference to a secret, not the secret.
