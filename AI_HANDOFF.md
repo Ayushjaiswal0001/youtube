@@ -50,6 +50,27 @@ They are disjoint, so there is no conflict either way. Recommended order: **#2 f
 (it fixes the runner install that T12 needs), then **#3**. Both stay unmerged until the
 owner approves.
 
+### Props (T40)
+
+`studio/characters/props.py`, opt-in through scene keys: `prop`, `prop_holder`, `prop_side`,
+`prop_handoff_to`, `prop_handoff_side`, `prop_handoff_at` (seconds, or a fraction <= 1),
+`prop_handoff_duration`.
+
+- `hand_point(rig, side, angle=None)` composes the rig's own transform stack. There is no
+  separate arm-geometry table anywhere: if an arm pose changes, this follows it. Verified against
+  rendered pixels within ~2 px by `tests/factory/test_props.py`.
+- Loop order is now: bodies -> interaction -> `update_pose` -> hands/props -> camera (with the
+  prop's box and any band lift) -> draw. Reading a hand before `update_pose` places the prop with
+  last frame's arm.
+- The caption band is measured from the subtitle PNG (`opaque_rect`), not from a constant. A
+  held prop at hand height lands inside it; the renderer first raises the arm
+  (`raise_arm_for_clearance`, searching both rotation directions because the rigs are mirrored),
+  then lifts the frame by whatever remains, refusing the lift if it would crop a character.
+- `occlusion` in `framing.json` records frames hidden / lifted / worst overlap, and QC gates it
+  with `prop_visibility`.
+- A prop is not cast: `plan_shot(extras=[box])` widens the frame for it without changing
+  `shot.subjects`, so prop framing cannot quietly turn a close-up into a two-shot.
+
 ### Framing (T39)
 
 `studio/animation/framing.py` owns geometry and shot choice; `camera.py` keeps the move.

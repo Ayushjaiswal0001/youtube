@@ -195,6 +195,16 @@ def validate_episode(
             checks.append(_check("framing_continuity", zoom_rate <= FRAMING_MAX_ZOOM_RATE,
                                  f"peak zoom change {zoom_rate:.2f}/s "
                                  f"(limit {FRAMING_MAX_ZOOM_RATE:.2f})"))
+            occlusion = (framing.get("occlusion") or {}).get("prop") or {}
+            hidden = int(occlusion.get("frames", 0))
+            if occlusion:
+                checks.append(_check(
+                    "prop_visibility", hidden == 0,
+                    "the prop cleared the caption band on every frame"
+                    if hidden == 0 else
+                    f"prop hidden behind the caption band on {hidden} frames "
+                    f"(frame lifted on {int(occlusion.get('lifted_frames', 0))})",
+                    severity="error" if hidden else "error"))
     else:
         checks.append(_check("framing_subjects", True, "no framing report for this episode",
                              severity="info"))

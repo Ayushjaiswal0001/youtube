@@ -467,6 +467,64 @@ geometrically and by unit tests, not by a rendered landscape episode. Screen sha
 framing model. A `close_up_*` may crop a listener by design, which is a policy decision rather
 than a measurement.
 
+## 3r. Props and hand contact (T40) - measured
+
+A prop was a shape drawn at a hard-coded coordinate: the story mentions a brass key, the renderer
+drew sparkles near (460, 1150), and nothing connected the two. An object no hand holds cannot be
+picked up, carried or handed over.
+
+What was built:
+
+* `hand_point()` - the world position of a rig's hand, from the same transform stack the rig
+  draws with. **The pixel probe agrees within 0.7-2.1 px** on both rigs and both sides.
+* `PropTrack` - a prop follows a hand, crosses to the other character's hand on cue, and arcs
+  upward during the crossing. Measured peak step across the crossing: 41 px/frame at 30 fps for
+  a 400 px crossing in 0.5 s, which is continuous rather than a teleport.
+* `raise_arm_for_clearance()` - the receiver reaches so the held prop clears the caption band.
+  The raising direction is searched in both directions because the rigs are mirrored and do not
+  share a sign; the smallest change that works wins.
+* Camera lift - when the arm alone cannot clear the band, the frame lifts by exactly the
+  shortfall, and only if every character still fits.
+* `framing.json` gained `occlusion` (frames hidden, frames lifted, worst overlap, band rect) and
+  QC gained a `prop_visibility` check.
+
+Rendered demo (one scene, 231 frames, hand-off at 0.45 of the scene, `two_shot`):
+
+| Metric | Before the clearance work | After |
+| --- | --- | --- |
+| Frames with the key behind the caption band | **117 / 231** | **0 / 231** |
+| Frames where the camera lifted to save it | 0 | 117 |
+| Required subjects cropped | 0 | 0 |
+
+The 117 frames were not a guess: the caption band was measured from the subtitle overlay itself
+(alpha bounds `(73, 1389)-(1007, 1589)`), and the key's held position genuinely falls inside it,
+because a hand hangs at y ~1250-1400 on this stage.
+
+Mistakes made and corrected, all caught by measurement:
+
+1. The prop was positioned from a *stale* pose - the hand was read before `update_pose`, so the
+   key lagged the arm by one frame. The loop now poses first, then resolves hands, then frames.
+2. Occlusion was measured before the lift was applied, so the metric reported a defect that had
+   already been fixed for that frame.
+3. The raising sign was assumed (`left` raises negative) and was wrong for Gappu, whose mirrored
+   arm raises the other way. The solver now searches both directions.
+4. `contact_error()` compared the prop to the *holder's* hand, which is zero by construction. It
+   takes the character to measure, which is what a pick-up has to be timed against.
+5. The key was drawn the same size as a hand and read as a speck. It is now 1.6x.
+6. Five of my own tests were wrong at first: the wrong palette entry for Gappu's hands, a
+   `Proportions` object used as a dict, a continuity bound tighter than the crossing itself, the
+   contact-error premise above, and a clearance target Gappu's arms cannot physically reach.
+
+Honest limits: the arm solver returns 0 when the band is out of reach (Gappu's arms are short),
+so the camera lift carries those frames; a producer would prefer to stage the hand-off higher.
+The key artwork is legible at the receiving hand but small in the giving hand - an art-polish
+follow-up, not a wiring one.
+
+Re-rendering an episode that carries **no** prop changed it imperceptibly: 637 of 962 frames
+byte-identical, worst PSNR 47.9 dB, no frame below 40 dB, differences confined to scenes 2-3.
+The cause is the loop reorder (poses are now updated before the camera is resolved), not the prop
+code. I did not isolate the exact call, and I am not claiming byte-identity.
+
 ## 4. Not yet executed
 
 | Test | Status |

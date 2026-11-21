@@ -156,3 +156,16 @@ or reaction-shot library.
 | 16:9 composition | GEOMETRY VERIFIED, NOT RENDERED | fit/shot tests at 1920x1080; the landscape renderer draws no characters yet |
 | Screen shake inside the framing model | NOT IMPLEMENTED | shake is applied in `Camera.apply` after planning |
 | Object-aware co-visibility (hand-off) | PARTIAL | `interaction: contact` scene key forces a pair shot; no object tracking |
+
+## Props and object interaction
+
+| Item | Status | Evidence |
+| --- | --- | --- |
+| Hand position matches the drawn hand | VERIFIED | pixel probe within 0.7-2.1 px, both rigs, both sides |
+| Prop follows the holding hand | VERIFIED | 28 prop tests; rendered hand-off demo |
+| Hand-off crosses continuously | VERIFIED | peak 41 px/frame over a 400 px / 0.5 s crossing |
+| Prop is framed by the camera | VERIFIED | shot widened for the prop; 0 cropped frames in the demo |
+| Held prop clear of the caption band | VERIFIED (measurable) | 117 -> 0 occluded frames; QC `prop_visibility` |
+| Arm-only clearance when the band is unreachable | NOT SOLVED | solver returns 0; camera lift compensates |
+| Pick-up from a world position | NOT IMPLEMENTED | `contact_error` exists for timing it |
+| Object-specific grips / two-handed props | NOT IMPLEMENTED | one grip offset, right/left only |

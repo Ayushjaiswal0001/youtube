@@ -107,6 +107,15 @@ def project(x: float, y: float, zoom: float, pan_x: float, pan_y: float,
     return cx + zoom * (x - cx - pan_x), cy + zoom * (y - cy - pan_y)
 
 
+def world_y_for_screen(screen_y: float, zoom: float, pan_y: float,
+                       viewport: Tuple[int, int]) -> float:
+    """Inverse of ``project`` on the vertical axis: which world row a screen row shows."""
+
+    _, vh = viewport
+    cy = vh / 2.0
+    return cy + (screen_y - cy) / zoom + pan_y
+
+
 def frame_box(zoom: float, pan_x: float, pan_y: float,
               viewport: Tuple[int, int]) -> Tuple[float, float, float, float]:
     """The world rectangle a camera frame can see: ``(x0, y0, x1, y1)``."""
@@ -174,6 +183,62 @@ def fit_zoom(bounds: Iterable[Tuple[float, float, float, float]],
     return max(MIN_ZOOM, min(MAX_ZOOM, zoom))
 
 
+def screen_box(bounds: Tuple[float, float, float, float], zoom: float, pan_x: float,
+               pan_y: float, viewport: Tuple[int, int]) -> Tuple[float, float, float, float]:
+    """World box projected into screen space, normalised so x0 < x1 and y0 < y1."""
+
+    x0, y0 = project(bounds[0], bounds[1], zoom, pan_x, pan_y, viewport)
+    x1, y1 = project(bounds[2], bounds[3], zoom, pan_x, pan_y, viewport)
+    return (min(x0, x1), min(y0, y1), max(x0, x1), max(y0, y1))
+
+
+def overlap_area(a: Tuple[float, float, float, float],
+                 b: Tuple[float, float, float, float]) -> float:
+    """Area shared by two screen rectangles. 0.0 when they do not touch."""
+
+    width = min(a[2], b[2]) - max(a[0], b[0])
+    height = min(a[3], b[3]) - max(a[1], b[1])
+    if width <= 0.0 or height <= 0.0:
+        return 0.0
+    return float(width * height)
+
+
+def opaque_rect(surface, alpha_threshold: int = 16) -> Optional[Tuple[float, float, float, float]]:
+    """Bounding rectangle of a Cairo surface's non-transparent pixels.
+
+    The subtitle overlay is a full-frame PNG with a caption band inside it. Measuring the band
+    from the overlay itself means occlusion is computed against the artwork that will really be
+    painted, instead of against a number someone typed.
+    """
+
+    width = surface.get_width()
+    height = surface.get_height()
+    stride = surface.get_stride()
+    data = bytes(surface.get_data())
+    span = stride // 4
+    # ARGB32 is premultiplied BGRA in memory; alpha is byte 3 of each pixel. Only rows and
+    # columns that contain alpha are wanted, so this scans the alpha plane, not the colours.
+    columns = [False] * width
+    top = bottom = -1
+    for y in range(height):
+        row = data[y * stride: y * stride + width * 4]
+        alphas = row[3::4]
+        if max(alphas) <= alpha_threshold:
+            continue
+        if top < 0:
+            top = y
+        bottom = y
+        for x in range(width):
+            if alphas[x] > alpha_threshold:
+                columns[x] = True
+    if top < 0:
+        return None
+    xs = [x for x, hit in enumerate(columns) if hit]
+    if not xs:
+        return None
+    return (float(min(xs)), float(top), float(max(xs) + 1), float(bottom + 1))
+
+
 def centre_of(bounds: Iterable[Tuple[float, float, float, float]]) -> Tuple[float, float]:
     boxes = list(bounds)
     if not boxes:
@@ -228,6 +293,7 @@ def _kind_zoom(kind: str) -> float:
 def plan_shot(scripted: str, subjects: Mapping[str, Subject], viewport: Tuple[int, int],
               *, speaker: Optional[str] = None, must_show: Sequence[str] = (),
               reach: Mapping[str, float] | None = None,
+              extras: Sequence[Tuple[float, float, float, float]] = (),
               margin: float = DEFAULT_MARGIN) -> Shot:
     """Choose the framing for one scene.
 
@@ -283,7 +349,10 @@ def plan_shot(scripted: str, subjects: Mapping[str, Subject], viewport: Tuple[in
         required = list(cast)
         required += [name for name in must_show if name not in required]
         reserved = reserve(required)
+        # A prop the scene is about has to be in frame too, but it is not cast: it must not
+        # change which characters the shot holds, only how wide the frame has to be.
         boxes = [available[name].bounds(reserved[name]) for name in required]
+        boxes += [tuple(box) for box in extras]
         limit = min(fit_zoom(boxes, viewport, margin), MAX_ZOOM)
         zoom = min(_kind_zoom(candidate), limit)
         cx, cy = centre_of(boxes)
@@ -333,11 +402,16 @@ class FramingReport:
         self.records: list[FrameRecord] = []
 
     def add(self, t: float, zoom: float, pan_x: float, pan_y: float,
-            subjects: Mapping[str, Subject], reach: Mapping[str, float] | None = None) -> None:
+            subjects: Mapping[str, Subject], reach: Mapping[str, float] | None = None,
+            extras: Mapping[str, Tuple[float, float, float, float]] | None = None) -> None:
         reach = dict(reach or {})
+        boxes = {name: subject.bounds(reach.get(name, 0.0))
+                 for name, subject in subjects.items()}
+        # Props are checked exactly like characters; they are simply not `required` unless the
+        # caller says so, which keeps a prop from failing a gate it was never asked to meet.
+        boxes.update({name: tuple(box) for name, box in (extras or {}).items()})
         visible, spill = {}, {}
-        for name, subject in subjects.items():
-            box = subject.bounds(reach.get(name, 0.0))
+        for name, box in boxes.items():
             visible[name] = fits(box, zoom, pan_x, pan_y, self.viewport, self.margin)
             spill[name] = overflow(box, zoom, pan_x, pan_y, self.viewport)
         self.records.append(FrameRecord(t, zoom, visible, spill))

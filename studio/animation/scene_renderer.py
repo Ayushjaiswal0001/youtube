@@ -39,10 +39,26 @@ from studio.characters.performance import (
 from studio.characters.visemes import VisemeTimeline
 from studio.animation.background import BackgroundRenderer
 from studio.animation.camera import Camera, CameraDirector
+# How much clear air a held prop needs above the caption band before the frame lifts for it.
+PROP_BAND_CLEARANCE = 10.0
+
+from studio.characters.props import (
+    PROPS,
+    PropTrack,
+    draw_prop,
+    hand_point,
+    prop_box,
+    raise_arm_for_clearance,
+)
 from studio.animation.framing import (
     FramingReport,
+    opaque_rect,
+    overlap_area,
     plan_shot,
+    screen_box,
+    fits,
     subject_from_schema,
+    world_y_for_screen,
 )
 from studio.animation.transitions import ffmpeg_fade_filters
 from studio.animation.effects import (
@@ -161,6 +177,13 @@ class SceneRenderer:
             except Exception as exc:
                 print(f"[Render] WARNING: could not load subtitle overlay {subtitle_path}: {exc}")
 
+        band_rect = None
+        if subtitle_surface is not None:
+            try:
+                band_rect = opaque_rect(subtitle_surface)
+            except Exception as exc:
+                print(f"[Render] WARNING: could not measure the caption band: {exc}")
+
         title_surface = None
         title_path = scene_data.get("title_png")
         if title_path:
@@ -222,7 +245,46 @@ class SceneRenderer:
         if (os.environ.get("FACTORY_CAMERA_PAIR_LOCK") == "1"
                 or str(scene_data.get("interaction", "")) in ("contact", "hand_off")):
             must_show = ["chiku", "gappu"]
+        # Props (T40): an object the scene is about, held in a real hand. Opt-in through scene
+        # data, so an episode without a prop renders exactly as it did before.
+        prop_name = scene_data.get("prop")
+        prop_track = None
+        if prop_name:
+            spec = PROPS.get(str(prop_name))
+            if spec is None:
+                print(f"[Render] WARNING: unknown prop {prop_name!r}; skipping")
+            else:
+                holder = str(scene_data.get("prop_holder") or
+                             (speaker if speaker in subjects else "chiku"))
+                if holder not in subjects:
+                    holder = next(iter(subjects))
+                handoff_to = scene_data.get("prop_handoff_to")
+                if handoff_to and handoff_to not in subjects:
+                    handoff_to = None
+                handoff_at = scene_data.get("prop_handoff_at")
+                if handoff_at is not None:
+                    handoff_at = float(handoff_at)
+                    if handoff_at <= 1.0:  # a fraction of the scene is easier to author
+                        handoff_at = handoff_at * total_duration
+                prop_track = PropTrack(
+                    spec, holder=holder, side=str(scene_data.get("prop_side", "right")),
+                    handoff_to=str(handoff_to) if handoff_to else None,
+                    handoff_side=str(scene_data.get("prop_handoff_side", "left")),
+                    handoff_at=handoff_at,
+                    handoff_duration=float(scene_data.get("prop_handoff_duration", 0.45)))
+
+        # The prop is part of what the camera has to frame, so the shot is planned with its
+        # box included. Computed at the holder's *resting* hand so the plan is stable.
+        prop_probe = None
+        if prop_track is not None:
+            probe_hands = {
+                "chiku": hand_point(chiku, prop_track.hand_for("chiku")),
+                "gappu": hand_point(gappu, prop_track.hand_for("gappu")),
+            }
+            prop_probe = prop_track.box_at(0.0, probe_hands)
+
         shot = plan_shot(camera_style, subjects, (self.width, self.height),
+                         extras=[prop_probe] if prop_probe else [],
                          speaker=speaker if speaker in subjects else None,
                          must_show=must_show)
         if os.environ.get("FACTORY_CAMERA_FRAMING", "1") == "1":
@@ -230,7 +292,12 @@ class SceneRenderer:
         if shot.escalated:
             print(f"[Render] Scene {scene_num}: camera {camera_style} -> {shot.kind} "
                   f"({shot.reason}) to keep {', '.join(shot.subjects)} in frame")
-        framing = FramingReport((self.width, self.height), required=tuple(shot.subjects))
+        framing = FramingReport(
+            (self.width, self.height),
+            required=tuple(shot.subjects) + (("prop",) if prop_track is not None else ()))
+        prop_occluded_frames = 0
+        prop_worst_overlap = 0.0
+        prop_lifted_frames = 0
         framing_gesture_frames = 0
 
         # Locomotion layer (T33). Scenes without a motion keep the pose exactly as it was,
@@ -398,6 +465,19 @@ class SceneRenderer:
                 if layer_b is not None:
                     gappu_body = gappu_body.merged_with(layer_b)
 
+                # Poses first: hands, and therefore props, depend on them. Reading a hand
+                # before the pose is updated would place the prop using last frame's arm.
+                chiku.update_pose(
+                    chiku_pose, t, is_talking=chiku_talking, phoneme_intensity=0.8,
+                    lipsync=lipsync_track, timeline=viseme_timeline,
+                    body=chiku_body)
+                gappu.update_pose(
+                    gappu_pose, t, is_talking=gappu_talking, phoneme_intensity=0.7,
+                    lipsync=lipsync_track, timeline=viseme_timeline,
+                    body=gappu_body)
+                chiku.face_state_at(t)
+                gappu.face_state_at(t)
+
                 camera_frame = director.state_at(
                     t, positions={"chiku": chiku.x + hip_a, "gappu": gappu.x + hip_b})
                 camera.zoom = camera_frame.zoom
@@ -407,8 +487,56 @@ class SceneRenderer:
                 reach_b = interaction.amount_at(t, 1)
                 if reach_a > 0.0 or reach_b > 0.0:
                     framing_gesture_frames += 1
+
+                # Props (T40): where the prop is, whether the caption band will cover it, and
+                # if so how far the frame has to lift to keep the story object visible.
+                prop_point = None
+                if prop_track is not None:
+                    for who, rig in (("chiku", chiku), ("gappu", gappu)):
+                        if prop_track.held_by(t) not in (who, None):
+                            continue
+                        arm = prop_track.hand_for(who)
+                        band_top = (world_y_for_screen(band_rect[1], camera.zoom, camera.pan_y,
+                                                       (self.width, self.height))
+                                    if band_rect is not None else None)
+                        delta = raise_arm_for_clearance(rig, arm, prop_track.spec, band_top)
+                        if delta:
+                            if arm == "left":
+                                rig.arm_l_angle += delta
+                            else:
+                                rig.arm_r_angle += delta
+                    hands = {"chiku": hand_point(chiku, prop_track.hand_for("chiku")),
+                             "gappu": hand_point(gappu, prop_track.hand_for("gappu"))}
+                    prop_point = prop_track.point_at(t, hands)
+                    if band_rect is not None:
+                        prop_screen = screen_box(prop_box(prop_point, prop_track.spec),
+                                                 camera.zoom, camera.pan_x, camera.pan_y,
+                                                 (self.width, self.height))
+                        shortfall = (prop_screen[3] + PROP_BAND_CLEARANCE) - band_rect[1]
+                        if shortfall > 0.0:
+                            # Lift the frame, but never at the cost of cropping a character:
+                            # the characters are the shot, the band is a constraint.
+                            lifted = camera.pan_y + shortfall / camera.zoom
+                            if all(fits(subjects[name].bounds(1.0), camera.zoom, camera.pan_x,
+                                        lifted, (self.width, self.height))
+                                   for name in shot.subjects):
+                                prop_lift = shortfall / camera.zoom
+                                camera.pan_y = lifted
+                                prop_lifted_frames += 1
+                # Measured on the frame that will actually be drawn, after any lift.
+                if prop_point is not None and band_rect is not None:
+                    prop_screen = screen_box(prop_box(prop_point, prop_track.spec),
+                                             camera.zoom, camera.pan_x, camera.pan_y,
+                                             (self.width, self.height))
+                    shared = overlap_area(prop_screen, band_rect)
+                    if shared > 0.0:
+                        prop_occluded_frames += 1
+                        prop_worst_overlap = max(prop_worst_overlap, shared)
+                extra_boxes = ({"prop": prop_box(prop_point, prop_track.spec)}
+                               if prop_point else None)
                 framing.add(t, camera.zoom, camera.pan_x, camera.pan_y, subjects,
-                            reach={"chiku": reach_a, "gappu": reach_b})
+                            reach={"chiku": reach_a, "gappu": reach_b},
+                            extras=extra_boxes)
                 if camera_style == "action_shake" and 0.3 < t < 1.2:
                     camera.trigger_shake(0.2)
                 camera.update(1.0 / self.fps)
@@ -431,16 +559,11 @@ class SceneRenderer:
                 if face_b != int(math.copysign(1, gappu.facing)):
                     gappu.facing = float(face_b)
 
-                chiku.update_pose(
-                    chiku_pose, t, is_talking=chiku_talking, phoneme_intensity=0.8,
-                    lipsync=lipsync_track, timeline=viseme_timeline,
-                    body=chiku_body)
-                gappu.update_pose(
-                    gappu_pose, t, is_talking=gappu_talking, phoneme_intensity=0.7,
-                    lipsync=lipsync_track, timeline=viseme_timeline,
-                    body=gappu_body)
-                chiku.face_state_at(t)
-                gappu.face_state_at(t)
+                # Props are drawn in the same world space as the rigs, after them, so a held
+                # object sits on top of the hand that holds it.
+                if prop_track is not None and prop_point is not None:
+                    draw_prop(cr, prop_track.spec.name, prop_point,
+                              angle=prop_track.angle_at(t))
 
                 if sfx_name == "twinkle" or "\u092a\u0924\u094d\u0925\u0930" in dialogue:
                     sparkle_rot = t * 2.5
@@ -528,6 +651,11 @@ class SceneRenderer:
             "escalated": shot.escalated,
             "reason": shot.reason,
             "gesture_frames": framing_gesture_frames,
+            "occlusion": ({"prop": {"frames": prop_occluded_frames,
+                                    "lifted_frames": prop_lifted_frames,
+                                    "worst_overlap_px": round(prop_worst_overlap, 1),
+                                    "band": [round(value, 1) for value in band_rect]}}
+                          if prop_track is not None and band_rect is not None else {}),
         })
         try:
             report_path = Path(output_mp4).with_name(Path(output_mp4).stem + "_framing.json")
