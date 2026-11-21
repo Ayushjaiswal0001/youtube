@@ -61,8 +61,8 @@ class OAuthTests(unittest.TestCase):
 
     def test_token_response_repr_redacts_secrets(self) -> None:
         token = TokenResponse(
-            access_token="access-secret",
-            refresh_token="refresh-secret",
+            access_token="access-secret",  # pragma: allowlist secret - fixture
+            refresh_token="refresh-secret",  # pragma: allowlist secret
             expires_in=3600,
             scope=f"{UPLOAD_SCOPE} {READONLY_SCOPE}",
             token_type="Bearer",

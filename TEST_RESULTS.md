@@ -891,3 +891,32 @@ pose frames are unchanged. `FACTORY_INLINE_CUTS=0` restores the previous look ex
 | Controlled YouTube upload of a produced video | **Not executed** — no secrets provisioned, uploads remain private/off |
 | Persistence across workflow termination | **Not executed** (cache wiring exists, never ran) |
 | Retry/recovery drill | **Not executed** |
+
+## 3aa. Security hardening (X100 final phase)
+
+| Check | Result |
+| --- | --- |
+| `python -m tools.secret_scan` (tree) | 0 findings, 14 rules |
+| `python -m tools.secret_scan --history` (all refs) | 4 findings, all the documented fake fixtures |
+| `python -m tools.workflow_audit` | 0 findings over 7 workflows |
+| `pip-audit -r requirements.txt` | 67 advisories -> 4 residual (fixed only by pillow 13.0.0) |
+| `pytest tests/factory/test_security.py` | 18 passed |
+| Full suite | **749 passed** |
+| Golden frames | 78 frames, 0 changed, 0 new |
+
+Defects found, including two in the tools written for this audit:
+
+1. The run journal recorded absolute paths, and the production workflow uploads it as an artifact on a
+   public repository - both existing artifacts contain the owner's `C:\Users\...` path. Fixed at the
+   single write point; the two old artifacts need owner deletion.
+2. `produce.yml` interpolated dispatch inputs (`allow_unpublished`, `secret_prefix`) into `run:` blocks;
+   both now arrive through `env`, and the channel slug is validated against the three known slugs.
+3. Third-party actions were pinned to moving major tags; now pinned to commits resolved through the API.
+4. `pillow==12.2.0` carried 67 advisories; 12.3.0 carries 4, and the goldens prove the bump changes no
+   pixel.
+5. My history scan deduped findings by `(rule, line)` instead of `(rule, file, line)`, which could report
+   a clean history by collapsing a finding in one file with a different file's line number. Fixed and
+   re-run.
+6. My workflow auditor flagged a workflow for the word `pull_request_target` inside the comment that
+   explains why it is not used, and flagged `produce.yml` for a job-level permission gap its top-level
+   block already closed. Both rules corrected.

@@ -31,7 +31,7 @@ Expected IDs are confirmed from public channel pages and are checked against the
 Python 3.11+ is required. There are no third-party runtime dependencies.
 
 ```powershell
-$repo = "C:\Users\DELL\AppData\Local\Temp\opencode\youtube"
+$repo = "<path-to-your-clone>"
 Set-Location $repo
 python -m compileall -q uploader tests
 python -m unittest discover -s tests -v
@@ -42,7 +42,7 @@ python -m unittest discover -s tests -v
 Priority order:
 
 1. Environment variables: `YT_<SLUG>_CLIENT_ID`, `YT_<SLUG>_CLIENT_SECRET`, `YT_<SLUG>_REFRESH_TOKEN`.
-2. Per-channel files under `C:\Users\DELL\.faceless-shorts\secrets\youtube\`.
+2. Per-channel files under `%USERPROFILE%\.faceless-shorts\secrets\youtube\`.
 3. Read-only fallback to the legacy credential file supplied with `--legacy-credentials`.
 
 The legacy file is never modified by this tool. Never commit it or copy it into the repository.
@@ -123,9 +123,9 @@ All three channels share one OAuth client/project, so the 100-upload limit is sh
 
 Runtime data lives outside the repository:
 
-- Secrets: `C:\Users\DELL\.faceless-shorts\secrets\youtube\`
-- Ledger/state: `C:\Users\DELL\.faceless-shorts\state\youtube\`
-- Logs: `C:\Users\DELL\.faceless-shorts\logs\youtube\`
+- Secrets: `%USERPROFILE%\.faceless-shorts\secrets\youtube\`
+- Ledger/state: `%USERPROFILE%\.faceless-shorts\state\youtube\`
+- Logs: `%USERPROFILE%\.faceless-shorts\logs\youtube\`
 
 See `docs/oauth-consent.md`, `docs/uploader.md`, and `docs/test-plan.md`.
 
@@ -143,3 +143,13 @@ See `docs/oauth-consent.md`, `docs/uploader.md`, and `docs/test-plan.md`.
 Notifications are off unless a provider is configured; `FACTORY_NOTIFY_WEBHOOK` is the only switch and
 no credential is read. `FACTORY_INLINE_CUTS=0` disables cuts inside a dialogue line;
 `FACTORY_SET_DRESSING=0` disables near-camera dressing.
+
+## Security
+
+    python -m tools.secret_scan              # working tree
+    python -m tools.secret_scan --history    # every blob in every ref
+    python -m tools.workflow_audit           # permissions, action pinning, dangerous triggers
+    python -m pip_audit -r requirements.txt  # dependency advisories
+
+Install the pre-commit hooks once with `python -m pip install pre-commit && pre-commit install`.
+The full audit, its findings and the settings that remain owner decisions are in `SECURITY_AUDIT.md`.

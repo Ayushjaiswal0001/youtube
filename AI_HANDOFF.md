@@ -424,7 +424,7 @@ This file tells you what to do *right now*.
 
 ## 1. Where the work actually lives
 
-- Clone: `C:\Users\DELL\AppData\Local\Temp\opencode\youtube`
+- Clone: `<path-to-clone>`
 - Branch: `feat/autonomous-multichannel-factory`
 - Remote: `https://github.com/Ayushjaiswal0001/youtube` (public, `main` @ `a69474c`)
 - Upstream `D:\animated` holds the complete `studio/` package the Hindi renderer needs.
@@ -557,3 +557,19 @@ A scheduled GitHub Actions run per channel, every day, that renders a video the 
 planned itself, passes QC, uploads privately with a future `publishAt` in IST, verifies
 the upload, records the state, and never repeats a topic or crosses channels — with the
 previous run's state restored. See the completion criteria at the end of `TASKS.md`.
+
+## Security traps found in the X100 final audit (2026-11-22)
+
+- **A clean working tree says nothing about history.** The tree and `git log` can both look clean while a
+  credential from an old commit still works. `python -m tools.secret_scan --history` walks every blob in
+  every ref and takes about 75 s; run it before claiming anything about credentials.
+- **The run journal is published.** `pipeline_state/<channel>/runs.jsonl` is uploaded as a CI artifact,
+  so anything machine-specific written there ends up on a public page. It passes through
+  `factory.state._scrub()`; add new path-shaped keys to that scrubber or they will leak the local user.
+- **Scan your scanner.** CI plants a synthetic `GOCSPX-` secret and requires a hit, because a scanner
+  that has stopped matching still exits 0 - the most dangerous kind of green.
+- **Annotate fixture credentials, do not delete them**: `# pragma: allowlist secret` on the line, and
+  build probe values by concatenation so the probe file itself stays clean.
+- **`secrets: inherit`** in the three per-channel callers passes every repository secret into
+  `produce.yml`. Acceptable today only because nothing there triggers on `pull_request`; keep it that way.
+- `env -u GITHUB_TOKEN` for every `gh` call remains mandatory - the ambient token is a different account.

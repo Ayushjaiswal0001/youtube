@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -108,7 +109,7 @@ class ChannelState:
         atomic_write_json(self.history_path, items)
 
     def log_run(self, entry: dict[str, Any]) -> None:
-        append_jsonl(self.runs_path, {"timestamp": iso_now(), **entry})
+        append_jsonl(self.runs_path, {"timestamp": iso_now(), **_scrub(entry)})
 
     def plan_status(self, plan_id: str) -> str | None:
         """Status recorded for a plan id, or None when the plan never ran."""
@@ -148,6 +149,40 @@ class ChannelState:
             }
         )
 
+
+
+#: Prefix markers that identify a path as belonging to this project rather than to a machine.
+_PROJECT_MARKERS = ("/build/", "\\build\\", "/pipeline_state/", "\\pipeline_state\\")
+
+
+def portable_path(value: str) -> str:
+    """A path with the machine left out.
+
+    The run journal is uploaded as a CI artifact on a public repository, so an absolute
+    ``C:\\Users\\<name>\\...`` path publishes the owner's account name and directory layout for no
+    operational benefit. Anything inside this project is kept relative to it; a path outside it is
+    reduced to its file name, which is all the journal needs in order to be useful.
+    """
+
+    text = str(value)
+    for marker in _PROJECT_MARKERS:
+        index = text.find(marker)
+        if index > 0:
+            return text[index + 1:].replace("\\", "/")
+    if re.match(r"^[A-Za-z]:[\\/]", text) or text.startswith(("/c/", "/home/", "/Users/")):
+        return Path(text).name
+    return text
+
+
+def _scrub(value, key: str = ""):
+    if isinstance(value, dict):
+        return {k: _scrub(v, k) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_scrub(item, key) for item in value]
+    if isinstance(value, str) and (key.endswith("_path") or key in {
+            "manifest", "video", "thumbnail", "thumbnail_file"}):
+        return portable_path(value)
+    return value
 
 @dataclass
 class RunResult:

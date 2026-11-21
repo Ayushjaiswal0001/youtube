@@ -97,7 +97,7 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
 
       - name: Verify repository identity
         run: |
@@ -108,7 +108,7 @@ jobs:
           fi
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
         with:
           python-version: "3.12"
           cache: pip
@@ -127,7 +127,7 @@ jobs:
           python -m pip install -r requirements.txt
 
       - name: Restore pipeline state
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830
         with:
           path: |
             pipeline_state
@@ -153,13 +153,15 @@ jobs:
 
       - name: Resolve the plan
         id: resolve
+        env:
+          ALLOW_UNPUBLISHED: ${{ inputs.allow_unpublished }}
         run: |
           if [ -n "$PLAN_ID" ]; then
             RESOLVED="$PLAN_ID"
             echo "using requested plan: $RESOLVED"
           else
             EXTRA=""
-            if [ "${{ inputs.allow_unpublished }}" = "true" ]; then EXTRA="--allow-unpublished"; fi
+            if [ "$ALLOW_UNPUBLISHED" = "true" ]; then EXTRA="--allow-unpublished"; fi
             python -m factory.cli plan new --channel "$CHANNEL" --json $EXTRA > plan.json
             RESOLVED=$(python - <<'PY'
           import json
@@ -242,15 +244,27 @@ jobs:
         env:
           RESOLVED_PLAN: ${{ steps.resolve.outputs.plan_id }}
 
+      - name: Validate channel slug
+        # The slug becomes a directory name and a command argument, so it is checked to be one of the
+        # three known channels before any step uses it.
+        run: |
+          case "$CHANNEL" in
+            nexus-node|academic-biohacker|natkhat-toons) ;;
+            *) echo "::error::unknown channel '$CHANNEL'"; exit 1 ;;
+          esac
+
       - name: Export channel credentials
         id: creds
         if: ${{ inputs.upload }}
         env:
+          # Passed through the environment: interpolating a dispatch input straight into a shell
+          # command is how `$(...)` typed into an input becomes a command on the runner.
+          SECRET_PREFIX: ${{ inputs.secret_prefix }}
           CLIENT_ID: ${{ secrets[format('YT_{0}_CLIENT_ID', inputs.secret_prefix)] }}
           CLIENT_SECRET: ${{ secrets[format('YT_{0}_CLIENT_SECRET', inputs.secret_prefix)] }}
           REFRESH_TOKEN: ${{ secrets[format('YT_{0}_REFRESH_TOKEN', inputs.secret_prefix)] }}
         run: |
-          PREFIX=$(printf '%s' "${{ inputs.secret_prefix }}" | tr 'a-z' 'A-Z')
+          PREFIX=$(printf '%s' "$SECRET_PREFIX" | tr 'a-z' 'A-Z')
           if [ -z "$CLIENT_ID" ] || [ -z "$CLIENT_SECRET" ] || [ -z "$REFRESH_TOKEN" ]; then
             echo "::warning::YT_${PREFIX}_* secrets are missing; upload will be skipped"
             echo "ready=0" >> "$GITHUB_OUTPUT"
@@ -307,7 +321,7 @@ jobs:
 
       - name: Upload artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: ${{ inputs.channel }}-${{ github.run_id }}
           if-no-files-found: warn
@@ -333,7 +347,7 @@ jobs:
 
       - name: Save pipeline state
         if: always()
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830
         with:
           path: |
             pipeline_state

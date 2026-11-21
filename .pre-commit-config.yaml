@@ -1,0 +1,26 @@
+# Pre-commit hooks. The scanner is local (`tools/secret_scan.py --staged`), so it needs no network and
+# cannot be silently changed under the repository by a third party.
+#
+# Install once:  python -m pip install pre-commit && pre-commit install
+repos:
+  - repo: local
+    hooks:
+      - id: secret-scan
+        name: scan the staged diff for credentials
+        entry: python -m tools.secret_scan --staged
+        language: system
+        pass_filenames: false
+        stages: [commit]
+
+      - id: credential-files
+        name: refuse to commit credential files
+        entry: python -m tools.block_credentials
+        language: system
+        pass_filenames: true
+
+      - id: golden-frames
+        name: golden frames unchanged
+        entry: python -m tools.capture_goldens --check
+        language: system
+        pass_filenames: false
+        stages: [commit]

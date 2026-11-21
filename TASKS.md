@@ -245,3 +245,9 @@ Status markers: `[ ]` todo, `[~]` in progress, `[x]` done.
   behind them because its screen y is higher. Needs explicit layer groups.
 - [ ] **T43c. Comfortable ground reach.** After the grounding fix the shoulder sits 32 px higher, so
   the ground pickup needs a 96-degree fold. Leg joints (a real knee) would let the fold stay shallow.
+
+- [x] **T51. Security audit and hardening (X100 final phase).** `tools/secret_scan.py` (tree / staged /
+  history, 14 rules), `tools/workflow_audit.py` (permissions, pinning, triggers, input injection),
+  `tools/block_credentials.py`, `.pre-commit-config.yaml`, `.github/workflows/security.yml`, and
+  `SECURITY_AUDIT.md`. History clean apart from four annotated fake fixtures; artifacts leaked local
+  paths (fixed in code, the two old artifacts await owner deletion); `main` is still unprotected.
