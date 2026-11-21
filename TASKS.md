@@ -155,6 +155,20 @@ Status markers: `[ ]` todo, `[~]` in progress, `[x]` done.
   drawn wrist, staged compositing, a per-scene report, and a `pickup_contact` QC gate that fails on a
   claimed grip without contact. Verified by a forced production render of the real Natkhat plan
   (contact -13.93 px). See TEST_RESULTS 3x.
+- [x] **T45b/c. Near-camera depth.** `studio/animation/set_dressing.py` places trunks, pillars,
+  boulders, bushes and reeds with a location-derived palette on two depth planes; the world plane is
+  sorted against the cast by base line, so a character standing behind a trunk disappears where it
+  meets them. Measured occlusion on drawn pixels: 18.5 % / 7.0 %, faces 0.0 %. `tools/render_dressing_sheet.py`
+  renders all six locations and writes `occlusion.json`.
+- [x] **T43B. Object ownership.** `studio/animation/ownership.py`: one holder per object, transfers
+  require measured receiver contact, releases only by the holder, full audit history, and a sequence
+  validator (APPROACH..RECOVERY). The pickup carries objects (`keep: true`) so a later scene can hand
+  them off.
+- [x] **T47. Story continuity.** `studio/animation/continuity.py` carries ownership, positions,
+  facing, poses, lighting and camera across scenes; errors are impossible states (ownership without a
+  transfer, hand-off to self, unknown holder, empty line), warnings are suspicious ones, info records
+  declared changes. Written to `continuity.json`, gated by the `continuity` QC check.
+- [ ] **T47b. Continuity across episodes and chapters.** Only within one episode so far.
 - [ ] **T47. Story continuity intelligence.** Episode-level continuity, relationship state,
   previous-episode references and duplicate detection are not implemented; the series bible is a
   topic bank with series positions, not a continuity engine.

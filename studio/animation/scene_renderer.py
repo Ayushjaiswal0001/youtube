@@ -65,6 +65,7 @@ from studio.animation.compositor import (DrawQueue, Layer, actor_depth, ground_p
                                          held_prop_depth)
 from studio.animation.pickup_scene import PickupScene
 from studio.animation.lighting import (ambient_overlay, apply_grade, preset_for)
+from studio.animation import set_dressing
 from studio.animation.transitions import ffmpeg_fade_filters
 from studio.animation.effects import (
     draw_sparkle, draw_dust_puff, draw_exclamation_pop, draw_vignette,
@@ -172,6 +173,16 @@ class SceneRenderer:
         # and every draw below behaves exactly as it did before presets existed.
         lighting_name = str(scene_data.get("lighting") or "").strip()
         lighting = preset_for(lighting_name) if lighting_name else None
+
+        # Near-camera set (T45b): placed per location, deterministic, and measured later. Only the
+        # landscape stage has a floor and a camera to place it against, so a portrait scene draws
+        # none and stays byte-identical.
+        dressing = (set_dressing.dressing_for(bg_name, self.width, self.height,
+                                              float(self.stage.ground_y))
+                    if getattr(self, "environment", None) is not None
+                    and getattr(self.stage, "ground_y", None) is not None
+                    and self.width > self.height
+                    and os.environ.get("FACTORY_SET_DRESSING", "1") == "1" else [])
 
         # Camera direction (T35): a style is a short deterministic move, not a static zoom.
         stage = self.stage
@@ -340,6 +351,28 @@ class SceneRenderer:
             (self.width, self.height),
             required=tuple(shot.subjects) + (
                 ("prop",) if prop_track is not None or pickup is not None else ()))
+
+        # Foreground occlusion (T45b), measured rather than assumed. The previous foreground layer
+        # was confined to the frame edges by construction, so its measured occlusion of the cast was
+        # 0.0 in all six locations - a backdrop, not an environment. The set dresser places objects
+        # where they can genuinely cross the cast, so the useful question is *how much* of each
+        # character the near layer really covers. Both masks are drawn pixels, not bounding boxes.
+        occlusion: dict = {}
+        if dressing and hasattr(set_dressing, "measure_occlusion"):
+            try:
+                actor_surfaces = []
+                for rig in (chiku, gappu):
+                    # Named deliberately: `surface` is the frame buffer this scene draws into, and
+                    # reusing that name here replaced the buffer with a blank character mask, so
+                    # every encoded frame was identical and the episode shipped as a still image.
+                    mask_surface = cairo.ImageSurface(cairo.FORMAT_ARGB32, self.width, self.height)
+                    rig.draw(cairo.Context(mask_surface))
+                    mask_surface.flush()
+                    actor_surfaces.append(mask_surface)
+                occlusion = set_dressing.measure_occlusion(
+                    self.width, self.height, dressing, actor_surfaces)
+            except Exception as exc:  # a measurement must never cost the render
+                print(f"[Render] Scene {scene_num}: occlusion measurement failed: {exc}")
         # Subtitle collision (T41): a character standing behind the caption band is unreadable and
         # the caption is unreadable too. Measured per frame from the same boxes the framing
         # report uses, against the band rectangle taken from the overlay's own alpha.
@@ -719,8 +752,19 @@ class SceneRenderer:
                 if director.subject != "chiku":
                     queue.add_actor(actor_depth(stage.ground_y + hip_b),
                                     lambda c: gappu.draw(c), name="gappu")
+                # Near-camera set (T45b/T45c). The mid objects sit on the world plane so the depth
+                # sort decides whether they are in front of or behind a character; the foreground
+                # objects are drawn after the queue because nothing in the scene exceeds their layer.
+                if dressing:
+                    for _item in sorted((i for i in dressing if i.layer is Layer.ACTOR),
+                                        key=lambda i: i.depth):
+                        set_dressing.draw(cr, _item, t)
                 draw_order = queue.flush(cr)
                 cr.restore()
+
+                if dressing:
+                    set_dressing.draw_layer(
+                        cr, dressing, Layer.FOREGROUND, t)
 
                 # Foreground (T41): drawn after the cast so the near foliage overlaps them. This
                 # is what makes a character read as standing inside the scene rather than on top
@@ -801,6 +845,8 @@ class SceneRenderer:
                           if (prop_track is not None or pickup is not None) and band_rect is not None
                           else {}),
             "pickup": pickup.as_dict() if pickup is not None else None,
+            "foreground_occlusion": occlusion,
+            "dressing": set_dressing.describe(dressing) if dressing else {},
         })
         try:
             report_path = Path(output_mp4).with_name(Path(output_mp4).stem + "_framing.json")

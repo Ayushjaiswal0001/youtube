@@ -821,6 +821,36 @@ Defects found by doing the integration rather than asserting it:
 5. A `table_height` authored as a fraction (0.62) passed validation, because a range check on world
    coordinates cannot distinguish it. Now bounded by the character's own shoulder and feet.
 
+## 3y. Ownership, continuity, near-camera depth (T43B / T47 / T45b / T45c)
+
+| Property | Result |
+| --- | --- |
+| Full suite | **701 passed** (17 set-dressing, 36 ownership/continuity, 17 pickup integration new this pass) |
+| Golden frames | 78 frames, 0 changed, 0 new |
+| Full 12-scene episode | 64.5 s, 1920x1080, `qc_ok: true`, **27/27 checks pass** |
+| Continuity | 0 errors, 0 warnings, 2 info across 12 scenes |
+| Ownership chain | brass_key: floor -> chiku (pickup, scene 3) -> gappu (hand-off, scene 6), carried at the end |
+| Foreground occlusion | **18.5 % of Chiku, 7.0 % of Gappu**, **0.0 of either face**, all six locations |
+| Previous foreground occlusion | **0.0** in all six locations |
+| Render time | 292 s wall for 64.5 s / 1935 frames (4.5x real time) - dressing costs ~14 % |
+
+Defects found and fixed in this pass, including two of my own:
+
+1. **A frozen episode.** The occlusion probe reused the local name `surface`, which is the scene's
+   frame buffer, so every encoded frame was a static character mask. The QC `frozen_frames` check
+   caught it (63.7 s frozen at 0.5 s); frame-hash sampling did not, because codec noise made the
+   sampled hashes differ. Verified fixed by measuring mean pixel difference over 2 s: **0.0 before,
+   8.85 after**. This is the single most valuable thing the gate has caught so far.
+2. A hand-off destination was read as a conflict, reporting every legitimate hand-off as an error.
+3. The pickup released the key at COMPLETE while scene 6 declared a hand-off from the same hand;
+   ownership is now modelled, and the pickup carries (`keep: true`).
+4. The first set-dressing pass filled silhouettes with near-black and covered 45 % of the cast - a
+   screenshot inspection rejected it. Rebuilt from the location palette; occlusion now 18.5 % / 7.0 %
+   with no face coverage, measured on drawn pixels.
+5. A "foreground stays below 0.68 of frame height" test was a proxy for "does not cover a face". It
+   failed a clump that covered nobody and would have passed an object covering a short character's
+   face. Replaced with a measured head-band occlusion check.
+
 ## 4. Not yet executed
 
 | Test | Status |

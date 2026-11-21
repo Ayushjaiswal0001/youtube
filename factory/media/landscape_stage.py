@@ -551,6 +551,17 @@ def render_stage_episode(spec: ChannelSpec, plan: Dict[str, Any], *, force: bool
         {"story_id": story["story_id"], "duration": round(total, 3), "scenes": rows},
         ensure_ascii=False, indent=2), encoding="utf-8")
 
+    # Continuity travels with the episode (T47). Built from the normalised plan, so it describes
+    # what was actually rendered rather than what the author intended.
+    try:
+        from studio.animation.continuity import validate_episode
+        report = validate_episode(story["scenes"], characters=("chiku", "gappu"),
+                                  ground_y=stage.ground_y)
+        (out_dir / "continuity.json").write_text(
+            json.dumps(report.as_dict(), ensure_ascii=False, indent=2), encoding="utf-8")
+    except Exception as exc:  # a broken continuity pass must not lose a finished render
+        _log(f"[Stage] continuity report unavailable: {exc}")
+
     # Framing evidence travels with the episode, aggregated from the per-scene reports (T39).
     # Only this episode's scenes: leftover reports from an earlier, longer render of the same plan
     # were being aggregated into a shorter one, which is how a demo reported collisions from scenes

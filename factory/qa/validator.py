@@ -107,6 +107,33 @@ def _frozen_at(path: Path) -> str:
     return f"{start:.1f}s ({length:.1f}s)"
 
 
+def _check_continuity(video_path: Path) -> dict[str, Any] | None:
+    """Fail the episode when the story contradicts itself between scenes.
+
+    The report is produced by the renderer from the same normalised plan it animated, so an error
+    here is a real discontinuity in what was drawn - an object that changed hands with no hand-off,
+    a prop that vanished from a hand, a character who flipped sides without turning.
+    """
+
+    path = video_path.with_name("continuity.json")
+    if not path.is_file():
+        return None
+    try:
+        report = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    counts = report.get("counts") or {}
+    errors = [issue for issue in (report.get("issues") or []) if issue.get("severity") == "error"]
+    detail = (f"{counts.get('error', 0)} error(s), {counts.get('warning', 0)} warning(s), "
+              f"{counts.get('info', 0)} info across {len(report.get('states') or [])} scenes")
+    if errors:
+        first = errors[0]
+        return _check("continuity", False,
+                      f"{detail}; first: scene {first.get('scene')} {first.get('code')}: "
+                      f"{first.get('message')}", severity="error")
+    return _check("continuity", True, detail)
+
+
 def _check_pickup(video_path: Path) -> dict[str, Any] | None:
     """Gate a world-space pickup on measured contact, not on the schedule.
 
@@ -184,6 +211,9 @@ def validate_episode(
     pickup_check = _check_pickup(video_path)
     if pickup_check is not None:
         checks.append(pickup_check)
+    continuity_check = _check_continuity(video_path)
+    if continuity_check is not None:
+        checks.append(continuity_check)
     duration = 0.0
     streams: list[dict[str, Any]] = []
     if video_path.is_file():

@@ -31,7 +31,8 @@ class Layer(IntEnum):
 
     BACKGROUND = 0
     GROUND_PROP = 10      # props resting on the floor: sorted with actors by depth
-    ACTOR = 20            # the cast
+    ACTOR = 20            # the cast, and any scenery sorted against it by world depth
+    WORLD = 20            # alias of ACTOR: the plane where depth decides who is in front
     HELD_PROP = 30        # anything a hand is holding: always above its holder
     FOREGROUND = 40       # near-camera scenery that occludes the cast
     OVERLAY = 50          # sparkles, dust, effects

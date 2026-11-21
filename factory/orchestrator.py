@@ -299,7 +299,8 @@ def _render_tracked(
         "qc_report": out_dir / "qc.json",
         "timeline": out_dir / "timeline.json",
     }
-    for optional in ("framing.json", "shot_plan.json", "story.json", "script.json"):
+    for optional in ("framing.json", "shot_plan.json", "story.json", "script.json",
+                     "continuity.json", "audio.json", "video.json"):
         if (out_dir / optional).is_file():
             artifacts[optional.replace(".json", "")] = out_dir / optional
     manifest = production_manifest(

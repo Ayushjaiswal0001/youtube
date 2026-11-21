@@ -20,6 +20,7 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 
 from studio.animation.grounding import place_on_ground
+from studio.characters.props import hand_point
 from studio.characters.crouch import (BodyPose, apply_pose, plan_crouch, restore_pose, save_pose,
                                      solve_crouch)
 from studio.characters.ik import ArmSolver, apply_ik, chain_for, shoulder_point, to_world
@@ -150,6 +151,12 @@ class PickupScene:
         # teleported back to the floor it was lifted from.
         self.placed: Optional[Point] = None
         self._done = False
+        # `keep` is what makes a pickup part of a story instead of a stunt: the character holds the
+        # object after the interaction, so a later scene can hand it to someone else. Without it the
+        # object was released at COMPLETE and a declared hand-off in a later scene had nothing to
+        # hand over.
+        self.keep = bool(spec.get("keep", False))
+        self.carried: Optional[Point] = None
         self._release_at = self.plan.duration
 
     # -- schedule -----------------------------------------------------------
@@ -179,8 +186,15 @@ class PickupScene:
 
         local = self.stage_t(t)
         if self._done:
-            # The interaction finished earlier in the scene: the body is already back on its feet
-            # and the object is where it was put down. Nothing to solve, and nothing to re-pose.
+            # The interaction finished earlier in the scene: the body is already back on its feet.
+            # A kept object rides in the hand for the rest of the scene; a released one stays where
+            # it was put down. Nothing to solve, and nothing to re-pose.
+            if self.keep:
+                self.carried = hand_point(self.rig, self.side)
+                return {"point": self.carried, "held": True,
+                        "wrist": self._last_wrist or self.obj.centre,
+                        "error": 0.0, "state": PickupState.COMPLETE.value, "bend": 0.0,
+                        "carried": True}
             return {"point": self.placed or self.obj.centre, "held": False,
                     "wrist": self._last_wrist or self.obj.centre,
                     "error": self.report.min_contact_error if not math.isinf(
@@ -218,9 +232,14 @@ class PickupScene:
             point = self.placed
             if not self._done:
                 self._done = True
+                if self.keep:
+                    self.carried = hand_point(self.rig, self.side)
                 self.release()
         else:
             point = self.obj.centre
+        if self.keep and state is PickupState.COMPLETE:
+            holding = True
+            point = self.carried or hand_point(self.rig, self.side)
         return {"point": point, "held": holding, "wrist": wrist, "error": error,
                 "state": state.value, "bend": math.degrees(self.pose_at(local).bend)}
 
@@ -234,7 +253,7 @@ class PickupScene:
         clear_ik(self.rig, self.side)
 
     def as_dict(self) -> Dict[str, Any]:
-        return {"report": {**self.report.as_dict(),
+        return {"report": {**self.report.as_dict(), "kept": self.keep,
                            "comfortable": getattr(self, "comfortable", True),
                            "shoulder_to_surface_px": round(getattr(self, "surface_gap", 0.0), 1)},
                 "object": {"name": self.obj.name, "centre": [round(v, 1) for v in self.obj.centre],

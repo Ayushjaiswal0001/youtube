@@ -60,7 +60,8 @@
               "grip": "small_object",
               "holder": "chiku",
               "offset": 46,
-              "surface": "ground"
+              "surface": "ground",
+              "keep": true
             }
           },
           {

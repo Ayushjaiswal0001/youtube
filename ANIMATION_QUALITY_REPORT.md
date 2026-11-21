@@ -153,3 +153,16 @@ TEST_RESULTS 3x. The two most instructive:
 Remaining: a pickup is authored on one scene of one episode. Multi-object scenes, pickups that
 combine with a hand-off in the same scene, and table-height furniture drawn as real set pieces are
 still outstanding.
+
+## 2026-11-21 - The set can get in the way (T45b / T45c) and the story can contradict itself (T47)
+
+| Defect | Severity | Reproduction | Evidence | Root cause | Fix | Retest |
+| --- | --- | --- | --- | --- | --- | --- |
+| Episode shipped as a still image | critical | render the 12-scene plan | QC `frozen_frames`: 63.7 s frozen at 0.5 s; mean pixel difference over 2 s = **0.0** | the occlusion probe rebound `surface`, the scene's frame buffer | renamed the probe locals; mean difference now **8.85** | full episode `qc_ok: true`, 27/27 |
+| Foreground occluded nothing | high | render six locations | measured occlusion **0.0** of both characters in all six | foliage was confined to the outer 12 % of the frame | set dresser places objects on the world plane and in the near layer | **18.5 % / 7.0 %**, faces **0.0 %** |
+| Near scenery read as a hole in the frame | high | inspect the dressing sheet | black blobs over 45 % of the cast | silhouettes filled with near-black | colours taken from each location's palette, plus a shaft highlight | inspected; bushes and trunk read as objects |
+| Hand-off reported as a conflict | medium | validate the episode plan | `handoff_target_mismatch` on a correct scene | the destination was compared as if it were a second holder | end owner is the declared destination | 0 errors on the real plan |
+| Object in hand with no way to be in hand | medium | continuity of scenes 3 and 6 | scene 3 released the key, scene 6 handed it off | ownership was not modelled at all | `keep: true` carry + ownership ledger | chain verified: floor -> chiku -> gappu |
+| A test that measured a proxy | medium | run the dressing tests | a clump covering nobody failed; an object covering a face would have passed | frame-height threshold instead of face coverage | head-band occlusion measured on drawn pixels | tests assert `< 2 %` of the head band |
+
+Measured cost: the dressing adds ~14 % to render time (250-278 s -> 292 s for the same 64.5 s episode).
