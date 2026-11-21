@@ -241,6 +241,25 @@ def cmd_resume(args: argparse.Namespace) -> int:
     return 0 if all(r["qc_ok"] for r in results) else 2
 
 
+def cmd_preflight(args: argparse.Namespace) -> int:
+    from .ops import cmd_preflight as run
+
+    return run(args, specs=load_channel_specs(), print_fn=lambda value: _print(value, args.json))
+
+
+def cmd_gate(args: argparse.Namespace) -> int:
+    from .ops import cmd_gate as run
+
+    return run(args, specs=load_channel_specs(), print_fn=lambda value: _print(value, args.json),
+               script_for=_script_for)
+
+
+def cmd_ops(args: argparse.Namespace) -> int:
+    from .ops import cmd_ops as run
+
+    return run(args, specs=load_channel_specs(), print_fn=lambda value: _print(value, args.json))
+
+
 def cmd_validate(args: argparse.Namespace) -> int:
     """Validate existing artifacts without producing anything new."""
 
@@ -346,6 +365,7 @@ def cmd_publish(args: argparse.Namespace) -> int:
                 publish_at=publish_at,
                 thumbnail=out_dir / "thumbnail.jpg",
                 allow_public=args.allow_public,
+                skip_gate=bool(getattr(args, "skip_gate", False)),
             )
         )
     _print(results if args.json else [json.dumps(item, ensure_ascii=False, indent=2) for item in results], args.json)
@@ -473,6 +493,23 @@ def build_parser() -> argparse.ArgumentParser:
     stage.add_argument("--json", action="store_true", help=argparse.SUPPRESS)
     stage.set_defaults(func=cmd_render_stage)
 
+    preflight = subparsers.add_parser("preflight", help="can this machine start a production run?")
+    preflight.add_argument("--channel", default="all")
+    preflight.add_argument("--reserve-mb", type=int, default=4096)
+    preflight.add_argument("--json", action="store_true", help=argparse.SUPPRESS)
+    preflight.set_defaults(func=cmd_preflight)
+
+    gate = subparsers.add_parser("gate", help="publishing gate: may this artifact be published?")
+    gate.add_argument("--channel", default="all")
+    gate.add_argument("--plan-id", default=None)
+    gate.add_argument("--json", action="store_true", help=argparse.SUPPRESS)
+    gate.set_defaults(func=cmd_gate)
+
+    ops = subparsers.add_parser("ops", help="operational view: jobs, artifacts, uploads, blockers")
+    ops.add_argument("--channel", default="all")
+    ops.add_argument("--json", action="store_true", help=argparse.SUPPRESS)
+    ops.set_defaults(func=cmd_ops)
+
     status = subparsers.add_parser("status", help="production status per plan")
     status.add_argument("--channel", default="all")
     status.add_argument("--plan-id", default=None)
@@ -506,6 +543,8 @@ def build_parser() -> argparse.ArgumentParser:
     publish.add_argument("--channel", required=True)
     publish.add_argument("--plan-id", default=None)
     publish.add_argument("--execute", action="store_true")
+    publish.add_argument("--skip-gate", action="store_true",
+                         help="dry run only: report the gate verdict without enforcing it")
     publish.add_argument("--confirm-channel", default=None)
     publish.add_argument("--schedule", action="store_true")
     publish.add_argument("--publish-date", default=None)

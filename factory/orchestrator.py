@@ -7,7 +7,9 @@ from dataclasses import replace
 from pathlib import Path
 from typing import Any, Iterable
 
-from .config import BUILD_ROOT, ChannelSpec, load_channel_specs
+from .config import BUILD_ROOT, STATE_ROOT, ChannelSpec, load_channel_specs
+
+LOCK_ROOT = STATE_ROOT / "locks"
 from .content.models import Script
 from .content.script import build_english_script, build_hindi_script, load_plans_for, story_packet
 from .media.captions import build_srt
@@ -18,6 +20,16 @@ from .media.thumbnail import make_thumbnail, thumbnail_path
 from .media.tts import synthesize_script
 from .qa.validator import validate_episode
 from .state import ChannelState
+from .reliability import (
+    JobJournal,
+    JobLock,
+    LockBusy,
+    disk_usage_report,
+    job_id_for,
+    memory_report,
+    preflight,
+    production_manifest,
+)
 from .util import read_json, sha256_file, slugify
 
 
@@ -166,6 +178,48 @@ def render_episode(
     """
 
     selected = plan or find_plan(spec, plan_id)
+    selected_id = plan_identifier(selected)
+    job = JobJournal(job_id_for(spec.slug, selected_id))
+    lock = JobLock(LOCK_ROOT / f"{spec.slug}_{selected_id}.lock",
+                   job_id=job.job_id, ttl=3600.0)
+    job.transition("QUEUED", channel=spec.slug, plan_id=selected_id)
+    try:
+        lock.acquire()
+    except Exception:  # noqa: BLE001 - a lock failure must be reported, not swallowed
+        job.transition("FAILED", error="could not acquire the job lock")
+        raise
+    if lock.read() is not None and not lock._held:  # pragma: no cover - defensive
+        job.transition("FAILED", error="another job holds this channel and plan")
+    try:
+        return _render_tracked(
+            spec, selected, selected_id, job, lock,
+            force=force, only_scenes=only_scenes, demo=demo)
+    finally:
+        lock.release()
+
+
+def _render_tracked(
+    spec: ChannelSpec,
+    selected: dict[str, Any],
+    selected_id: str,
+    job: JobJournal,
+    lock: JobLock,
+    *,
+    force: bool,
+    only_scenes: list[int] | None,
+    demo: bool,
+) -> dict[str, Any]:
+    """The production run, with its state transitions recorded as it goes.
+
+    Split out of `render_episode` so the lock and the journal have exactly one owner and one exit
+    path: a failed render must still release the lock and leave a FAILED record behind.
+    """
+
+    job.transition("PREFLIGHT", disk=disk_usage_report(BUILD_ROOT), memory=memory_report())
+    report = preflight(channels=(spec.slug,))
+    if not report.ok:
+        job.transition("FAILED", error="preflight failed", failed=report.to_dict()["failed"])
+        raise RuntimeError("preflight failed: " + ", ".join(report.to_dict()["failed"]))
     # A plan can request the horizontal profile; the composition system, QA geometry
     # and duration bounds all follow from spec.format.
     requested = str(selected.get("format") or "").lower()
@@ -173,6 +227,7 @@ def render_episode(
         spec = replace(spec, format=requested)
     engine = resolve_engine(spec, selected)
     stage_result: dict[str, Any] = {}
+    job.transition("GENERATING", engine=engine)
     if engine == "stage":
         script, story, out_dir, stage_result = _render_stage(
             spec, selected, force=force, only_scenes=only_scenes)
@@ -190,6 +245,7 @@ def render_episode(
     if not timeline:
         raise RuntimeError(f"missing timeline for {video_path}")
 
+    job.transition("RENDERING", video=str(video_path))
     thumb_path = thumbnail_path(out_dir)
     thumb_result = make_thumbnail(
         spec,
@@ -205,6 +261,7 @@ def render_episode(
         out_dir / "captions.srt",
         story=story or read_json(out_dir / "story.json"),
     )
+    job.transition("VALIDATING")
     qc = validate_episode(
         spec,
         script,
@@ -234,6 +291,32 @@ def render_episode(
             "captions": srt_result,
         }
     )
+    job.transition("PACKAGING")
+    artifacts = {
+        "video": video_path,
+        "thumbnail": thumb_path,
+        "captions": out_dir / "captions.srt",
+        "qc_report": out_dir / "qc.json",
+        "timeline": out_dir / "timeline.json",
+    }
+    for optional in ("framing.json", "shot_plan.json", "story.json", "script.json"):
+        if (out_dir / optional).is_file():
+            artifacts[optional.replace(".json", "")] = out_dir / optional
+    manifest = production_manifest(
+        channel=spec.slug,
+        plan_id=selected_id,
+        engine=engine,
+        format=spec.format,
+        artifacts=artifacts,
+        qc=qc,
+        inputs={"plan_id": selected_id, "language": spec.language,
+                "engine_digest": engine_digest_for(engine)},
+        resources={"disk": disk_usage_report(BUILD_ROOT), "memory": memory_report()},
+        job={"id": job.job_id, "lock": str(lock.path)},
+    )
+    (out_dir / "manifest.json").write_text(
+        json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
+
     payload = {
         "channel": spec.slug,
         "plan_id": plan_identifier(selected),
@@ -257,6 +340,14 @@ def render_episode(
         "qc_report": str(out_dir / "qc.json"),
         "skipped_render": bool(timeline and video_path.is_file() and not force),
     }
+    payload["manifest_path"] = str(out_dir / "manifest.json")
+    payload["job_id"] = job.job_id
+    if qc["ok"]:
+        job.transition("READY_TO_PUBLISH", sha256=payload["sha256"],
+                       duration=qc["duration"], manifest=str(out_dir / "manifest.json"))
+    else:
+        job.transition("FAILED", error="qc failed",
+                       blockers=[c["name"] for c in qc["checks"] if not c["ok"]])
     if stage_result:
         payload.update({
             "scene_count": len(stage_result["scenes"]),
@@ -278,6 +369,16 @@ def render_channels(
     for spec in channels:
         results.append(render_episode(spec, plan_id=plan_id, force=force))
     return results
+
+
+def engine_digest_for(engine: str) -> str:
+    """Provenance for the manifest: which engine drew these frames."""
+
+    if engine == "stage":
+        from .media.landscape_stage import engine_digest
+
+        return engine_digest()
+    return f"{engine}:portrait"
 
 
 def load_specs() -> dict[str, ChannelSpec]:
