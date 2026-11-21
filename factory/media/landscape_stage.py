@@ -21,11 +21,13 @@ Shorts series bible is.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import shutil
 import subprocess
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -34,6 +36,7 @@ from PIL import Image, ImageDraw, ImageFont
 from ..config import BUILD_ROOT, FONTS_DIR, STATE_ROOT, ChannelSpec
 from ..content.models import Script, ScriptLine
 from ..content.script import slugify
+from ..util import atomic_write_json as write_json_atomic, sha256_file
 
 WIDTH, HEIGHT = 1920, 1080
 
@@ -42,6 +45,11 @@ WIDTH, HEIGHT = 1920, 1080
 BAND_TOP = 0.845
 BAND_BOTTOM = 0.955
 BAND_MARGIN = 0.12
+
+# Bump when the landscape art changes shape (environment palettes, layer geometry, foreground).
+# Cached scenes hash it, so a look change invalidates the cache instead of silently reusing frames
+# rendered with the previous art - the failure mode that makes a cache worse than no cache.
+ENVIRONMENT_SIGNATURE = "env-2024-11-t41"
 
 DEVANAGARI_FONT = "NotoSansDevanagari-Variable.ttf"
 LATIN_FONT = "Inter-Black.otf"
@@ -199,8 +207,19 @@ def build_script(spec: ChannelSpec, plan: Dict[str, Any]) -> Script:
     )
 
 
+def stage_story_id(spec: ChannelSpec, plan: Dict[str, Any]) -> str:
+    """The one identifier for a stage episode's build directory.
+
+    `orchestrator.episode_out_dir` and this module used to compute different names for the same
+    episode (`..._render-stage-<plan>` versus `..._<plan>`), so `status` reported twelve missing
+    scenes for an episode whose twelve scenes were on disk. One formula, used by both.
+    """
+
+    return f"{spec.slug}_{slugify(str(plan.get('id') or plan.get('title') or 'episode'))}"
+
+
 def build_story(spec: ChannelSpec, plan: Dict[str, Any], script: Script) -> Dict[str, Any]:
-    story_id = f"{spec.slug}_render-stage-{slugify(str(plan.get('id') or script.title))}"
+    story_id = stage_story_id(spec, plan)
     return {
         "story_id": story_id,
         "hash": f"stage:{plan.get('id')}",
@@ -263,6 +282,73 @@ def load_studio(out_dir: Path):
 # ---------------------------------------------------------------------------
 
 
+def scene_signature(scene: Dict[str, Any], fade_in: float, fade_out: float,
+                    stage_signature: str = "", audio_digest: str = "") -> str:
+    """Stable hash of everything that changes a scene's pixels or its audio.
+
+    Only what the renderer actually reads goes in: the artwork and framing inputs, the dialogue and
+    speaker (they decide the TTS take and the visemes) and the fades. Anything else - a title, a
+    plan-level note - must not force a re-render, and anything here must never be dropped, or a
+    changed scene would be silently reused from cache.
+    """
+
+    # Deny-list the render-only fields rather than allow-list the authored ones: the first version
+    # listed "pose" while the authored key is "chiku_pose"/"gappu_pose", so a pose change reused a
+    # scene drawn with the previous pose. A new scene key is now covered by default.
+    render_only = {"subtitle_png", "title_png", "story_id", "fade_in", "fade_out"}
+    payload = {
+        "scene": {key: value for key, value in scene.items() if key not in render_only},
+        "fade_in": round(float(fade_in), 4),
+        "fade_out": round(float(fade_out), 4),
+        "stage": stage_signature,
+        # The narration take, not just the line: visemes come from the audio envelope, so a fresh
+        # dub with identical text produces a different mouth track. Omitting it meant
+        # FACTORY_FRESH_AUDIO=1 could reuse scenes lip-synced to the previous take.
+        "audio": audio_digest,
+    }
+    blob = json.dumps(payload, sort_keys=True, ensure_ascii=False, default=str)
+    return hashlib.sha256(blob.encode("utf-8")).hexdigest()
+
+
+def _scene_state_path(video: Path) -> Path:
+    return video.with_suffix(".json")
+
+
+def scene_is_current(video: Path, signature: str) -> bool:
+    """A cached scene is reusable only if its recorded inputs still match and it decodes.
+
+    The state file is written *after* the encode returns, and the probe is a second gate, so an
+    interrupted render (a truncated MP4 with a matching state file) is never mistaken for a
+    finished one. This is what makes a resumed production safe rather than merely convenient.
+    """
+
+    state = _scene_state_path(video)
+    if not video.is_file() or video.stat().st_size < 10_000:
+        return False
+    try:
+        recorded = json.loads(state.read_text(encoding="utf-8"))
+    except Exception:
+        return False
+    if recorded.get("signature") != signature:
+        return False
+    return _ffprobe_duration(video) > 0.2
+
+
+def _record_scene_state(video: Path, signature: str, scene: Dict[str, Any],
+                        duration: float) -> None:
+    write_json_atomic(_scene_state_path(video), {
+        "signature": signature,
+        "scene": scene.get("scene_num"),
+        "speaker": scene.get("speaker"),
+        "duration": round(float(duration), 3),
+        "rendered_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+    })
+
+
+def _log(message: str) -> None:
+    print(message, file=sys.stderr)
+
+
 def _ffprobe_duration(path: Path) -> float:
     result = subprocess.run(
         ["ffprobe", "-v", "error", "-show_entries", "format=duration",
@@ -294,10 +380,19 @@ def _concat(scenes: List[Path], target: Path) -> Path:
                "-r", "30", "-fps_mode", "cfr",
                "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k",
                "-movflags", "+faststart", str(target)]
+    # Encode beside the destination and rename into place: a failed or interrupted join must never
+    # leave a half-written video.mp4 where a later run would accept it as finished.
+    # Keep the .mp4 extension: ffmpeg infers the muxer from it, and ".mp4.partial" has no container
+    # it can name, so the whole join failed with "Invalid argument" after every scene had rendered.
+    partial = target.with_name(target.name.replace(".mp4", ".partial.mp4"))
+    partial.unlink(missing_ok=True)
+    command[-1] = str(partial)
     result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     listing.unlink(missing_ok=True)
-    if result.returncode != 0:
+    if result.returncode != 0 or not partial.is_file():
+        partial.unlink(missing_ok=True)
         raise RuntimeError(f"landscape concat failed: {result.stderr[-1500:]}")
+    os.replace(partial, target)
     return target
 
 
@@ -343,25 +438,54 @@ def render_stage_episode(spec: ChannelSpec, plan: Dict[str, Any], *, force: bool
 
     scene_paths: List[Path] = []
     rows: List[Dict[str, Any]] = []
+    rendered = 0
+    reused = 0
+    stage_signature = hashlib.sha256(
+        f"{WIDTH}x{HEIGHT}|{stage.ground_y}|{stage.eye_y}|"
+        f"{','.join(f'{slot.name}:{slot.x}' for slot in stage.slots.values())}|"
+        f"{ENVIRONMENT_SIGNATURE}|{kicker}".encode("utf-8")
+    ).hexdigest()[:16]
     for index, scene in enumerate(story["scenes"]):
         fade_in, fade_out = transitions[index] if index < len(transitions) else (0.0, 0.0)
+        target = episode_dir / f"scene_{scene['scene_num']:03d}.mp4"
         audio = tts.generate_dialogue(
             text=scene["dialogue"], speaker=scene["speaker"],
             tag=f"{story['story_id']}_s{scene['scene_num']}")
-        target = episode_dir / f"scene_{scene['scene_num']:03d}.mp4"
+        signature = scene_signature(
+            scene, fade_in, fade_out, stage_signature=stage_signature,
+            audio_digest=sha256_file(Path(audio["audio_path"]))[:16])
+        if not force and scene_is_current(target, signature):
+            cached = json.loads(_scene_state_path(target).read_text(encoding="utf-8"))
+            scene_paths.append(target)
+            rows.append({"scene": scene["scene_num"], "speaker": scene["speaker"],
+                         "dialogue": scene["dialogue"],
+                         "duration": round(float(cached.get("duration") or 0.0), 3),
+                         "cached": True})
+            reused += 1
+            continue
+
         renderer.render_scene(
             dict(scene, story_id=story["story_id"], fade_in=fade_in, fade_out=fade_out),
             audio, target, sfx_delay_ms=350)
+        duration = _ffprobe_duration(target)
+        _record_scene_state(target, signature, scene, duration)
         scene_paths.append(target)
         rows.append({"scene": scene["scene_num"], "speaker": scene["speaker"],
-                     "dialogue": scene["dialogue"],
-                     "duration": round(_ffprobe_duration(target), 3)})
+                     "dialogue": scene["dialogue"], "duration": round(duration, 3),
+                     "cached": False})
+        rendered += 1
 
     video_path = out_dir / "video.mp4"
-    if len(scene_paths) == 1:
-        shutil.copy2(scene_paths[0], video_path)
-    else:
-        _concat(scene_paths, video_path)
+    assemble = force or rendered > 0 or not video_path.is_file()
+    if assemble:
+        if len(scene_paths) == 1:
+            partial = video_path.with_name(video_path.name.replace(".mp4", ".partial.mp4"))
+            shutil.copy2(scene_paths[0], partial)
+            os.replace(partial, video_path)
+        else:
+            _concat(scene_paths, video_path)
+    elif video_path.is_file():
+        _log(f"[Stage] keeping existing {video_path.name}: all {len(scene_paths)} scenes are current")
 
     story["created_at"] = story.get("created_at") or ""
     (out_dir / "story.json").write_text(json.dumps(story, ensure_ascii=False, indent=2),
@@ -415,4 +539,7 @@ def render_stage_episode(spec: ChannelSpec, plan: Dict[str, Any], *, force: bool
         "video_path": video_path,
         "duration": round(_ffprobe_duration(video_path), 3),
         "scenes": rows,
+        "rendered_scenes": rendered,
+        "reused_scenes": reused,
+        "skipped_render": rendered == 0 and not force,
     }

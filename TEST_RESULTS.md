@@ -617,6 +617,68 @@ the measured band rectangle started 38 px too high).
   routes Hindi episodes through the Shorts pipeline. Landscape character episodes are produced by
   `factory/cli render-stage`, which runs the same QC gate.
 
+## 3t. One orchestrator for every engine (T46) - measured
+
+`render-stage` was a parallel pipeline: its own thumbnail call, its own subtitle build, its own QC
+call, its own state handling, and its own idea of where an episode's build directory lives. T46
+collapses that into `orchestrator.render_episode`, which resolves the engine from the plan and then
+does the same post-render work for every format.
+
+    engine = resolve_engine(spec, plan)   # "stage" | "shorts" | "cards"
+
+| Engine | Profile | Renderer |
+| --- | --- | --- |
+| `shorts` | 1080x1920 9:16 | character engine (series-bible / topic-bank plans) |
+| `stage` | 1920x1080 16:9 | character engine on the landscape stage |
+| `cards` | 1920x1080 16:9 | editorial card renderer (diagrams, no cast) |
+
+### Idempotency, measured on the real 12-scene episode
+
+| Run | Command | Rendered scenes | Reused | Wall | sha256 |
+| --- | --- | --- | --- | --- | --- |
+| full | `render --format long` | 12 | 0 | 250 s | `363df065fea2b03ed406d8ce8dba9a0088ee8c5426152e7c01a52acbd649ba0a` |
+| re-run | `render --format long` | 0 | 12 | 16 s | `363df065...` (identical) |
+| recovery | `resume` after deleting `video.mp4`, `qc.json` and scene 7 | 1 | 11 | 59 s | `363df065...` (identical) |
+
+The recovery case is the one that matters: one deleted scene and a missing output were restored in
+59 s instead of 250 s, and the reassembled episode is byte-identical to the uninterrupted render.
+`status` reported `resume (1 missing, 0 stale)` before the run and `done` after it.
+
+An earlier accident demonstrates the atomic-finalization property independently: a failed join left
+the previously verified `video.mp4` untouched and intact, and the next run reused it.
+
+### Defects this work found
+
+1. **Two formulas for one build directory.** `orchestrator.episode_out_dir` produced
+   `<slug>_<plan>` while the stage module produced `<slug>_render-stage-<plan>`, so `status`
+   reported twelve missing scenes for an episode whose twelve scenes were on disk. One function
+   (`stage_story_id`) now serves both.
+2. **`status` read the wrong scene key** (`scene["scene"]` when the authored key is `"n"`), which
+   is what made the count look like twelve missing scenes even after the paths agreed. It now asks
+   `plan_scenes`, which owns the schema.
+3. **The cache signature allow-list missed the poses** (`"pose"` listed, `chiku_pose`/`gappu_pose`
+   authored), so changing a pose would have reused a scene drawn with the previous pose. It is a
+   deny-list of render-only fields now, so a new scene key is covered by default.
+4. **The narration take was not part of the signature.** Visemes come from the audio envelope, so a
+   fresh dub with identical text changes the mouths; `FACTORY_FRESH_AUDIO=1` could have reused
+   scenes lip-synced to the previous take. The audio file hash is now in the signature.
+5. **The atomic partial file had no usable extension.** `.mp4.partial` gives ffmpeg no muxer to
+   infer, so the join failed with "Invalid argument" *after* every scene had rendered. `.partial.mp4`
+   keeps the container and the rename.
+6. **Inferring the engine from a `scenes` key mis-routed a Short.** The existing 9:16 plans carry a
+   `scenes` key too; a stage plan now has to say so.
+
+### Honest limits
+
+* The `--json` payload of a stage render is preceded by the studio's `[Render]` progress lines on
+  stdout, because the renderer prints there. A JSON consumer must take the last array in the stream.
+  This predates T46 and affects the Shorts pipeline the same way.
+* The portrait pipeline is unchanged, not merely similar: `0fac3ab3...` and 963/963 frames
+  identical to the pre-T46 render.
+* Landscape episodes are now *reachable* through the factory orchestrator, but the publish
+  orchestrator still only publishes what `publish` is told about; no landscape episode has been
+  uploaded and none should be until the owner decides the channel strategy.
+
 ## 4. Not yet executed
 
 | Test | Status |

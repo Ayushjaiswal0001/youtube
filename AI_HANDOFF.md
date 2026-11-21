@@ -50,6 +50,34 @@ They are disjoint, so there is no conflict either way. Recommended order: **#2 f
 (it fixes the runner install that T12 needs), then **#3**. Both stay unmerged until the
 owner approves.
 
+### Orchestration, idempotency and resume (T46)
+
+`factory.cli` verbs, and what each one is for:
+
+* `render --channel X --plan-id Y [--format shorts|long] [--formats a,b] [--scenes 1,2] [--demo]`
+  - one plan, resolved to its engine by `resolve_engine`; `--formats` renders one plan in both.
+* `status` - per plan: engine, artifact, QC verdict, and the scene cache census.
+* `resume` - re-render only what is missing or stale; never touch a verified artifact.
+* `validate` - re-run QC against an existing artifact without rendering.
+* `render-stage` - kept as an alias for a `stage` plan; it refuses any other engine.
+
+Traps:
+
+* **One build directory.** `orchestrator.episode_out_dir()` and
+  `landscape_stage.stage_story_id()` must agree; they did not, and `status` looked in a directory
+  nobody wrote to. Never reintroduce a second formula.
+* **Scene keys come from `plan_scenes`.** The authored key is `n`; `plan_scenes` normalises it to
+  `scene_num` / `dialogue`. Reading the authored dict directly gets `None`.
+* **The scene signature is a deny-list** of render-only fields, plus stage geometry, fades and the
+  *audio file hash*. Adding a scene key is automatically covered; adding a render-only field means
+  adding it to `render_only`.
+* **A cached scene is only reused if it probes.** State alone is not enough: an MP4 truncated by a
+  kill can still carry its state file.
+* **Atomic joins** write `<name>.partial.mp4` and rename. `.mp4.partial` breaks ffmpeg's muxer
+  inference.
+* `_log` writes to stderr, but the studio renderer prints `[Render] ...` to stdout, so
+  `render --json` output has log lines before the payload.
+
 ### Landscape character stage (T41)
 
 `python -m factory.cli render-stage --channel natkhat-toons --plan-id X [--scenes 1,2] [--demo]`

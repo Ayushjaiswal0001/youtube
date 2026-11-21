@@ -136,6 +136,14 @@ Status markers: `[ ]` todo, `[~]` in progress, `[x]` done.
   `python -m factory.cli render-stage`. Same animation engine, landscape stage: 1920x1080, 30/1,
   64.5 s episode with QC 24/24, 0 cropped required subjects, 0 face/band collisions, portrait
   frame-identical. See TEST_RESULTS 3s.
+- [x] **T46. Unify the production orchestrator.** `orchestrator.render_episode` dispatches on
+  `resolve_engine` (stage / shorts / cards) and runs one post-render path; per-scene signatures make
+  re-runs no-ops and `resume` restores a deleted scene in 59 s with a byte-identical episode; joins
+  and single-scene copies are atomic. New CLI: `status`, `resume`, `validate`, `render --format`.
+  Portrait frame-identical. See TEST_RESULTS 3t.
+- [ ] **T47. Story continuity intelligence.** Episode-level continuity, relationship state,
+  previous-episode references and duplicate detection are not implemented; the series bible is a
+  topic bank with series positions, not a continuity engine.
 - [ ] **T42. Landscape continuity and narrative camera intelligence.** Landscape camera vocabulary
   exists (`wide_establishing`, `tracking_left/right`, `medium_*`, `reaction_*`, `two_shot_hold`) and
   escalation is logged, but eyeline-matching across a cut and shot/reverse-shot alternation are not

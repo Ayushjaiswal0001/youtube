@@ -187,3 +187,18 @@ or reaction-shot library.
 | QC coverage for landscape | VERIFIED | 24 checks including frame_rate, av_sync, frozen_frames, subtitle_collision, prop_visibility |
 | Portrait regression safety | VERIFIED | frame-identical (963/963) to the pre-T41 render |
 | Wired into the publish orchestrator | NOT IMPLEMENTED | `render-stage` is a separate command |
+
+## Production orchestration (T46)
+
+| Item | Status | Evidence |
+| --- | --- | --- |
+| One pipeline for 9:16, 16:9 stage and 16:9 cards | VERIFIED | `resolve_engine` + one post-render path; three engines resolved correctly on real plans |
+| Shared thumbnails/subtitles/QC/state | VERIFIED | `render-stage` is now an alias; no duplicate post-render code |
+| Idempotent re-run | VERIFIED | second run: 0 rendered, 12 reused, 16 s, identical sha256 |
+| Interrupted-render recovery | VERIFIED | deleted scene + output restored by `resume`: 1 rendered, 11 reused, identical sha256 |
+| Atomic artifact finalization | VERIFIED | failed join left the previous verified video intact; partial file removed |
+| Scene-level state with input signatures | VERIFIED | 34 orchestration tests; signature covers poses, fades, stage, audio take |
+| Reproducibility across a cache invalidation | VERIFIED | full re-render after the signature change reproduced the same sha256 |
+| Portrait regression | VERIFIED | `0fac3ab3...`, 963/963 frames identical |
+| Disk-space / memory guards, locking, retry policy | NOT IMPLEMENTED | T49 |
+| Landscape episodes in the publish path | NOT IMPLEMENTED | `publish` untouched |

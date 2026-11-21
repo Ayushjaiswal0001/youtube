@@ -85,7 +85,12 @@ class PlanTests(unittest.TestCase):
         self.assertEqual([line.text for line in script.lines],
                          [scene["dialogue"] for scene in story["scenes"]])
         self.assertEqual(script.format, "long")
-        self.assertIn("render-stage", story["story_id"])
+        # The build directory must be the one the orchestrator computes, or `status` and `resume`
+        # look in a different place than the renderer wrote to. The earlier draft of this test
+        # asserted a "render-stage" prefix, which is exactly the divergence T46 removed.
+        from factory.orchestrator import episode_out_dir
+
+        self.assertEqual(str(episode_out_dir(SPEC, plan).name), story["story_id"])
         self.assertEqual(story["total_scenes"], 2)
 
 
