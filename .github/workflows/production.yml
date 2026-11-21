@@ -1,0 +1,72 @@
+name: production (manual)
+
+# The manual interface: pick a channel, a mode and (optionally) a plan. Rendering, validation and
+# upload are separate inputs, so "produce a video" and "publish a video" are different decisions.
+#
+# UPLOAD_ENABLED and SCHEDULED_PUBLISHING_ENABLED stay false unless this run sets `upload`, and even
+# then the workflow's publish step is additionally gated on the publishing gate passing.
+
+on:
+  workflow_dispatch:
+    inputs:
+      channel:
+        description: Channel slug
+        required: true
+        type: choice
+        options: [nexus-node, academic-biohacker, natkhat-toons]
+      mode:
+        description: What to do
+        required: true
+        type: choice
+        options: [render+validate, render, validate]
+        default: render+validate
+      plan_id:
+        description: Plan id (empty = plan the next episode)
+        required: false
+        type: string
+        default: ""
+      format:
+        description: Format override (empty = the channel's own)
+        required: false
+        type: choice
+        options: ["", shorts, long]
+        default: ""
+      upload:
+        description: Upload after QC and the publishing gate both pass (private)
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-${{ inputs.channel }}
+  cancel-in-progress: false
+
+jobs:
+  resolve:
+    runs-on: ubuntu-latest
+    outputs:
+      secret_prefix: ${{ steps.map.outputs.prefix }}
+    steps:
+      - id: map
+        run: |
+          case "${{ inputs.channel }}" in
+            nexus-node) PREFIX=NEXUS_NODE ;;
+            academic-biohacker) PREFIX=ACADEMIC_BIOHACKER ;;
+            natkhat-toons) PREFIX=NATKHAT_TOONS ;;
+            *) echo "::error::unknown channel"; exit 1 ;;
+          esac
+          echo "prefix=${PREFIX}" >> "$GITHUB_OUTPUT"
+
+  produce:
+    needs: resolve
+    uses: ./.github/workflows/produce.yml
+    with:
+      channel: ${{ inputs.channel }}
+      secret_prefix: ${{ needs.resolve.outputs.secret_prefix }}
+      mode: ${{ inputs.mode }}
+      plan_id: ${{ inputs.plan_id }}
+      format: ${{ inputs.format }}
+      upload: ${{ inputs.upload }}

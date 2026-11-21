@@ -79,3 +79,27 @@ Only the 2-minute case has actually been rendered end to end. The others are ari
 from the measured frame rate and **must be confirmed by real renders** before any daily
 target is claimed. Disk per 2-minute episode: 7.6 MB video + 20.6 MB bed + ~3 MB audio;
 a 10-minute episode projects to ~40 MB of artifacts.
+
+## T49 addendum: what the runner actually has to do
+
+Measured locally on the i5-10310U: a 64.5 s landscape episode takes 250-278 s of wall time
+(1935 frames, ~7.5 fps, ~4.2x real time); a 32.1 s portrait Short with cached scenes takes 6 s and
+15 s end-to-end including QC. A GitHub-hosted `ubuntu-latest` runner is typically 1.5-2.5x slower
+than this machine **on this workload** - an extrapolation, clearly labelled as such.
+
+| Job | Local wall | Estimated runner wall | Fits `timeout-minutes: 60`? |
+| --- | --- | --- | --- |
+| 32 s Short, warm scene cache | 15 s | 25-40 s | yes, comfortably |
+| 32 s Short, cold render | ~150 s | 250-600 s | yes |
+| 64.5 s landscape episode | 278 s | 420-700 s | yes |
+| 5-minute landscape episode | ~1 250 s (estimated) | ~2 000-3 100 s | yes, but near the limit |
+| 10-minute landscape episode | ~2 500 s (estimated) | ~4 000-6 000 s | **no** - exceeds 60 min with QC and packaging |
+
+The 5- and 10-minute rows are arithmetic extrapolations from the measured 7.5 fps, not measurements;
+T50's benchmark was never run. What follows from them: the daily Shorts are safe on a hosted runner, a
+~1-minute landscape episode is probably safe, and a 10-minute long-form needs a larger runner or a
+chunked render (scene rendering is already resumable scene-by-scene, which is the lever to pull).
+
+Storage: a 64.5 s 1080p episode is ~9 MB, its scenes ~1.3 GB, and the artifact retention is 14 days.
+GitHub artifact storage and cache for this repository are far inside the free allowance; the binding
+constraint is runner minutes, not bytes.

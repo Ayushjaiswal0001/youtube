@@ -79,3 +79,23 @@ repository output — no acquire timeout, no step limit. The fix bounds everythi
 | OAuth app publishing status (Testing vs Production) | **Unknown** — Testing-mode refresh tokens expire after 7 days; must be confirmed by the owner |
 | Third-party workers / paid infrastructure | **None used.** No service is activated |
 | Repository visibility | Public. Any accidental secret commit would be permanent, hence the ignore rules and the dependency/secret test guard |
+
+## T49 security review (2026-11-21)
+
+Verified, not assumed:
+
+| Check | Result |
+| --- | --- |
+| Authorized GitHub identity | `Ayushjaiswal0001` (`gh api user`), ambient `GITHUB_TOKEN` stripped for every call |
+| Authorized remote | `https://github.com/Ayushjaiswal0001/youtube.git` (only remote) |
+| Tracked credential files | none (`git ls-files` matches nothing for `ytcred*`, `secret*`, `.env*`) |
+| .gitignore coverage | `.env`, `.env.*`, `secrets/`, `.secrets/`, `.state/`, `ytcredentials.txt`, `ytcredetials.txt` (the misspelling is also covered) |
+| Repository secrets | `total_count: 0` - no `YT_*` secret is configured |
+| Workflow permissions | `contents: read` only in `ci.yml`, `produce.yml`, `production.yml` |
+| Secret exposure in logs | credentials are passed through `::add-mask::` and written to `$GITHUB_ENV`, never echoed |
+| Pull-request code | `ci.yml` runs tests only; it cannot reach the upload path or any secret |
+| Scheduled publishing | all three channel crons are `disabled_manually`; nothing in this work enabled one |
+
+Not verified (needs the owner): whether the OAuth app is still in Testing mode, and whether any
+credential was ever committed historically. A history scan (`git log -S 'refresh_token'`) is not
+conclusive evidence of exposure, and rotating credentials is explicitly out of scope for this work.

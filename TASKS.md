@@ -141,6 +141,15 @@ Status markers: `[ ]` todo, `[~]` in progress, `[x]` done.
   re-runs no-ops and `resume` restores a deleted scene in 59 s with a byte-identical episode; joins
   and single-scene copies are atomic. New CLI: `status`, `resume`, `validate`, `render --format`.
   Portrait frame-identical. See TEST_RESULTS 3t.
+- [x] **T49. Production reliability.** `factory/reliability.py` (preflight, locks with stale
+  detection, 11-state journal, retry classification, process timeouts, safe cleanup, media integrity,
+  manifests), `factory/qa/publish_gate.py` (24 checks, enforced inside `publish_episode`),
+  `factory/ops.py` (`preflight`, `gate`, `ops`). 582 tests. See TEST_RESULTS 3v.
+- [ ] **T49b. Cloud execution.** Workflows are written and YAML-valid but cannot be dispatched:
+  `workflow_dispatch` needs the workflow on the default branch, and PR #2/#3 are unmerged. No runner
+  has produced a video.
+- [ ] **T49c. Upload test campaign.** The uploader has mocked-response tests; no real upload has been
+  attempted since the original three manual ones, and 0 repository secrets exist.
 - [ ] **T47. Story continuity intelligence.** Episode-level continuity, relationship state,
   previous-episode references and duplicate detection are not implemented; the series bible is a
   topic bank with series positions, not a continuity engine.

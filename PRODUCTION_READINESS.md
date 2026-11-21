@@ -218,3 +218,23 @@ or reaction-shot library.
 | Cuts inside a line | NOT IMPLEMENTED | one camera per scene |
 | Three-character scenes | NOT IMPLEMENTED | no three-shot vocabulary |
 
+## Cloud execution and publishing (T49)
+
+| Item | Status | Evidence |
+| --- | --- | --- |
+| Preflight (disk, RAM, ffmpeg, encoders, fonts, config) | VERIFIED | real run on this machine; unit tests |
+| Duplicate-job prevention | VERIFIED | lock exclusivity, stale takeover, tested |
+| Job state machine with recorded transitions | VERIFIED | journal on a real render ends READY_TO_PUBLISH |
+| Retry classification + bounded backoff | VERIFIED | 8 tests; permanent failures not retried |
+| Process timeout with group kill | VERIFIED | test kills a 30 s child at 0.5 s |
+| Safe cleanup (never deletes an artifact) | VERIFIED | unit test on a directory with a finished video |
+| Media integrity before cache reuse | VERIFIED | truncated MP4 rejected, real MP4 accepted |
+| Production manifest with hashes | VERIFIED | real artifact manifest, 8 entries |
+| Publishing gate (24 checks) | VERIFIED | 24/24 on a real artifact; 18 blocking tests |
+| Gate enforced for real uploads | VERIFIED | `publish_episode` raises `PermissionError` on a failing gate |
+| Operational status view | VERIFIED | `factory.cli ops` on real state |
+| GitHub Actions workflows | IMPLEMENTED, YAML-valid | `produce.yml` (19 steps), `production.yml` |
+| Cloud runner execution | BLOCKED | `HTTP 404: not found on the default branch` |
+| Real YouTube upload | BLOCKED | 0 repository secrets; OAuth status unknown |
+| Scheduled production | DISABLED | owner disabled all three crons; nothing re-enabled |
+| Notifications | NOT IMPLEMENTED | no provider configured in the repo |

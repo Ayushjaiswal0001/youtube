@@ -755,6 +755,32 @@ confirm the original defect is gone (Gappu is centred and large while his line p
   camera has no three-shot vocabulary and the planner's listener model assumes a pair.
 * The director chooses among the camera styles that exist. It does not invent new moves.
 
+## 3v. Reliability, publishing gate and cloud readiness (T49) - measured
+
+| Property | Result |
+| --- | --- |
+| Tests | 582 (63 new: 38 reliability, 25 publishing gate) |
+| Golden frames | 78 frames, 0 changed, 0 new |
+| Gate on a real 32 s portrait artifact | 22/23 before packaging, 23/24 after, **24/24** once the manifest existed |
+| Job journal on that run | ends `READY_TO_PUBLISH` with the video sha256 and duration |
+| Duplicate run | second `JobLock.acquire()` returns False; the context manager raises `LockBusy` |
+| Stale lock | a lock with a dead pid is detected and taken over |
+| Kill on timeout | `run_process(..., timeout=0.5)` on a 30 s child raises `TimeoutError` |
+| Resume | (T46) 1 scene re-rendered, 11 reused, byte-identical episode in 59 s |
+| Cloud runner | **not executed** - `HTTP 404: workflow production.yml not found on the default branch` |
+
+Defects found while building this:
+
+1. **An undeclared `psutil` import.** The dependency test caught it; rather than add a dependency,
+   available RAM now comes from `/proc/meminfo` (Linux) or `GlobalMemoryStatusEx` (Windows).
+2. **The gate crashed on a file with no video stream** (`video_streams[0]` on an empty list) instead
+   of returning a verdict.
+3. **The gate looked for a check name the renderer never emits** (`black_frames`), which made a
+   missing check read as a blocker.
+4. **The state machine refused a legal resumed path** (`PREFLIGHT -> RENDERING`); the skip edges are
+   now part of the table rather than an exception in the caller.
+5. **A manifest step in the workflow contained a dead Python block** that did nothing; removed.
+
 ## 4. Not yet executed
 
 | Test | Status |
