@@ -1,0 +1,157 @@
+{
+  "batch_id": "longform-natkhat-toons-01",
+  "created_at": "2026-11-21T00:00:00+00:00",
+  "format": "long",
+  "channels": {
+    "natkhat-toons": [
+      {
+        "id": "natkhat-haveli-stage-e1",
+        "format": "long",
+        "engine": "stage",
+        "series": "haveli",
+        "series_title": "हवेली की पीतल की चाबी",
+        "episode": 1,
+        "slot": "pm",
+        "kicker": "नटखट टून्स",
+        "title": "हवेली की पीतल की चाबी",
+        "topic": "a brass key found on a haunted haveli window sill",
+        "hook": "एक पुरानी हवेली, एक टूटी खिड़की, और चीकू के हाथ में एक पीतल की चाबी।",
+        "moral": "जल्दबाज़ी में डरने से बेहतर है आराम से देखना।",
+        "tags": ["natkhat toons", "hindi cartoon", "chiku gappu", "haveli", "kids story"],
+        "scenes": [
+          {
+            "n": 1,
+            "speaker": "narrator",
+            "line": "आधी रात को चीकू और गप्पू पुरानी हवेली के दरवाज़े पर खड़े थे।",
+            "chiku_pose": "excited_jump",
+            "gappu_pose": "observing",
+            "camera": "wide_establishing",
+            "bg": "haunted_haveli",
+            "sfx": "whoosh"
+          },
+          {
+            "n": 2,
+            "speaker": "chiku",
+            "line": "गप्पू! आज मैं इस हवेली का भूत पकड़ कर दिखाऊँगा।",
+            "chiku_pose": "boast_proud",
+            "gappu_pose": "skeptical_eyebrow",
+            "camera": "two_shot",
+            "bg": "haunted_haveli",
+            "sfx": "boing"
+          },
+          {
+            "n": 3,
+            "speaker": "gappu",
+            "line": "यह टूटी खिड़की की सीटी है। डरने से पहले देख तो लो।",
+            "chiku_pose": "shocked_freeze",
+            "gappu_pose": "observing",
+            "camera": "medium_gappu",
+            "bg": "haunted_haveli",
+            "sfx": "twinkle"
+          },
+          {
+            "n": 4,
+            "speaker": "chiku",
+            "line": "अरे! खिड़की की सील पर कुछ चमक रहा है।",
+            "chiku_pose": "hands_on_hips",
+            "gappu_pose": "observing",
+            "camera": "close_up_chiku",
+            "bg": "haunted_haveli",
+            "sfx": "twinkle"
+          },
+          {
+            "n": 5,
+            "speaker": "narrator",
+            "line": "तभी चीकू को पीतल की एक पुरानी चाबी मिली।",
+            "chiku_pose": "embarrassed_smile",
+            "gappu_pose": "observing",
+            "camera": "two_shot",
+            "bg": "haunted_haveli",
+            "sfx": "pop",
+            "prop": "brass_key",
+            "prop_holder": "chiku",
+            "prop_side": "right"
+          },
+          {
+            "n": 6,
+            "speaker": "gappu",
+            "line": "यह चाबी तो हवेली के ताले की है। मुझे दो, मैं देखता हूँ।",
+            "chiku_pose": "observing",
+            "gappu_pose": "laughing_point",
+            "camera": "two_shot",
+            "bg": "haunted_haveli",
+            "sfx": "success_ding",
+            "prop": "brass_key",
+            "prop_holder": "chiku",
+            "prop_side": "right",
+            "prop_handoff_to": "gappu",
+            "prop_handoff_side": "left",
+            "prop_handoff_at": 0.55,
+            "prop_handoff_duration": 0.6,
+            "interaction": "hand_off"
+          },
+          {
+            "n": 7,
+            "speaker": "chiku",
+            "line": "देखा? मैंने कहा था, हवेली में कुछ तो है।",
+            "chiku_pose": "boast_proud",
+            "gappu_pose": "satisfied_nod",
+            "camera": "two_shot_zoom",
+            "bg": "haunted_haveli",
+            "sfx": "boing"
+          },
+          {
+            "n": 8,
+            "speaker": "gappu",
+            "line": "चाबी है, भूत नहीं। चलो दरवाज़ा खोलें।",
+            "chiku_pose": "observing",
+            "gappu_pose": "hands_on_hips",
+            "camera": "medium_gappu",
+            "bg": "haunted_haveli",
+            "sfx": "whoosh"
+          },
+          {
+            "n": 9,
+            "speaker": "narrator",
+            "line": "दरवाज़ा धीरे से खुला, और अंदर ठंडी हवा निकली।",
+            "chiku_pose": "shocked_freeze",
+            "gappu_pose": "observing",
+            "camera": "wide_establishing",
+            "bg": "haunted_haveli",
+            "sfx": "whoosh"
+          },
+          {
+            "n": 10,
+            "speaker": "chiku",
+            "line": "गप्पू… तुम पहले जाओगे या मैं?",
+            "chiku_pose": "embarrassed_smile",
+            "gappu_pose": "skeptical_eyebrow",
+            "camera": "two_shot",
+            "bg": "haunted_haveli",
+            "sfx": "pop"
+          },
+          {
+            "n": 11,
+            "speaker": "gappu",
+            "line": "तुमने भूत पकड़ने की बात कही थी, तुम आगे जाओ।",
+            "chiku_pose": "facepalm",
+            "gappu_pose": "satisfied_nod",
+            "camera": "medium_chiku",
+            "bg": "haunted_haveli",
+            "sfx": "success_ding"
+          },
+          {
+            "n": 12,
+            "speaker": "narrator",
+            "line": "अगली बार: चाबी कौन सा दरवाज़ा खोलेगी? जानने के लिए जुड़े रहिए।",
+            "chiku_pose": "excited_jump",
+            "gappu_pose": "observing",
+            "camera": "wide_finish",
+            "bg": "haunted_haveli",
+            "sfx": "pop"
+          }
+        ]
+      }
+    ]
+  }
+}

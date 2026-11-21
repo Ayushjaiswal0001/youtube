@@ -50,8 +50,26 @@ def spring_overshoot(t: float, overshoot: float = 1.25) -> float:
 # --- Viseme Mouth States for Lip-Sync ---
 
 class Viseme:
+    """Mouth-shape vocabulary shared by every rig.
+
+    CLOSED    bilabials M/B/P and silence
+    NEUTRAL   rest / unreleased consonants
+    SMILE     default happy rest pose
+    WIDE      E / I — spread lips, teeth showing
+    TEETH     F / V and sibilants — upper teeth on the lower lip
+    TONGUE    L / D / T / N — tongue tip visible
+    OPEN_SMALL schwa and short vowels
+    OPEN_WIDE  A / AA — jaw drop
+    ROUND      O / U
+    SURPRISED  exaggerated open, used by acting poses
+    """
+
     CLOSED = "closed"
+    NEUTRAL = "neutral"
     SMILE = "smile"
+    WIDE = "wide"
+    TEETH = "teeth"
+    TONGUE = "tongue"
     OPEN_SMALL = "open_small"
     OPEN_WIDE = "open_wide"
     ROUND = "round"

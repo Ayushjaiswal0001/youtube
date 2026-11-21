@@ -1,0 +1,350 @@
+{
+  "schema_version": 1,
+  "id": "chiku",
+  "display_name": "Chiku",
+  "archetype": "monkey",
+  "voice": "chiku",
+  "anchor": {
+    "x": 380.0,
+    "y": 1450.0,
+    "scale": 1.35,
+    "facing": 1.0
+  },
+  "features": [
+    "tail",
+    "hair_tuft",
+    "vest"
+  ],
+  "palette": {
+    "fur": [
+      0.88,
+      0.54,
+      0.24,
+      1.0
+    ],
+    "fur_dark": [
+      0.75,
+      0.42,
+      0.16,
+      1.0
+    ],
+    "muzzle": [
+      0.99,
+      0.85,
+      0.71,
+      1.0
+    ],
+    "inner_ear": [
+      0.96,
+      0.75,
+      0.65,
+      1.0
+    ],
+    "vest": [
+      0.84,
+      0.19,
+      0.19,
+      1.0
+    ],
+    "vest_trim": [
+      0.98,
+      0.8,
+      0.2,
+      1.0
+    ],
+    "eye_white": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "pupil": [
+      0.12,
+      0.1,
+      0.08,
+      1.0
+    ],
+    "nose": [
+      0.2,
+      0.12,
+      0.08,
+      1.0
+    ],
+    "shadow": [
+      0.1,
+      0.1,
+      0.15,
+      0.25
+    ],
+    "outline": [
+      0.25,
+      0.15,
+      0.08,
+      1.0
+    ]
+  },
+  "proportions": {
+    "head_center_y": -15.0,
+    "head_rx": 72.0,
+    "head_ry": 68.0,
+    "eye_x": 24.0,
+    "eye_y": -28.0,
+    "eye_rx": 17.0,
+    "eye_ry": 22.0,
+    "pupil_rx": 10.0,
+    "pupil_ry": 12.0,
+    "brow_y": -48.0,
+    "brow_rx": 14.0,
+    "brow_ry": 4.0,
+    "muzzle_rx": 52.0,
+    "muzzle_ry": 36.0,
+    "muzzle_y": 12.0,
+    "nose_y": -8.0,
+    "nose_rx": 12.0,
+    "nose_ry": 8.0,
+    "ear_x": 75.0,
+    "ear_y": -5.0,
+    "ear_rx": 26.0,
+    "ear_ry": 32.0,
+    "ear_inner_rx": 16.0,
+    "ear_inner_ry": 20.0,
+    "torso_y": -220.0,
+    "torso_rx": 68.0,
+    "torso_ry": 85.0,
+    "arm_attach_x": 50.0,
+    "arm_attach_y": -35.0,
+    "arm_len": 75.0,
+    "arm_r": 15.0,
+    "leg_attach_x": 35.0,
+    "leg_attach_y": -90.0,
+    "leg_len": 90.0,
+    "leg_r": 16.0,
+    "shadow_rx": 95.0,
+    "shadow_ry": 24.0,
+    "head_joint_y": -170.0,
+    "torso_draw_offset": 110.0,
+    "arm_shift": 25.0,
+    "hand_rx": 18.0,
+    "hand_ry": 16.0,
+    "foot_rx": 26.0,
+    "foot_ry": 15.0,
+    "head_draw_y": -95.0,
+    "brow_ctrl_x": 5.0,
+    "brow_ctrl_y": 4.0,
+    "brow_anchor_x": 24.0
+  },
+  "timing": {
+    "blink_period": 3.2,
+    "blink_duration": 0.15,
+    "blink_phase": 0.0,
+    "breath_rate": 3.5,
+    "breath_phase": 0.0,
+    "breath_amplitude": 4.0,
+    "sway_rate": 1.5,
+    "sway_amplitude": 0.03,
+    "tail_rate": 4.0,
+    "tail_amplitude": 0.25,
+    "idle_arm_rate": 2.5
+  },
+  "mouth": {
+    "anchor_y": 12.0,
+    "size": 1.0,
+    "stroke_width": 3.5,
+    "eye_pupil_range": [
+      5.0,
+      4.0
+    ]
+  },
+  "eyes": {
+    "lash_width": 3.5,
+    "brow_width": 4.5,
+    "closed_curve": [
+      [
+        -14,
+        0
+      ],
+      [
+        -6,
+        6
+      ],
+      [
+        6,
+        6
+      ],
+      [
+        14,
+        0
+      ]
+    ],
+    "catchlight_r": 3.5,
+    "catchlight_offset": [
+      -3,
+      -4
+    ],
+    "catchlight_follow": [
+      4,
+      3
+    ],
+    "catchlight_alpha": 0.95,
+    "lid_open_max": 1.12,
+    "lower_lid_max": 0.5,
+    "lid_curvature": 1.0,
+    "pupil_min": 0.45,
+    "pupil_max": 1.25,
+    "blink_jitter": 0.58,
+    "double_blink_chance": 0.14,
+    "blink_close_fraction": 0.38,
+    "saccade_rate": 0.55,
+    "saccade_travel": 0.09,
+    "micro_saccade": 0.035
+  },
+  "shapes": {
+    "tail": {
+      "kind": "stroke",
+      "origin": [
+        -25,
+        -160
+      ],
+      "width": 20.0,
+      "fill": "fur",
+      "outline": "outline",
+      "outline_width": 4.0,
+      "commands": [
+        [
+          "M",
+          0,
+          0
+        ],
+        [
+          "C",
+          -70,
+          30,
+          -110,
+          -60,
+          -80,
+          -120
+        ]
+      ],
+      "wave": [
+        0.0,
+        40.0,
+        -30.0,
+        20.0
+      ]
+    },
+    "chest_patch": {
+      "kind": "ellipse",
+      "center": [
+        0,
+        5
+      ],
+      "rx": 42,
+      "ry": 60,
+      "fill": "muzzle"
+    },
+    "vest": {
+      "kind": "filled",
+      "fill": "vest",
+      "outline": "outline",
+      "outline_width": 3.5,
+      "mirror": true,
+      "commands": [
+        [
+          "M",
+          -52,
+          -55
+        ],
+        [
+          "C",
+          -65,
+          0,
+          -60,
+          45,
+          -45,
+          60
+        ],
+        [
+          "L",
+          -18,
+          60
+        ],
+        [
+          "C",
+          -30,
+          20,
+          -30,
+          -30,
+          -25,
+          -55
+        ],
+        [
+          "Z"
+        ]
+      ]
+    },
+    "buttons": {
+      "kind": "dots",
+      "r": 5.0,
+      "fill": "vest_trim",
+      "points": [
+        [
+          -12,
+          10
+        ],
+        [
+          -12,
+          35
+        ]
+      ]
+    },
+    "hair_tuft": {
+      "kind": "filled",
+      "fill": "fur",
+      "outline": "outline",
+      "outline_width": 3.5,
+      "commands": [
+        [
+          "M",
+          -15,
+          -82
+        ],
+        [
+          "C",
+          0,
+          -112,
+          10,
+          -108,
+          0,
+          -82
+        ],
+        [
+          "C",
+          15,
+          -105,
+          25,
+          -95,
+          12,
+          -80
+        ],
+        [
+          "Z"
+        ]
+      ]
+    },
+    "nose_shine": {
+      "kind": "ellipse",
+      "center": [
+        -3,
+        -10
+      ],
+      "rx": 3,
+      "ry": 2,
+      "fill": [
+        1.0,
+        1.0,
+        1.0,
+        0.7
+      ]
+    }
+  }
+}

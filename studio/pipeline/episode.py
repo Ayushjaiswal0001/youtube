@@ -20,6 +20,7 @@ if sys.stdout and hasattr(sys.stdout, "reconfigure"):
 from studio.config import EPISODES_DIR, INTERMEDIATE_DIR, LOGS_DIR
 from studio.audio.tts_engine import TTSEngine
 from studio.animation.scene_renderer import SceneRenderer
+from studio.animation.transitions import plan_transitions
 from studio.story_engine import StoryEngine
 
 
@@ -86,6 +87,7 @@ class EpisodePipeline:
 
         scene_mp4_paths = []
         total_scenes = len(story["scenes"])
+        transitions = plan_transitions(story["scenes"])
 
         # 2. Sequential Scene Production (Conserves RAM: ~120MB per scene)
         for i, scene in enumerate(story["scenes"], 1):
@@ -114,8 +116,12 @@ class EpisodePipeline:
             )
 
             # Step 2b: Render Scene
+            fade_in, fade_out = transitions[i - 1] if i - 1 < len(transitions) else (0.0, 0.0)
             self.renderer.render_scene(
-                scene_data=scene,
+                # The renderer seeds eye/gaze animation from story_id + scene number, so
+                # pass it explicitly instead of letting it guess from a directory name.
+                scene_data=dict(scene, story_id=story_id, fade_in=fade_in,
+                                fade_out=fade_out),
                 audio_data=audio_info,
                 output_mp4=scene_mp4,
                 sfx_delay_ms=350
@@ -130,6 +136,41 @@ class EpisodePipeline:
                 project_state["completed_scenes"].append(scene_num)
                 with open(project_file, "w", encoding="utf-8") as pf:
                     json.dump(project_state, pf, ensure_ascii=False, indent=2)
+
+        # Aggregate the per-scene framing reports (T39) so QC has one place to look and a
+        # human can see which scene cropped which character, rather than grepping five files.
+        scene_reports = sorted(episode_work_dir.glob("scene_*_framing.json"))
+        if scene_reports:
+            merged = {"scenes": [], "subjects": {}, "escalations": []}
+            for path in scene_reports:
+                try:
+                    data = json.loads(path.read_text(encoding="utf-8"))
+                except Exception:
+                    continue
+                merged["scenes"].append(data)
+                for name, stats in (data.get("subjects") or {}).items():
+                    entry = merged["subjects"].setdefault(
+                        name, {"cropped_frames": 0, "worst_overflow_px": 0.0, "frames": 0})
+                    entry["cropped_frames"] += int(stats.get("cropped_frames", 0))
+                    entry["worst_overflow_px"] = max(entry["worst_overflow_px"],
+                                                     float(stats.get("worst_overflow_px", 0.0)))
+                    entry["frames"] += int(data.get("frames", 0))
+                if data.get("escalated"):
+                    merged["escalations"].append({"scene": data.get("scene"),
+                                                  "reason": data.get("reason")})
+            # Only subjects a shot must show count against the episode; a listener that a
+            # close-up deliberately excludes is not a framing failure.
+            merged["cropped_required_frames"] = sum(
+                int(scene.get("cropped_required", 0)) for scene in merged["scenes"])
+            merged["total_cropped_frames"] = sum(v["cropped_frames"]
+                                                 for v in merged["subjects"].values())
+            merged["max_zoom_rate"] = max((d.get("max_zoom_rate", 0.0)
+                                           for d in merged["scenes"]), default=0.0)
+            with open(EPISODES_DIR / f"{story_id}_framing.json", "w", encoding="utf-8") as f:
+                json.dump(merged, f, ensure_ascii=False, indent=2)
+            print(f"[Pipeline] Framing: {merged['cropped_required_frames']} required frames "
+                  f"cropped, {merged['total_cropped_frames']} frames with any character "
+                  f"outside the shot, {len(merged['escalations'])} escalations")
 
         # 3. Concatenate all scenes into final 30-second episode MP4
         concat_list_file = episode_work_dir / "concat_list.txt"
@@ -148,6 +189,10 @@ class EpisodePipeline:
             "-c:v", "libx264",
             "-preset", "veryfast",
             "-crf", "20",
+            # Pin the frame rate: without it the muxer derives the rate from the input
+            # timestamps and the episode came out at 14415/481 (29.97) instead of 30.
+            "-r", "30",
+            "-fps_mode", "cfr",
             "-pix_fmt", "yuv420p",
             "-c:a", "aac",
             "-b:a", "192k",

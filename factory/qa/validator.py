@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import json
 import re
+import subprocess
 from pathlib import Path
 from typing import Any
 
@@ -11,8 +13,13 @@ from PIL import Image
 from ..config import ChannelSpec
 from ..content.models import Script
 from ..util import atomic_write_json, ffprobe_duration, ffprobe_streams, iso_now, run
+from studio.audio.loudness import measure as measure_loudness, within_tolerance
 
 TITLE_BANNED = re.compile(r"[<>]")
+
+# A shot may push or drift, but it must not snap. Ceiling for how fast the frame may re-zoom, in
+# zoom units per second, taken from the framing report (T39).
+FRAMING_MAX_ZOOM_RATE = 1.6
 PLACEHOLDER = re.compile(r"\?{3,}")
 
 
@@ -57,6 +64,49 @@ def _volume_stats(video_path: Path) -> dict[str, float | None]:
     }
 
 
+def _freeze_events(path: Path) -> list[tuple[float, float]]:
+    """Freeze segments detected in the video, as ``(start, duration)``.
+
+    A frozen frame is what a broken animation loop looks like: the renderer keeps writing frames but
+    the picture stops. `freezedetect` is the cheap honest measurement - it decodes, which catches
+    streams that ffprobe alone would call healthy.
+    """
+
+    command = ["ffmpeg", "-v", "info", "-i", str(path), "-vf",
+               "freezedetect=n=-50dB:d=1.5", "-map", "0:v", "-f", "null", "-"]
+    result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+                            check=False)
+    events: list[tuple[float, float]] = []
+    start = None
+    for line in result.stderr.splitlines():
+        if "freeze_start:" in line:
+            try:
+                start = float(line.split("freeze_start:")[1].strip())
+            except ValueError:
+                start = None
+        elif "freeze_end:" in line and start is not None:
+            try:
+                end = float(line.split("freeze_end:")[1].strip())
+            except ValueError:
+                continue
+            events.append((start, end - start))
+            start = None
+    return events
+
+
+def _frozen_seconds(path: Path) -> float:
+    events = _freeze_events(path)
+    return max((length for _, length in events), default=0.0)
+
+
+def _frozen_at(path: Path) -> str:
+    events = _freeze_events(path)
+    if not events:
+        return "unknown"
+    start, length = max(events, key=lambda item: item[1])
+    return f"{start:.1f}s ({length:.1f}s)"
+
+
 def validate_episode(
     spec: ChannelSpec,
     script: Script,
@@ -65,6 +115,7 @@ def validate_episode(
     thumbnail: Path | str | None = None,
     srt: Path | str | None = None,
     report_path: Path | str | None = None,
+    demo: bool = False,
 ) -> dict[str, Any]:
     video_path = Path(video_path)
     checks: list[dict[str, Any]] = []
@@ -102,6 +153,19 @@ def validate_episode(
                     str(video_stream.get("codec_name")),
                 )
             )
+            rate_text = str(video_stream.get("avg_frame_rate") or "0/0")
+            try:
+                numerator, denominator = rate_text.split("/")
+                fps = float(numerator) / float(denominator or 1)
+            except (ValueError, ZeroDivisionError):
+                fps = 0.0
+            checks.append(
+                _check(
+                    "frame_rate",
+                    abs(fps - 30.0) <= 0.01,
+                    f"{fps:.2f} fps, expected 30",
+                )
+            )
         if audio_stream:
             checks.append(
                 _check(
@@ -111,13 +175,40 @@ def validate_episode(
                 )
             )
         minimum, maximum = (20.0, 65.0) if spec.format == "shorts" else (60.0, 900.0)
+        # A demo render (a deliberate fragment of an episode) relaxes the duration bound and says
+        # so, rather than passing quietly and implying a complete episode was validated.
         checks.append(
             _check(
                 "duration",
-                minimum <= duration <= maximum,
-                f"{duration:.2f}s, expected {minimum:.0f}-{maximum:.0f}s",
+                duration <= maximum if demo else minimum <= duration <= maximum,
+                f"{duration:.2f}s, expected {minimum:.0f}-{maximum:.0f}s"
+                + (" (demo: lower bound waived)" if demo and duration <= maximum else ""),
+                severity="warning" if demo and duration < minimum else "error",
             )
         )
+        # Audio/video sync (T41): the streams have to start together and end together. A scene
+        # whose audio outlives its video shifts every following scene, which is how the concat
+        # step first delivered 29.93 fps.
+        video_start = float(video_stream.get("start_time") or 0.0) if video_stream else 0.0
+        audio_start = float(audio_stream.get("start_time") or 0.0) if audio_stream else 0.0
+        video_duration = float(video_stream.get("duration") or duration) if video_stream else 0.0
+        audio_duration = float(audio_stream.get("duration") or duration) if audio_stream else 0.0
+        start_delta = abs(video_start - audio_start)
+        length_delta = abs(video_duration - audio_duration)
+        checks.append(_check(
+            "av_sync",
+            start_delta <= 0.10 and length_delta <= 0.60,
+            f"start delta {start_delta:.3f}s, length delta {length_delta:.3f}s",
+        ))
+
+        frozen = _frozen_seconds(video_path)
+        checks.append(_check(
+            "frozen_frames",
+            not frozen,
+            "no freeze longer than 1.5s" if not frozen
+            else f"frozen for {frozen:.1f}s at {_frozen_at(video_path)}",
+        ))
+
         size = video_path.stat().st_size
         checks.append(_check("file_size", size >= 100_000, f"{size} bytes"))
         volume = _volume_stats(video_path)
@@ -130,6 +221,9 @@ def validate_episode(
                 f"mean={mean_db} dB, peak={max_db} dB",
             )
         )
+        loudness = measure_loudness(video_path)
+        ok, detail = within_tolerance(loudness)
+        checks.append(_check("audio_loudness", ok, f"EBU R128: {detail}"))
         if mean_db is not None and mean_db < -32.0:
             warnings.append(
                 _check(
@@ -141,6 +235,59 @@ def validate_episode(
             )
     else:
         checks.append(_check("video_probe", False, "video missing; probe skipped"))
+
+    # Framing (T39): the camera is told which characters must be on screen, and this is the
+    # check that it got them there. The report is produced by the renderer from the same
+    # projection the frames were drawn with, so a cropped subject here means a cropped subject
+    # on screen. Episodes without character framing (the 16:9 renderer draws none yet) simply
+    # have no report, which is recorded as information rather than passed off as a check.
+    framing_path = video_path.with_name("framing.json")
+    if framing_path.is_file():
+        try:
+            framing = json.loads(framing_path.read_text(encoding="utf-8"))
+        except Exception as exc:
+            checks.append(_check("framing", False, f"unreadable framing report: {exc}"))
+            framing = None
+        if framing is not None:
+            cropped = {name: int(stats.get("cropped_frames", 0))
+                       for name, stats in (framing.get("subjects") or {}).items()
+                       if stats.get("required") and int(stats.get("cropped_frames", 0)) > 0}
+            excluded = {name: int(stats.get("cropped_frames", 0))
+                        for name, stats in (framing.get("subjects") or {}).items()
+                        if not stats.get("required") and int(stats.get("cropped_frames", 0))}
+            checks.append(_check("framing_subjects", not cropped,
+                                 "every required subject stayed inside the frame"
+                                 if not cropped else f"cropped: {cropped}"))
+            if excluded:
+                warnings.append(_check(
+                    "framing_off_shot_characters", False,
+                    f"characters outside the chosen shot (by design): {excluded}",
+                    severity="warning"))
+            zoom_rate = float(framing.get("max_zoom_rate", 0.0))
+            checks.append(_check("framing_continuity", zoom_rate <= FRAMING_MAX_ZOOM_RATE,
+                                 f"peak zoom change {zoom_rate:.2f}/s "
+                                 f"(limit {FRAMING_MAX_ZOOM_RATE:.2f})"))
+            collisions = int(framing.get("subtitle_collision_frames") or 0)
+            checks.append(_check(
+                "subtitle_collision", collisions == 0,
+                "no character behind the caption band" if collisions == 0
+                else f"a character overlaps the caption band on {collisions} frames",
+                severity="error",
+            ))
+
+            occlusion = (framing.get("occlusion") or {}).get("prop") or {}
+            hidden = int(occlusion.get("frames", 0))
+            if occlusion:
+                checks.append(_check(
+                    "prop_visibility", hidden == 0,
+                    "the prop cleared the caption band on every frame"
+                    if hidden == 0 else
+                    f"prop hidden behind the caption band on {hidden} frames "
+                    f"(frame lifted on {int(occlusion.get('lifted_frames', 0))})",
+                    severity="error" if hidden else "error"))
+    else:
+        checks.append(_check("framing_subjects", True, "no framing report for this episode",
+                             severity="info"))
 
     title = script.title.strip()
     checks.append(_check("title_length", 0 < len(title) <= 100, f"{len(title)} chars"))

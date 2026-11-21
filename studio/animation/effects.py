@@ -55,3 +55,25 @@ def draw_exclamation_pop(cr: cairo.Context, cx: float, cy: float, progress: floa
     draw_ellipse(cr, 0, -25, 8, 22, fill_color=(1.0, 0.85, 0.1, 1.0), stroke_color=(0.1, 0.1, 0.1, 1.0), stroke_width=3.5)
     draw_ellipse(cr, 0, 8, 7, 7, fill_color=(1.0, 0.85, 0.1, 1.0), stroke_color=(0.1, 0.1, 0.1, 1.0), stroke_width=3.5)
     cr.restore()
+
+
+def draw_vignette(cr: cairo.Context, width: float, height: float,
+                  strength: float = 0.30) -> None:
+    """Soft radial darkening toward the frame edges.
+
+    A flat frame is one of the cues that reads as "not really filmed": real lenses lose light
+    at the corners. This is one gradient fill per frame, so it costs almost nothing, and it
+    also softens a character cropped by the edge of a close-up.
+    """
+
+    radius = math.hypot(width, height) / 2.0
+    gradient = cairo.RadialGradient(width / 2.0, height / 2.0, radius * 0.45,
+                                    width / 2.0, height / 2.0, radius)
+    gradient.add_color_stop_rgba(0.0, 0.0, 0.0, 0.0, 0.0)
+    gradient.add_color_stop_rgba(0.72, 0.0, 0.0, 0.0, strength * 0.45)
+    gradient.add_color_stop_rgba(1.0, 0.0, 0.0, 0.0, strength)
+    cr.save()
+    cr.set_source(gradient)
+    cr.rectangle(0, 0, width, height)
+    cr.fill()
+    cr.restore()

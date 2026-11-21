@@ -19,6 +19,43 @@ from ..util import atomic_write_json, ffprobe_duration, ffprobe_streams, iso_now
 from .hindi_text import render_story_overlays
 
 
+# Kept across a forced re-render: the recorded voices and their boundary sidecars. Everything
+# else in the tree is derived from them and can be regenerated.
+_KEEP_ON_FORCE = (".mp3", ".boundaries.json")
+
+
+def _purge_render_outputs(studio_out: Path, keep_audio: bool = True) -> None:
+    """Remove render artifacts while optionally preserving the recorded dialogue.
+
+    `--force` means "render again", not "discard the performances we already recorded".
+    """
+
+    audio_dir = studio_out / "intermediate"
+    kept = 0
+    if keep_audio and audio_dir.exists():
+        for path in sorted(audio_dir.iterdir()):
+            if path.is_file() and path.name.endswith(_KEEP_ON_FORCE):
+                kept += 1
+        # Move the takes aside, wipe, and put them back: simpler to reason about than a recursive
+        # walk that has to know every artifact name the studio may write.
+        stash = studio_out.parent / f".{studio_out.name}_audio_stash"
+        if stash.exists():
+            shutil.rmtree(stash)
+        stash.mkdir(parents=True)
+        for path in sorted(audio_dir.iterdir()):
+            if path.is_file() and path.name.endswith(_KEEP_ON_FORCE):
+                shutil.move(str(path), str(stash / path.name))
+        shutil.rmtree(studio_out)
+        (studio_out / "intermediate").mkdir(parents=True, exist_ok=True)
+        for path in sorted(stash.iterdir()):
+            shutil.move(str(path), str(studio_out / "intermediate" / path.name))
+        shutil.rmtree(stash)
+    else:
+        shutil.rmtree(studio_out)
+    if kept:
+        print(f"[Render] Kept {kept} recorded dialogue file(s) across the forced re-render")
+
+
 def _attach_overlays(story: dict[str, Any], overlays: dict[int, dict[str, str]]) -> None:
     for scene in story["scenes"]:
         scene.update(overlays.get(int(scene["scene_num"]), {}))
@@ -109,7 +146,14 @@ def render_hindi_episode(
 
     studio_out = out_dir / "studio"
     if force_rerender and studio_out.exists():
-        shutil.rmtree(studio_out)
+        # A forced re-render used to delete the whole studio tree, which includes the dub. That
+        # made every render non-reproducible: Edge-TTS does not return the same bytes twice for
+        # the same line, so the visemes (derived from the audio envelope) moved and the video
+        # changed slightly for reasons that had nothing to do with the code being tested. Keeping
+        # the recorded voices makes a re-render a re-render, and keeps an episode re-renderable
+        # when the TTS service is unreachable. FACTORY_FRESH_AUDIO=1 asks for a fresh dub.
+        purge_audio = os.environ.get("FACTORY_FRESH_AUDIO") == "1"
+        _purge_render_outputs(studio_out, keep_audio=not purge_audio)
     os.environ["STUDIO_OUTPUT_DIR"] = str(studio_out)
     os.environ["STUDIO_EPISODES_DIR"] = str(studio_out / "episodes")
     os.environ["STUDIO_INTERMEDIATE_DIR"] = str(studio_out / "intermediate")
@@ -131,6 +175,11 @@ def render_hindi_episode(
     if not source.is_file():
         raise RuntimeError(f"studio did not produce the expected episode: {source}")
     shutil.copy2(source, video_path)
+
+    # The framing report travels with the episode so QC can gate on it (T39).
+    framing_source = source.with_name(source.stem.replace("_final", "") + "_framing.json")
+    if framing_source.is_file():
+        shutil.copy2(framing_source, out_dir / "framing.json")
 
     streams = ffprobe_streams(video_path)
     video_stream = next(

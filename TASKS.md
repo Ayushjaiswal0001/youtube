@@ -92,6 +92,100 @@ Status markers: `[ ]` todo, `[~]` in progress, `[x]` done.
   Turning on `publishAt` scheduling requires `FACTORY_ALLOW_SCHEDULE=1` plus human
   sign-off; changing default privacy requires editing `channels/*.json`.
 
+## P3b — Audio loudness (branch `feat/landscape-16x9`)
+
+- [x] **T29. Broadcast loudness** — −26.53 → −14.15 LUFS, true peak −1.24 dBTP,
+  LRA 2.0, duration preserved to 9 ms, sidechain ducking, 4 new tests.
+
+## P1b — Character animation (NOT MET, planned)
+
+- [x] **T30. Data-driven character schema** — character definitions as data, one rig
+  renderer, shared expression/gesture channel names (`rig_base.py` is the seed).
+- [x] **T31a. Audio-driven lip-sync** — `studio/characters/lipsync.py`; rigs follow the
+  narration envelope instead of a 14 Hz sine. 10 tests, full Natkhat episode re-rendered
+  (`qc_ok: true`). Envelope-based.
+- [x] **T31b. Viseme-based lip-sync** — `studio/characters/visemes.py` + shared
+  `studio/characters/mouth.py`: 9 mouth shapes, Devanagari + Latin mapping (conjuncts,
+  nukta, schwa deletion, digraphs), sentence-boundary windows snapped to the acoustic
+  envelope, median filter + 70 ms minimum hold + softened transitions. Boundaries now
+  persisted as `.boundaries.json` sidecars. 30 tests; measured 6.2–7.1 shapes/s, median
+  onset lag 0 ms. **Proportional, not phoneme-level** — Edge-TTS emits no word boundaries
+  (verified empirically).
+- [x] **T32. Eye system** — saccades, gaze targets, blink with variance (not a fixed timer).
+- [~] **T30b. Data-driven drawing geometry** — in progress. Done: full per-pose golden
+  coverage (78 frames) so pose geometry can no longer change silently. Open: the tail
+  bezier, hair tuft, vest panels, whiskers, spectacles and bowtie are still drawing code
+  with literal coordinates; their positions come from the schema, their shapes do not.
+- [x] **T34. Reaction beats from dialogue** — `studio/characters/performance.py`: listener
+  nods / recoils / widens at sentence ends, speaker bounces on a shout, weight shift in long
+  sentences; 33 tests; 23 beats measured in `natkhat-haveli-e1`; `FACTORY_NO_PERFORMANCE=1`
+  kill switch; `tools/report_performance.py` QA report.
+- [x] **T35. Camera direction and lens** — `CameraDirector` styles (close-ups that actually
+  frame their subject, push-in, pull-out, drift), background overscan so a panned frame is
+  never bare, and a lens vignette; 13 tests.
+- [x] **T36. Loudness normalisation on the Shorts path** — two-pass linear EBU R128 per scene
+  mix, padding to the video length so sync cannot drift; QC gate rejects anything outside
+  -16.5..-11.5 LUFS; measured -24.3 → -14.0 LUFS on the same episode.
+- [x] **T37. Scene transitions** — `studio/animation/transitions.py`: location change dips to
+  black, same location cuts, opening/closing fades; 14 tests; verified with `blackdetect`.
+- [x] **T38. Pin the delivered frame rate and gate it** — concat now writes `-r 30 -fps_mode
+  cfr`; QC gained a `frame_rate` check at +/-0.01; `tests/factory/test_qc.py` (8 tests).
+  Nothing failed before because no gate looked at frame rate.
+- [x] **T41. Landscape character rendering.** `studio/animation/stage.py`,
+  `silhouette.py`, `environment.py`, `factory/media/landscape_stage.py`,
+  `python -m factory.cli render-stage`. Same animation engine, landscape stage: 1920x1080, 30/1,
+  64.5 s episode with QC 24/24, 0 cropped required subjects, 0 face/band collisions, portrait
+  frame-identical. See TEST_RESULTS 3s.
+- [x] **T46. Unify the production orchestrator.** `orchestrator.render_episode` dispatches on
+  `resolve_engine` (stage / shorts / cards) and runs one post-render path; per-scene signatures make
+  re-runs no-ops and `resume` restores a deleted scene in 59 s with a byte-identical episode; joins
+  and single-scene copies are atomic. New CLI: `status`, `resume`, `validate`, `render --format`.
+  Portrait frame-identical. See TEST_RESULTS 3t.
+- [ ] **T47. Story continuity intelligence.** Episode-level continuity, relationship state,
+  previous-episode references and duplicate detection are not implemented; the series bible is a
+  topic bank with series positions, not a continuity engine.
+- [ ] **T42. Landscape continuity and narrative camera intelligence.** Landscape camera vocabulary
+  exists (`wide_establishing`, `tracking_left/right`, `medium_*`, `reaction_*`, `two_shot_hold`) and
+  escalation is logged, but eyeline-matching across a cut and shot/reverse-shot alternation are not
+  implemented: scenes currently choose their own shot independently.
+- [ ] **T43. Object pickup from a world position.** `contact_error` exists for timing a pickup; a
+  reach-toward-a-target solver does not. Hand-off between two hands is done (T40, T41).
+- [ ] **T44. Lighting and shadow depth.** Contact shadows, moon glow, rim light and distance haze
+  exist. Cast shadows with direction/penumbra, a secondary light, and character-to-ground shadow
+  contact by pose are not implemented.
+- [ ] **T45. Environment breadth.** Six palettes defined, one rendered end to end. Mid-ground
+  legibility and per-location scenery are outstanding.
+- [ ] **T46. Unified orchestration.** `render-stage` is a separate command; the publish orchestrator
+  still routes every Hindi episode through the Shorts pipeline.
+- [x] **T40. Object interaction and hand contact** - `studio/characters/props.py`:
+  pixel-verified hand anchors, `PropTrack` with a continuous arc crossing, `contact_error` for
+  timing a pick-up, caption-band clearance solver plus camera lift, occlusion measurement and a
+  `prop_visibility` QC gate; 28 tests. Hand-off demo: 0/231 frames occluded. Pick-up from a world
+  position and object-specific grips remain open.
+- [x] **T39. Camera-aware framing** - `studio/animation/framing.py`: schema-derived subjects,
+  shot planning with per-kind cast semantics, close-up escalation, gesture-reach reservation,
+  per-frame `FramingReport`, `framing.json` artifact and two QC gates; 35 tests. Landscape
+  framing is verified geometrically only (the 16:9 renderer has no characters yet).
+- [x] **T35b. Character-to-character interaction** — `studio/characters/interaction.py`:
+  separation guard, additive forward-arm gesture toward the partner, listener reaction, facing
+  hysteresis with a bit-exact identity path; 38 tests. Contact/hand-off and shared attention on
+  an object remain open.
+- [x] **T33. Locomotion** — walk/run cycles with contact/passing/up poses and foot planting.
+- [ ] **T34. Reaction library** — anticipation, impact, settle, with the existing easing set.
+- [ ] **T35. Two-character blocking** — eye-line, overlap, and shared framing.
+- [ ] **T36. Layered parallax environments.**
+- [ ] **T37. Characters in the 16:9 renderer** — currently zero character drawing.
+
+## P4b — Long-form 16:9 engine (branch `feat/landscape-16x9`)
+
+- [x] **T24. Native 1920x1080 composition profile** — `landscape_renderer.py`, 116.5 s
+  render verified with ffprobe, 12-frame visual inspection, audio and subtitle checks.
+- [x] **T25. Format-aware planning** — `load_plans_for` separates shorts/long, `find_plan`
+  resolves both, `--format` on `render`/`plans`, long-form word/beat budget enforced.
+- [ ] **T26. Academic 16:9 plan** — acceptance test 5. Needs one authored long plan.
+- [ ] **T27. Hindi 16:9 profile** — acceptance test 6; the studio rigs are 9:16-only.
+- [ ] **T28. Runner render of a 16:9 video** — blocked on PR #2 (T12).
+
 ## P5 — Later
 
 - [ ] **T21. Long-form support** (1920x1080 renderer path, longer scripts, chapter SRT).

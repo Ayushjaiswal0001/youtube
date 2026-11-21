@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
@@ -75,6 +76,8 @@ def _next_ist_date(spec: ChannelSpec) -> str:
 def cmd_plans(args: argparse.Namespace) -> int:
     rows: list[dict[str, Any]] = []
     for spec in _specs(args.channel):
+        if getattr(args, "format", None):
+            spec = replace(spec, format=args.format)
         for plan in load_plans_for(spec):
             out_dir = episode_out_dir(spec, plan)
             rows.append(
@@ -90,18 +93,213 @@ def cmd_plans(args: argparse.Namespace) -> int:
     return 0
 
 
+def _only_scenes(value: str | None) -> list[int] | None:
+    if not value:
+        return None
+    return [int(part) for part in str(value).split(",") if part.strip()] or None
+
+
+def _render_one(
+    spec: ChannelSpec,
+    plan_id: str | None,
+    *,
+    force: bool,
+    scenes: str | None = None,
+    demo: bool = False,
+) -> dict[str, Any]:
+    return render_episode(
+        spec,
+        plan_id=plan_id,
+        force=force,
+        only_scenes=_only_scenes(scenes),
+        demo=demo,
+    )
+
+
+def cmd_render_stage(args: argparse.Namespace) -> int:
+    """Alias for `render --format long` on a stage plan.
+
+    Kept because it is in the documented workflow, but it no longer *is* a second pipeline: the
+    landscape stage is one engine behind `render_episode`, so thumbnails, subtitles, QC and state
+    take the same code path as a Short. A second copy of those steps is how two paths drift apart.
+    """
+
+    from .config import load_channel_specs
+    from .orchestrator import resolve_engine
+
+    specs = load_channel_specs()
+    if args.channel not in specs:
+        raise ValueError(f"unknown channel {args.channel!r}; known: {', '.join(sorted(specs))}")
+    spec = replace(specs[args.channel], format="long")
+    plan = find_plan(spec, args.plan_id)
+    engine = resolve_engine(spec, plan)
+    if engine != "stage":
+        raise ValueError(
+            f"plan {plan_identifier(plan)} uses the {engine!r} engine; render-stage only drives "
+            'stage plans (declare "engine": "stage" in the plan)')
+    result = _render_one(spec, args.plan_id, force=args.force, scenes=args.scenes,
+                         demo=bool(getattr(args, "demo", False)))
+    _print(result, args.json)
+    return 0 if result["qc_ok"] else 1
+
+
+def _stage_scene_state(out_dir: Path, spec: ChannelSpec, plan: dict[str, Any]) -> dict[str, int]:
+    from .media.landscape_stage import plan_scenes, scene_is_current
+
+    # `plan_scenes` owns the plan schema (the authored key is "n", not "scene"); asking it is the
+    # only way this stays correct. Reading `scene["scene"]` here reported twelve missing scenes for
+    # an episode that was entirely on disk.
+    scenes = plan_scenes(plan)
+    scene_dir = out_dir / "studio" / "intermediate" / f"{spec.slug}_{plan_identifier(plan)}"
+    counts = {"scenes": len(scenes), "current": 0, "stale": 0, "missing": 0}
+    for scene in scenes:
+        target = scene_dir / f"scene_{int(scene['scene_num']):03d}.mp4"
+        if not target.is_file():
+            counts["missing"] += 1
+            continue
+        try:
+            signature = json.loads(
+                target.with_suffix(".json").read_text(encoding="utf-8")).get("signature", "")
+        except Exception:
+            signature = ""
+        if scene_is_current(target, signature):
+            counts["current"] += 1
+        else:
+            counts["stale"] += 1
+    return counts
+
+
+def cmd_status(args: argparse.Namespace) -> int:
+    """Production status per plan: what exists, what is stale, and what to run next."""
+
+    from .orchestrator import resolve_engine
+
+    rows: list[dict[str, Any]] = []
+    for spec in _specs(args.channel):
+        if getattr(args, "format", None):
+            spec = replace(spec, format=args.format)
+        for plan in load_plans_for(spec):
+            plan_id = plan_identifier(plan)
+            if args.plan_id and plan_id != args.plan_id:
+                continue
+            engine = resolve_engine(spec, plan)
+            out_dir = episode_out_dir(spec, plan)
+            video = out_dir / "video.mp4"
+            qc = read_json(out_dir / "qc.json", {})
+            row: dict[str, Any] = {
+                "channel": spec.slug,
+                "format": spec.format,
+                "plan_id": plan_id,
+                "engine": engine,
+                "video": str(video) if video.is_file() else None,
+                "qc_ok": qc.get("ok"),
+                "next": "render" if not video.is_file() else (
+                    "done" if qc.get("ok") else "inspect qc.json, then resume"),
+            }
+            if engine == "stage":
+                row.update(_stage_scene_state(out_dir, spec, plan))
+                # A missing scene only matters when the assembled artifact is not verified: an
+                # episode whose video passed QC is finished even if an intermediate was cleaned up.
+                if (row["missing"] or row["stale"]) and not (video.is_file() and qc.get("ok")):
+                    row["next"] = f"resume ({row['missing']} missing, {row['stale']} stale)"
+            rows.append(row)
+    _print(rows if args.json else [
+        f"{r['channel']:18} {r['format']:6} {r['plan_id']:30} {r['engine']:6} "
+        f"{('qc-ok' if r['qc_ok'] else ('qc-fail' if r['qc_ok'] is False else 'no-qc')):7} "
+        f"{r['next']}" for r in rows], args.json)
+    return 0
+
+
+def cmd_resume(args: argparse.Namespace) -> int:
+    """Continue a production without redoing work that is still valid.
+
+    Safe by construction: a scene carries a signature of everything that affects its pixels and its
+    audio, so only missing or mismatched scenes are re-rendered, and a verified artifact with passing
+    QC is left untouched unless `--force` is given.
+    """
+
+    results: list[dict[str, Any]] = []
+    for spec in _specs(args.channel):
+        if getattr(args, "format", None):
+            spec = replace(spec, format=args.format)
+        for plan in load_plans_for(spec):
+            plan_id = plan_identifier(plan)
+            if args.plan_id and plan_id != args.plan_id:
+                continue
+            out_dir = episode_out_dir(spec, plan)
+            qc = read_json(out_dir / "qc.json", {})
+            if (out_dir / "video.mp4").is_file() and qc.get("ok") and not args.force:
+                continue
+            results.append(_render_one(spec, plan_id, force=args.force))
+    if not results:
+        _print([] if args.json else ["nothing to resume: every episode has a verified artifact"],
+               args.json)
+        return 0
+    _print(results if args.json else [
+        f"{r['channel']:18} {r['plan_id']:30} rendered={r.get('rendered_scenes', '-')} "
+        f"reused={r.get('reused_scenes', '-')} qc_ok={r['qc_ok']}" for r in results], args.json)
+    return 0 if all(r["qc_ok"] for r in results) else 2
+
+
+def cmd_validate(args: argparse.Namespace) -> int:
+    """Validate existing artifacts without producing anything new."""
+
+    results: list[dict[str, Any]] = []
+    for spec in _specs(args.channel):
+        if getattr(args, "format", None):
+            spec = replace(spec, format=args.format)
+        for plan in load_plans_for(spec):
+            plan_id = plan_identifier(plan)
+            if args.plan_id and plan_id != args.plan_id:
+                continue
+            out_dir = episode_out_dir(spec, plan)
+            video = out_dir / "video.mp4"
+            if not video.is_file():
+                continue
+            script = (build_hindi_script(spec, plan) if spec.is_hindi
+                      else build_english_script(spec, plan))
+            qc = validate_episode(
+                spec, script, video,
+                thumbnail=out_dir / "thumbnail.jpg",
+                srt=out_dir / "captions.srt",
+                report_path=out_dir / "qc.json",
+                demo=bool(getattr(args, "demo", False)),
+            )
+            results.append({
+                "channel": spec.slug,
+                "plan_id": plan_id,
+                "video": str(video),
+                "qc_ok": qc.get("ok"),
+                "checks": len(qc.get("checks", [])),
+                "failures": [c["name"] for c in qc.get("checks", []) if not c.get("ok")],
+            })
+    if not results:
+        _print([] if args.json else ["no rendered artifacts found"], args.json)
+        return 1
+    _print(results if args.json else [
+        f"{r['channel']:18} {r['plan_id']:30} qc_ok={r['qc_ok']} failures={r['failures']}"
+        for r in results], args.json)
+    return 0 if all(r["qc_ok"] for r in results) else 2
+
+
 def cmd_render(args: argparse.Namespace) -> int:
     if args.plan_id and args.channel == "all":
         raise ValueError("--plan-id requires one --channel")
+    formats = [f for f in str(getattr(args, "formats", "") or "").split(",") if f]
+    if formats and not args.plan_id:
+        raise ValueError("--formats requires --plan-id: one plan is rendered in each format")
     results = []
     for spec in _specs(args.channel):
-        results.append(
-            render_episode(
-                spec,
-                plan_id=args.plan_id,
-                force=args.force,
+        for fmt in (formats or [getattr(args, "format", None) or spec.format]):
+            results.append(
+                render_episode(
+                    replace(spec, format=fmt),
+                    plan_id=args.plan_id,
+                    force=args.force,
+                    only_scenes=_only_scenes(getattr(args, "scenes", None)),
+                    demo=bool(getattr(args, "demo", False)),
+                )
             )
-        )
     _print(results if args.json else [json.dumps(item, ensure_ascii=False, indent=2) for item in results], args.json)
     return 0 if all(item["qc_ok"] for item in results) else 2
 
@@ -243,15 +441,60 @@ def build_parser() -> argparse.ArgumentParser:
 
     plans = subparsers.add_parser("plans")
     plans.add_argument("--channel", default="all")
+    plans.add_argument("--format", choices=("shorts", "long"), default=None)
     plans.add_argument("--json", action="store_true", help=argparse.SUPPRESS)
     plans.set_defaults(func=cmd_plans)
 
     render = subparsers.add_parser("render")
     render.add_argument("--channel", default="all")
     render.add_argument("--plan-id", default=None)
+    render.add_argument("--format", choices=["shorts", "long"], default=None,
+                        help="override the channel's native profile")
+    render.add_argument("--formats", default=None,
+                        help="comma separated: render one plan in each of these formats")
+    render.add_argument("--scenes", default=None,
+                        help="stage plans: comma separated scene numbers (demos only)")
+    render.add_argument("--demo", action="store_true",
+                        help="a deliberate fragment: waives the duration lower bound")
     render.add_argument("--force", action="store_true")
     render.add_argument("--json", action="store_true", help=argparse.SUPPRESS)
     render.set_defaults(func=cmd_render)
+
+    stage = subparsers.add_parser(
+        "render-stage",
+        help="render a 16:9 character episode from a landscape stage plan")
+    stage.add_argument("--channel", required=True)
+    stage.add_argument("--plan-id", required=True)
+    stage.add_argument("--force", action="store_true")
+    stage.add_argument("--scenes", default=None,
+                       help="comma separated scene numbers, e.g. 1,2,5 (for demos)")
+    stage.add_argument("--demo", action="store_true",
+                       help="a deliberate fragment: waives the duration lower bound")
+    stage.add_argument("--json", action="store_true", help=argparse.SUPPRESS)
+    stage.set_defaults(func=cmd_render_stage)
+
+    status = subparsers.add_parser("status", help="production status per plan")
+    status.add_argument("--channel", default="all")
+    status.add_argument("--plan-id", default=None)
+    status.add_argument("--format", choices=["shorts", "long"], default=None)
+    status.add_argument("--json", action="store_true", help=argparse.SUPPRESS)
+    status.set_defaults(func=cmd_status)
+
+    resume = subparsers.add_parser("resume", help="continue unfinished productions safely")
+    resume.add_argument("--channel", default="all")
+    resume.add_argument("--plan-id", default=None)
+    resume.add_argument("--format", choices=["shorts", "long"], default=None)
+    resume.add_argument("--force", action="store_true")
+    resume.add_argument("--json", action="store_true", help=argparse.SUPPRESS)
+    resume.set_defaults(func=cmd_resume)
+
+    validate = subparsers.add_parser("validate", help="validate existing artifacts (no render)")
+    validate.add_argument("--channel", default="all")
+    validate.add_argument("--plan-id", default=None)
+    validate.add_argument("--format", choices=["shorts", "long"], default=None)
+    validate.add_argument("--demo", action="store_true")
+    validate.add_argument("--json", action="store_true", help=argparse.SUPPRESS)
+    validate.set_defaults(func=cmd_validate)
 
     qc = subparsers.add_parser("qc")
     qc.add_argument("--channel", required=True)
