@@ -50,6 +50,32 @@ They are disjoint, so there is no conflict either way. Recommended order: **#2 f
 (it fixes the runner install that T12 needs), then **#3**. Both stay unmerged until the
 owner approves.
 
+### Conversational direction (T42)
+
+`studio/animation/shot_plan.py` is the director. It is pure: scenes in, shot decisions out.
+
+    plan = plan_conversation(scenes, anchors=[(name, world_x), ...])   # anchors fix the axis
+    scenes = apply_plan(scenes, plan)                                  # only rewrites "auto"
+
+`landscape_stage.render_stage_episode` runs it when any scene has `"camera": "auto"`, writes
+`shot_plan.json` beside the video, and the validator's `shot_continuity` check reads that file.
+
+Traps:
+
+* **`medium_<name>` and `reaction_<name>` are single-subject shots.** They must be resolved before
+  `plan_shot`'s relational widening loop, or they match the relational `medium` case and become
+  two-shots. `_scripted_kind` calls this kind `subject_medium`; the hoisted branch has to accept that
+  name.
+* **A repeat is only a repeat in the same space.** Two wides either side of a location change are two
+  different photographs.
+* **A danda is a full stop, not a beat.** Beats are `?`/`!` at the end or an opening interjection.
+  Using the danda made every Hindi line a close-up.
+* **The scene cache hashes the engine source.** `engine_digest()` covers `studio/animation`,
+  `studio/characters`, `studio/audio` and `content/characters`; a manual version string drifted
+  within one commit. If you add a new module outside those paths that changes pixels, add the path.
+* The plan is advisory in one direction only: it may leave a verified artifact alone. `--force`
+  re-directs.
+
 ### Orchestration, idempotency and resume (T46)
 
 `factory.cli` verbs, and what each one is for:

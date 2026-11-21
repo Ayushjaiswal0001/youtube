@@ -361,8 +361,35 @@ def plan_shot(scripted: str, subjects: Mapping[str, Subject], viewport: Tuple[in
     def aimed(candidate: str) -> float:
         return float(wanted.get(candidate, _kind_zoom(candidate)))
 
+    def subject_shot(name: str, why: str, reason: str, escalated: bool) -> Optional[Shot]:
+        box = available[name].bounds(reserve([name])[name])
+        limit = min(fit_zoom([box], viewport, margin, min_zoom=zoom_range[0],
+                             max_zoom=zoom_range[1]), zoom_range[1])
+        zoom = min(aimed(why), limit)
+        return Shot("close_up" if why == "close_up" else "medium", (name,), zoom,
+                    available[name].x, centre_of([box])[1], scripted,
+                    escalated=escalated, reason=reason, limit=limit)
+
+    # A style that names one character - `close_up_<name>`, `medium_<name>` - is a subject shot,
+    # not a relational one. Handling it inside the widening loop below meant `medium_gappu` matched
+    # the relational "medium" case first and silently became a two-shot that framed both of them,
+    # which is why the landscape renders reported "widened from subject_medium to medium" on exactly
+    # the scenes that were meant to isolate Gappu.
+    named = _subject_style(scripted)
+    # `subject_medium` is the kind `_scripted_kind` reports for `medium_<name>`, and it is the one
+    # that has to be handled here: leaving it out of this tuple is what let it fall through to the
+    # relational "medium" case and become a two-shot.
+    if named in available and kind in ("close_up", "medium", "subject_medium"):
+        why = "close_up" if kind == "close_up" else "medium"
+        off_speaker = (kind == "close_up" and speaker is not None
+                       and speaker in available and speaker != named)
+        if not off_speaker and not (set(must_show) - {named}):
+            return subject_shot(named, why, "", False)
+
     for candidate in SHOT_ORDER[start:]:
         if candidate == "close_up":
+            # Reached only when a subject shot was refused above (an off-speaker close-up, or a
+            # must_show the subject cannot satisfy), which is the widening path this loop exists for.
             name = _subject_style(scripted) or ""
             if name not in available:
                 continue

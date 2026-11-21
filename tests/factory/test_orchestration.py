@@ -263,6 +263,10 @@ class RenderLoopTests(unittest.TestCase):
             "ForegroundLayer": lambda *a, **k: mock.Mock(),
             "SceneRenderer": lambda *a, **k: renderer,
             "plan_transitions": lambda scenes: [(0.0, 0.0)] * len(scenes),
+            # The stub mirrors load_studio, so a new studio binding has to appear here too.
+            "plan_conversation": lambda *a, **k: mock.Mock(
+                decisions=[], warnings=[], to_dict=lambda: {"decisions": [], "warnings": []}),
+            "apply_shot_plan": lambda scenes, plan: scenes,
         }
         spec = _long_spec()
         with mock.patch.object(landscape_stage, "load_studio", return_value=studio):

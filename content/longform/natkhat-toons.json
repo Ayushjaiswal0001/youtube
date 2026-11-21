@@ -17,7 +17,13 @@
         "topic": "a brass key found on a haunted haveli window sill",
         "hook": "एक पुरानी हवेली, एक टूटी खिड़की, और चीकू के हाथ में एक पीतल की चाबी।",
         "moral": "जल्दबाज़ी में डरने से बेहतर है आराम से देखना।",
-        "tags": ["natkhat toons", "hindi cartoon", "chiku gappu", "haveli", "kids story"],
+        "tags": [
+          "natkhat toons",
+          "hindi cartoon",
+          "chiku gappu",
+          "haveli",
+          "kids story"
+        ],
         "scenes": [
           {
             "n": 1,
@@ -25,7 +31,7 @@
             "line": "आधी रात को चीकू और गप्पू पुरानी हवेली के दरवाज़े पर खड़े थे।",
             "chiku_pose": "excited_jump",
             "gappu_pose": "observing",
-            "camera": "wide_establishing",
+            "camera": "auto",
             "bg": "haunted_haveli",
             "sfx": "whoosh"
           },
@@ -35,7 +41,7 @@
             "line": "गप्पू! आज मैं इस हवेली का भूत पकड़ कर दिखाऊँगा।",
             "chiku_pose": "boast_proud",
             "gappu_pose": "skeptical_eyebrow",
-            "camera": "two_shot",
+            "camera": "auto",
             "bg": "haunted_haveli",
             "sfx": "boing"
           },
@@ -45,7 +51,7 @@
             "line": "यह टूटी खिड़की की सीटी है। डरने से पहले देख तो लो।",
             "chiku_pose": "shocked_freeze",
             "gappu_pose": "observing",
-            "camera": "medium_gappu",
+            "camera": "auto",
             "bg": "haunted_haveli",
             "sfx": "twinkle"
           },
@@ -55,7 +61,7 @@
             "line": "अरे! खिड़की की सील पर कुछ चमक रहा है।",
             "chiku_pose": "hands_on_hips",
             "gappu_pose": "observing",
-            "camera": "close_up_chiku",
+            "camera": "auto",
             "bg": "haunted_haveli",
             "sfx": "twinkle"
           },
@@ -65,7 +71,7 @@
             "line": "तभी चीकू को पीतल की एक पुरानी चाबी मिली।",
             "chiku_pose": "embarrassed_smile",
             "gappu_pose": "observing",
-            "camera": "two_shot",
+            "camera": "auto",
             "bg": "haunted_haveli",
             "sfx": "pop",
             "prop": "brass_key",
@@ -78,7 +84,7 @@
             "line": "यह चाबी तो हवेली के ताले की है। मुझे दो, मैं देखता हूँ।",
             "chiku_pose": "observing",
             "gappu_pose": "laughing_point",
-            "camera": "two_shot",
+            "camera": "auto",
             "bg": "haunted_haveli",
             "sfx": "success_ding",
             "prop": "brass_key",
@@ -96,7 +102,7 @@
             "line": "देखा? मैंने कहा था, हवेली में कुछ तो है।",
             "chiku_pose": "boast_proud",
             "gappu_pose": "satisfied_nod",
-            "camera": "two_shot_zoom",
+            "camera": "auto",
             "bg": "haunted_haveli",
             "sfx": "boing"
           },
@@ -106,7 +112,7 @@
             "line": "चाबी है, भूत नहीं। चलो दरवाज़ा खोलें।",
             "chiku_pose": "observing",
             "gappu_pose": "hands_on_hips",
-            "camera": "medium_gappu",
+            "camera": "auto",
             "bg": "haunted_haveli",
             "sfx": "whoosh"
           },
@@ -116,7 +122,7 @@
             "line": "दरवाज़ा धीरे से खुला, और अंदर ठंडी हवा निकली।",
             "chiku_pose": "shocked_freeze",
             "gappu_pose": "observing",
-            "camera": "wide_establishing",
+            "camera": "auto",
             "bg": "haunted_haveli",
             "sfx": "whoosh"
           },
@@ -126,7 +132,7 @@
             "line": "गप्पू… तुम पहले जाओगे या मैं?",
             "chiku_pose": "embarrassed_smile",
             "gappu_pose": "skeptical_eyebrow",
-            "camera": "two_shot",
+            "camera": "auto",
             "bg": "haunted_haveli",
             "sfx": "pop"
           },
@@ -136,7 +142,7 @@
             "line": "तुमने भूत पकड़ने की बात कही थी, तुम आगे जाओ।",
             "chiku_pose": "facepalm",
             "gappu_pose": "satisfied_nod",
-            "camera": "medium_chiku",
+            "camera": "auto",
             "bg": "haunted_haveli",
             "sfx": "success_ding"
           },
@@ -146,11 +152,12 @@
             "line": "अगली बार: चाबी कौन सा दरवाज़ा खोलेगी? जानने के लिए जुड़े रहिए।",
             "chiku_pose": "excited_jump",
             "gappu_pose": "observing",
-            "camera": "wide_finish",
+            "camera": "auto",
             "bg": "haunted_haveli",
             "sfx": "pop"
           }
-        ]
+        ],
+        "director": "auto"
       }
     ]
   }

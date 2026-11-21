@@ -107,6 +107,27 @@ def _frozen_at(path: Path) -> str:
     return f"{start:.1f}s ({length:.1f}s)"
 
 
+def _check_shot_continuity(video_path: Path) -> dict[str, Any]:
+    """Read the directed shot plan, if the renderer wrote one, and gate its violations.
+
+    An episode whose shot plan frames the listener while the speaker is talking has a mouth that
+    does not move with the audio; that is a real defect, not a matter of taste, so it is an error.
+    """
+
+    plan_path = video_path.parent / "shot_plan.json"
+    if not plan_path.is_file():
+        return _check("shot_continuity", True, "no directed shot plan (authored cameras)")
+    try:
+        plan = json.loads(plan_path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        return _check("shot_continuity", False, f"unreadable shot_plan.json: {exc}")
+    violations = list(plan.get("warnings") or [])
+    decided = len(plan.get("decisions") or [])
+    return _check("shot_continuity", not violations,
+                  f"{decided} directed shots, {len(violations)} violations"
+                  + (f": {violations[0]}" if violations else ""))
+
+
 def validate_episode(
     spec: ChannelSpec,
     script: Script,
@@ -123,6 +144,7 @@ def validate_episode(
     expected_width, expected_height = spec.size
 
     checks.append(_check("video_exists", video_path.is_file(), str(video_path)))
+    checks.append(_check_shot_continuity(video_path))
     duration = 0.0
     streams: list[dict[str, Any]] = []
     if video_path.is_file():

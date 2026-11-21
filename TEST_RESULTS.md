@@ -679,6 +679,82 @@ the previously verified `video.mp4` untouched and intact, and the next run reuse
   orchestrator still only publishes what `publish` is told about; no landscape episode has been
   uploaded and none should be until the owner decides the channel strategy.
 
+## 3u. Conversational cinematography (T42) - rendered and inspected
+
+The 16:9 episode named a camera per scene and some of them named the wrong character: scene 11 had
+Gappu speaking over a `medium_chiku`, a medium shot of the listener while the speaker's mouth was off
+screen. Five consecutive scenes in the middle of the conversation were all `two_shot`, so a
+two-hander had no reverse coverage at all.
+
+`studio/animation/shot_plan.py` now derives the shot from the conversation - line ownership, the
+listener, the location, and what the previous cut framed - and a scene whose camera is `"auto"` takes
+its framing from that plan. All twelve scenes of the Haveli episode are now directed.
+
+### The edit that resulted
+
+| Scene | Speaker | Shot | Reason |
+| --- | --- | --- | --- |
+| 1 | narrator | wide_establishing | episode_open |
+| 2 | chiku | medium_chiku | speaker_medium |
+| 3 | gappu | medium_gappu | speaker_medium |
+| 4 | chiku | close_up_chiku | punctuated_turn |
+| 5 | narrator | two_shot | narrator_watching_both |
+| 6 | gappu | medium_gappu | speaker_medium |
+| 7 | chiku | medium_chiku | speaker_medium |
+| 8 | gappu | medium_gappu | speaker_medium |
+| 9 | narrator | two_shot | narrator_watching_both |
+| 10 | chiku | close_up_chiku | punctuated_turn |
+| 11 | gappu | medium_gappu | speaker_medium |
+| 12 | narrator | two_shot | narrator_watching_both |
+
+That is classic shot/reverse-shot: the frame changes sides because the *speaker* changed, not
+because a counter flipped. Re-ordering two lines re-orders the shots, and inserting a narrator beat
+changes the coverage of the lines around it - both asserted in tests.
+
+### Evidence
+
+| Property | Result |
+| --- | --- |
+| Directed shots | 12, 0 continuity violations |
+| QC | 25 checks (new `shot_continuity` gate), 24/24 pass earlier + the new gate |
+| Cropped required subjects | 0 |
+| Face/caption collisions | 0 |
+| Episode | 1920x1080, 30/1, 1935 frames, 64.500 s, sha256 `cb38d2c5...` |
+| Portrait regression | `0fac3ab3...`, 963/963 frames identical |
+| Tests | 519 (30 new shot-plan tests) |
+| Golden frames | 78 frames, 0 changed, 0 new |
+
+Frames were inspected: a 2x3 contact sheet of the first six scenes, and scene 11 on its own to
+confirm the original defect is gone (Gappu is centred and large while his line plays).
+
+### Defects found while doing this
+
+1. **`medium_<name>` was a two-shot.** `plan_shot` handled single-subject styles only inside its
+   widening loop, where `medium_<name>` matched the *relational* `medium` case first and was
+   "widened from subject_medium to medium" - framing both characters. That is what the T41 runs
+   reported as escalation on scenes 3, 8 and 11, and it is why a "medium of Gappu" still showed Chiku
+   large. Subject shots are now resolved before the relational loop.
+2. **The episode's own wide was being discarded.** The repeat guard keyed on the camera name only, so
+   a location change that legitimately cut from one wide to another was overwritten. It compares the
+   location too now.
+3. **A danda is not a beat.** Treating the Devanagari full stop as punctuation made every Hindi line
+   "punctuated", which turned all twelve scenes into close-ups. A beat is a question, an exclamation
+   at the end, or an opening interjection ("अरे!", "देखा?"), which is where Hindi puts the emphasis.
+4. **The cache signature was a manual string, and I forgot to bump it.** A framing fix re-rendered
+   nothing, reused twelve stale scenes and reported success. The signature now hashes the engine's
+   own source (`studio/animation`, `studio/characters`, `studio/audio`, `content/characters`), so it
+   cannot be forgotten.
+
+### Honest limits
+
+* Shot/reverse-shot happens *between* scenes because a scene is one line. There are no cuts inside a
+  line yet, so a long speech cannot cut to a reaction in the middle of itself.
+* Eyeline is enforced as axis continuity (each character keeps its side, and no framing is allowed to
+  name a non-participant), not as head-turn geometry; gaze targets are unchanged from T32.
+* Three-character scenes are not supported: `screen_sides` handles any number of anchors, but the
+  camera has no three-shot vocabulary and the planner's listener model assumes a pair.
+* The director chooses among the camera styles that exist. It does not invent new moves.
+
 ## 4. Not yet executed
 
 | Test | Status |

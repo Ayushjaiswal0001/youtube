@@ -202,3 +202,19 @@ or reaction-shot library.
 | Portrait regression | VERIFIED | `0fac3ab3...`, 963/963 frames identical |
 | Disk-space / memory guards, locking, retry policy | NOT IMPLEMENTED | T49 |
 | Landscape episodes in the publish path | NOT IMPLEMENTED | `publish` untouched |
+
+## Conversational cinematography (T42)
+
+| Item | Status | Evidence |
+| --- | --- | --- |
+| Shots derived from dialogue ownership | VERIFIED | 30 tests; re-ordering lines re-orders shots |
+| Shot/reverse-shot across a conversation | VERIFIED | Haveli episode alternates medium_chiku/medium_gappu by speaker |
+| Listener never framed while the speaker talks | VERIFIED | QC gate + rendered scene 11 inspected |
+| Reverse coverage of long speaker runs | VERIFIED | validator flags a run with one subject |
+| Location change cuts wide | VERIFIED | rule + test |
+| Episode opens on the space | VERIFIED | rule + test |
+| Axis of action (screen side) | PARTIAL | sides are fixed from stage anchors and validated; head-turn geometry is not modelled |
+| Close-ups earned, not sprayed | VERIFIED | tenure + beat + density rules, all tested |
+| Cuts inside a line | NOT IMPLEMENTED | one camera per scene |
+| Three-character scenes | NOT IMPLEMENTED | no three-shot vocabulary |
+

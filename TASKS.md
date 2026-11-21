@@ -144,7 +144,14 @@ Status markers: `[ ]` todo, `[~]` in progress, `[x]` done.
 - [ ] **T47. Story continuity intelligence.** Episode-level continuity, relationship state,
   previous-episode references and duplicate detection are not implemented; the series bible is a
   topic bank with series positions, not a continuity engine.
-- [ ] **T42. Landscape continuity and narrative camera intelligence.** Landscape camera vocabulary
+- [x] **T42. Cinematic eyeline and shot/reverse-shot.** `studio/animation/shot_plan.py` derives
+  each shot from line ownership, listener, location and the previous cut; `"camera": "auto"` takes
+  the decision; a `shot_continuity` QC gate fails on a listener-only frame, an axis break, a repeated
+  framing or a run with no reverse coverage. Haveli episode fully directed, 0 violations, 64.5 s
+  rendered and inspected. See TEST_RESULTS 3u.
+- [ ] **T42b. Cuts inside a line.** A long speech cannot cut to a reaction mid-sentence; the renderer
+  still binds one camera to one scene.
+ Landscape camera vocabulary
   exists (`wide_establishing`, `tracking_left/right`, `medium_*`, `reaction_*`, `two_shot_hold`) and
   escalation is logged, but eyeline-matching across a cut and shot/reverse-shot alternation are not
   implemented: scenes currently choose their own shot independently.

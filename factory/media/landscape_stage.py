@@ -46,10 +46,44 @@ BAND_TOP = 0.845
 BAND_BOTTOM = 0.955
 BAND_MARGIN = 0.12
 
-# Bump when the landscape art changes shape (environment palettes, layer geometry, foreground).
-# Cached scenes hash it, so a look change invalidates the cache instead of silently reusing frames
-# rendered with the previous art - the failure mode that makes a cache worse than no cache.
+# The engine is its source. A cached scene hashes the bytes of the animation engine and the character
+# schemas, so changing framing, camera behaviour, the shot planner, the rig drawing or a palette
+# invalidates the cache instead of silently reusing frames the previous engine drew.
+#
+# A manual version string was the first attempt, and I forgot to bump it for a framing fix: the
+# render reused twelve scenes and reported success while showing the old shots. Hashing the source
+# cannot be forgotten.
+ENGINE_SOURCES: tuple[str, ...] = (
+    "studio/animation",
+    "studio/characters",
+    "studio/audio",
+    "content/characters",
+)
+
+# Bumped only for changes that are not in those files (fonts, overlay geometry baked into stills).
 ENVIRONMENT_SIGNATURE = "env-2024-11-t41"
+
+_ENGINE_DIGEST: Optional[str] = None
+
+
+def engine_digest() -> str:
+    """A hash of every file that decides what a frame looks like."""
+
+    global _ENGINE_DIGEST
+    if _ENGINE_DIGEST is not None:
+        return _ENGINE_DIGEST
+    digest = hashlib.sha256()
+    root = Path(__file__).resolve().parents[2]
+    for relative in ENGINE_SOURCES:
+        base = root / relative
+        if not base.exists():
+            continue
+        paths = sorted(p for p in base.rglob("*") if p.suffix in (".py", ".json"))
+        for path in paths:
+            digest.update(path.relative_to(root).as_posix().encode("utf-8"))
+            digest.update(path.read_bytes())
+    _ENGINE_DIGEST = digest.hexdigest()[:16]
+    return _ENGINE_DIGEST
 
 DEVANAGARI_FONT = "NotoSansDevanagari-Variable.ttf"
 LATIN_FONT = "Inter-Black.otf"
@@ -266,6 +300,8 @@ def load_studio(out_dir: Path):
     from studio.animation.stage import LANDSCAPE
     from studio.animation.environment import ForegroundLayer, LandscapeEnvironment
     from studio.audio.tts_engine import TTSEngine
+    from studio.animation.shot_plan import apply_plan as apply_shot_plan
+    from studio.animation.shot_plan import plan_conversation
     from studio.animation.transitions import plan_transitions
     return {
         "SceneRenderer": SceneRenderer,
@@ -274,6 +310,8 @@ def load_studio(out_dir: Path):
         "ForegroundLayer": ForegroundLayer,
         "TTSEngine": TTSEngine,
         "plan_transitions": plan_transitions,
+        "plan_conversation": plan_conversation,
+        "apply_shot_plan": apply_shot_plan,
     }
 
 
@@ -425,6 +463,22 @@ def render_stage_episode(spec: ChannelSpec, plan: Dict[str, Any], *, force: bool
     story["scenes"][0]["title_png"] = str(title_png)
 
     studio = load_studio(out_dir)
+
+    # Conversational direction (T42): when a scene asks for "auto", the conversation decides the
+    # shot - who owns the line, who is listening, whether the location changed, what was framed on
+    # the previous cut. Authored cameras are left alone.
+    if any(str(scene.get("camera") or "").lower() in ("auto", "director")
+           for scene in story["scenes"]):
+        planner = studio["plan_conversation"]
+        anchors = [(slot.name, slot.x) for slot in studio["LANDSCAPE"].slots.values()]
+        shot_plan = planner(story["scenes"], anchors=anchors)
+        story["scenes"] = studio["apply_shot_plan"](story["scenes"], shot_plan)
+        plan_doc = shot_plan.to_dict()
+        plan_doc["story_id"] = story["story_id"]
+        (out_dir / "shot_plan.json").write_text(
+            json.dumps(plan_doc, ensure_ascii=False, indent=2), encoding="utf-8")
+        print(f"[Stage] directed {len(shot_plan.decisions)} shots, "
+              f"{len(shot_plan.warnings)} continuity violations", file=sys.stderr)
     tts = studio["TTSEngine"]()
     stage = studio["LANDSCAPE"]
     environment = studio["LandscapeEnvironment"](WIDTH, HEIGHT, stage.ground_y)
@@ -443,7 +497,7 @@ def render_stage_episode(spec: ChannelSpec, plan: Dict[str, Any], *, force: bool
     stage_signature = hashlib.sha256(
         f"{WIDTH}x{HEIGHT}|{stage.ground_y}|{stage.eye_y}|"
         f"{','.join(f'{slot.name}:{slot.x}' for slot in stage.slots.values())}|"
-        f"{ENVIRONMENT_SIGNATURE}|{kicker}".encode("utf-8")
+        f"{engine_digest()}|{ENVIRONMENT_SIGNATURE}|{kicker}".encode("utf-8")
     ).hexdigest()[:16]
     for index, scene in enumerate(story["scenes"]):
         fade_in, fade_out = transitions[index] if index < len(transitions) else (0.0, 0.0)
