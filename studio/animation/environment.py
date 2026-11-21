@@ -139,12 +139,21 @@ class LandscapeEnvironment:
         cr.restore()
 
     def draw_character_shadow(self, cr: cairo.Context, x: float, y: float, half_width: float,
-                              height: float, alpha: float = 0.26) -> None:
+                              height: float, alpha: float = 0.26,
+                              lighting=None) -> None:
         """A soft contact shadow on the floor, offset away from the light.
 
         Drawn before the cast, in world coordinates under the camera, so it stays attached to the
-        feet while the camera moves.
+        feet while the camera moves. When a ``LightingPreset`` is supplied (T44) the shadow's
+        direction, length, softness and opacity come from the light and from how far the body is off
+        the floor; without one the original behaviour is unchanged.
         """
+
+        if lighting is not None:
+            from studio.animation.lighting import draw_shadow
+            draw_shadow(cr, lighting, x=x, ground_y=y, body_half_width=half_width,
+                        height_above_ground=max(0.0, height))
+            return
 
         radius_x = max(28.0, half_width * 1.15)
         radius_y = max(9.0, radius_x * 0.26)
