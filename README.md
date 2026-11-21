@@ -149,7 +149,7 @@ no credential is read. `FACTORY_INLINE_CUTS=0` disables cuts inside a dialogue l
     python -m tools.secret_scan              # working tree
     python -m tools.secret_scan --history    # every blob in every ref
     python -m tools.workflow_audit           # permissions, action pinning, dangerous triggers
-    python -m pip_audit -r requirements.txt  # dependency advisories
+    python -m tools.dependency_audit          # dependency advisories vs. the reviewed baseline
 
 Install the pre-commit hooks once with `python -m pip install pre-commit && pre-commit install`.
 The full audit, its findings and the settings that remain owner decisions are in `SECURITY_AUDIT.md`.

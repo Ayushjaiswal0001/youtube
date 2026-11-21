@@ -899,7 +899,7 @@ pose frames are unchanged. `FACTORY_INLINE_CUTS=0` restores the previous look ex
 | `python -m tools.secret_scan` (tree) | 0 findings, 14 rules |
 | `python -m tools.secret_scan --history` (all refs) | 4 findings, all the documented fake fixtures |
 | `python -m tools.workflow_audit` | 0 findings over 7 workflows |
-| `pip-audit -r requirements.txt` | 67 advisories -> 4 residual (fixed only by pillow 13.0.0) |
+| `python -m tools.dependency_audit` | 0 unaccepted, 42 accepted under a documented pillow 12.3.0 ceiling |
 | `pytest tests/factory/test_security.py` | 18 passed |
 | Full suite | **749 passed** |
 | Golden frames | 78 frames, 0 changed, 0 new |
@@ -912,8 +912,10 @@ Defects found, including two in the tools written for this audit:
 2. `produce.yml` interpolated dispatch inputs (`allow_unpublished`, `secret_prefix`) into `run:` blocks;
    both now arrive through `env`, and the channel slug is validated against the three known slugs.
 3. Third-party actions were pinned to moving major tags; now pinned to commits resolved through the API.
-4. `pillow==12.2.0` carried 67 advisories; 12.3.0 carries 4, and the goldens prove the bump changes no
-   pixel.
+4. `pillow==12.2.0` carried 67 advisories; 12.3.0 carries **42** - my first report said 4 because I read
+   the tail of the audit output instead of counting. The bump still changes no pixel (goldens prove it),
+   and the remainder is now a counted, documented ceiling in `security/accepted-advisories.json` that CI
+   enforces.
 5. My history scan deduped findings by `(rule, line)` instead of `(rule, file, line)`, which could report
    a clean history by collapsing a finding in one file with a different file's line number. Fixed and
    re-run.

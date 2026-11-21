@@ -1,0 +1,18 @@
+{
+  "_comment": [
+    "Advisories this project has reviewed and chosen to accept. tools/dependency_audit.py fails on anything",
+    "outside these ceilings, so a new package or a new version still blocks CI. A ceiling accepts the",
+    "advisories that affect exactly that pinned version and whose fix lies above it; the count is printed",
+    "on every run so the tolerance is visible rather than silent."
+  ],
+  "ceilings": [
+    {
+      "package": "pillow",
+      "version": "12.3.0",
+      "max_accepted": 50,
+      "reason": "Only fixed in pillow 13.0.0, which the optional local tool rembg pins below (<13.0.0). The advisories are in image format parsers - PCF/BDF fonts, the bundled libopenjp2 (JPEG2000), DDS, and similar. This pipeline decodes only PNGs it rendered itself and accepts no untrusted image input, so none of these parsers is reachable from production input.",
+      "clears_when": "rembg allows pillow 13, or rembg is dropped from the workstation",
+      "owner_action": "upgrade pillow to 13.0.0 once the rembg pin allows it"
+    }
+  ]
+}

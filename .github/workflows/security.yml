@@ -68,8 +68,8 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends libcairo2-dev pkg-config python3-dev
           python -m pip install --disable-pip-version-check pip-audit
-      - name: Audit the pinned runtime requirements
-        run: python -m pip_audit -r requirements.txt --progress-spinner off
+      - name: Audit the pinned runtime requirements against the reviewed baseline
+        run: python -m tools.dependency_audit
 
   workflow-audit:
     name: workflow permissions and pinning

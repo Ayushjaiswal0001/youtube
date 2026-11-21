@@ -15,7 +15,7 @@ could be checked are stated explicitly at the end.
 | All refs, all reachable history | `python -m tools.secret_scan --history` — walks every blob in `git rev-list --objects --all` | **4 findings, all the same fake test fixtures**; no real credential in any commit |
 | Staged diff | `python -m tools.secret_scan --staged` (also a pre-commit hook) | 0 findings |
 | Workflow files | `python -m tools.workflow_audit` | 0 findings after 2 fixes |
-| Dependencies | `python -m pip_audit -r requirements.txt` | 67 advisories → **4 residual** (see §5) |
+| Dependencies | `python -m pip_audit -r requirements.txt` | 67 advisories → **42 residual**, all in pillow 12.3.0 (see F5) |
 | GitHub settings | `gh api` on repo, actions/permissions, branches/main/protection, rulesets, secrets, variables, environments, releases, artifacts | see §4 |
 | Artifacts | Downloaded both existing artifacts and read every file | **Found**: run journal leaked the local Windows path; no credentials |
 | Action logs | Inspected the credential-export step and its `::add-mask::` handling | No token is echoed; see §3 |
@@ -75,11 +75,17 @@ validated against the three known slugs before any step uses it as a directory o
 
 ### F5 — Pillow version carried 67 advisories (fixed, 4 residual)
 
-`pillow==12.2.0` → **`pillow==12.3.0`**: 67 → 4 advisories, all fixed only in 13.0.0. 749 tests pass and
+`pillow==12.2.0` → **`pillow==12.3.0`**: 67 → **42** advisories, all fixed only in 13.0.0. 749 tests pass and
 the 78 golden frames are unchanged by the bump, so Pillow is not in the animation's visual path.
 13.0.0 is not adopted because the machine's optional `rembg` package pins `pillow<13`; the residual
-advisories are a PCF font parser and a bundled libopenjp2 (JPEG2000) overflow, and this pipeline decodes
-only its own PNGs — it accepts no untrusted images. Owner action if that ever changes.
+advisories sit in image-format parsers (PCF/BDF fonts, the bundled libopenjp2/JPEG2000, DDS and similar),
+and this pipeline decodes only PNGs it rendered itself — it accepts no untrusted image input.
+
+**Correction, disclosed:** the first version of this document said "67 → 4", because I read the tail of the
+`pip-audit` output and counted the visible lines. 12.3.0 still carries **42** advisories. That is why the CI
+gate is now `tools/dependency_audit.py` against `security/accepted-advisories.json`: a version ceiling for
+`pillow@12.3.0` carrying the reason and the exit condition, counted and printed on every run, instead of a
+number in a document that nobody re-checks.
 
 ### F6 — My own auditor produced two false positives (fixed)
 
@@ -192,7 +198,7 @@ fork cannot use it.
 env -u GITHUB_TOKEN python -m tools.secret_scan
 env -u GITHUB_TOKEN python -m tools.secret_scan --history
 python -m tools.workflow_audit
-python -m pip_audit -r requirements.txt
+python -m tools.dependency_audit
 python -m pytest tests/factory/test_security.py -q
 env -u GITHUB_TOKEN gh api repos/Ayushjaiswal0001/youtube --jq .security_and_analysis
 env -u GITHUB_TOKEN gh api repos/Ayushjaiswal0001/youtube/branches/main/protection
@@ -210,7 +216,7 @@ env -u GITHUB_TOKEN gh api repos/Ayushjaiswal0001/youtube/branches/main/protecti
 | Token leakage in logs | **PASS for the workflow as written** | `::add-mask::`, no echo, `set -x` absent; **not verified against live run logs** because no run has executed the upload path |
 | Public README exposure | **PASS** | machine paths removed; public channel identifiers intentionally retained |
 | GitHub artifacts and caches | **VULNERABILITY FOUND, FIXED IN CODE; 2 OLD ARTIFACTS AWAIT DELETION** | downloaded both artifacts: local paths only, no credentials |
-| Dependency vulnerabilities | **PASS with 4 residual advisories** | `pip-audit`: 67 → 4, all requiring pillow 13.0.0 which conflicts with an optional local tool |
+| Dependency vulnerabilities | **PASS with 42 accepted advisories, all in pillow 12.3.0** | `tools.dependency_audit`: 0 unaccepted, 42 accepted under a documented version ceiling; any other package or version fails |
 | Branch protection | **FAIL — no protection on `main`** | `gh api …/branches/main/protection` → 404 "Branch not protected"; owner action |
 
 **Verdict: no known exposed active credential, and no privilege-escalation path found in the audited

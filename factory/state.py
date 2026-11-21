@@ -170,7 +170,9 @@ def portable_path(value: str) -> str:
         if index > 0:
             return text[index + 1:].replace("\\", "/")
     if re.match(r"^[A-Za-z]:[\\/]", text) or text.startswith(("/c/", "/home/", "/Users/")):
-        return Path(text).name
+        # Split on both separators: on Linux `Path(r"D:\x\y.txt").name` returns the whole string, so a
+        # Windows-shaped path would have been "reduced" to itself and the leak would have survived.
+        return re.split(r"[\\/]", text)[-1]
     return text
 
 
