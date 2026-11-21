@@ -176,6 +176,7 @@ class PickupPlan:
     need_approach: bool
     character_x: float
     approach_dx: float
+    behind_character: bool = False
     notes: List[str] = field(default_factory=list)
 
     @property
@@ -229,6 +230,13 @@ def plan_pickup(rig, obj: WorldObject, *, character: str, side: str = "right",
     reach_distance = math.dist(chain.shoulder, grasp)
     slack = chain.hand_radius
     notes: List[str] = []
+    # An object on the character's back is not a reach problem, it is a blocking problem: the
+    # character has to turn first. Reporting it as "out of reach" would send them walking backwards,
+    # which is exactly the kind of silent nonsense a continuity check exists to catch.
+    facing = float(getattr(rig, "facing", 1.0)) or 1.0
+    behind = (grasp[0] - chain.shoulder[0]) * facing < 0.0
+    if behind:
+        notes.append("object is behind the character; they must turn before reaching")
     if reach_distance > chain.reach + slack:
         notes.append(f"out of reach by {reach_distance - chain.reach - slack:.1f} px")
     if grip.hands == 2:
@@ -255,7 +263,7 @@ def plan_pickup(rig, obj: WorldObject, *, character: str, side: str = "right",
     return PickupPlan(object=obj, character=character, side=side, grip=grip, phases=phases,
                       reach_distance=reach_distance, arm_reach=chain.reach,
                       need_approach=need_approach, character_x=rig.x,
-                      approach_dx=approach_dx, notes=notes)
+                      approach_dx=approach_dx, behind_character=behind, notes=notes)
 
 
 @dataclass
