@@ -62,6 +62,9 @@ class GappuRig:
         self.glasses_slide = 0.0  # pushes glasses up nose
 
         # Limbs
+        # T43: set by studio.characters.ik.apply_ik(); None keeps the original single capsule.
+        self.arm_l_ik = None
+        self.arm_r_ik = None
         self.arm_l_angle = 0.1
         self.arm_r_angle = -0.1
         self.leg_l_angle = 0.0
@@ -263,20 +266,40 @@ class GappuRig:
 
         # 5. Arms
         # Left Arm
-        cr.save()
-        cr.translate(-P.arm_attach_x, P.arm_attach_y)
-        cr.rotate(self.arm_l_angle)
-        draw_capsule(cr, 0, 0, -P.arm_shift, P.arm_len, P.arm_r, fill_color=COLOR_FUR, stroke_color=COLOR_OUTLINE, stroke_width=3.5)
-        draw_ellipse(cr, -P.arm_shift, P.arm_len + 5, P.hand_rx, P.hand_ry, fill_color=COLOR_EAR_INNER, stroke_color=COLOR_OUTLINE, stroke_width=3.5)
-        cr.restore()
+        # T43: a two-segment arm when an IK solution is attached, otherwise the
+        # original single capsule - which is what keeps the golden frames identical.
+        if self.arm_l_ik is None:
+            cr.save()
+            cr.translate(-P.arm_attach_x, P.arm_attach_y)
+            cr.rotate(self.arm_l_angle)
+            draw_capsule(cr, 0, 0, -P.arm_shift, P.arm_len, P.arm_r, fill_color=COLOR_FUR, stroke_color=COLOR_OUTLINE, stroke_width=3.5)
+            draw_ellipse(cr, -P.arm_shift, P.arm_len + 5, P.hand_rx, P.hand_ry, fill_color=COLOR_EAR_INNER, stroke_color=COLOR_OUTLINE, stroke_width=3.5)
+            cr.restore()
+        else:
+            cr.save()
+            cr.translate(-P.arm_attach_x, P.arm_attach_y)
+            draw_capsule(cr, 0, 0, self.arm_l_ik.elbow[0], self.arm_l_ik.elbow[1], P.arm_r, fill_color=COLOR_FUR, stroke_color=COLOR_OUTLINE, stroke_width=3.5)
+            draw_capsule(cr, self.arm_l_ik.elbow[0], self.arm_l_ik.elbow[1], self.arm_l_ik.wrist[0], self.arm_l_ik.wrist[1], P.arm_r * 0.86, fill_color=COLOR_FUR, stroke_color=COLOR_OUTLINE, stroke_width=3.5)
+            draw_ellipse(cr, self.arm_l_ik.wrist[0], self.arm_l_ik.wrist[1], P.hand_rx, P.hand_ry, fill_color=COLOR_EAR_INNER, stroke_color=COLOR_OUTLINE, stroke_width=3.5)
+            cr.restore()
 
         # Right Arm
-        cr.save()
-        cr.translate(P.arm_attach_x, P.arm_attach_y)
-        cr.rotate(self.arm_r_angle)
-        draw_capsule(cr, 0, 0, P.arm_shift, P.arm_len, P.arm_r, fill_color=COLOR_FUR, stroke_color=COLOR_OUTLINE, stroke_width=3.5)
-        draw_ellipse(cr, P.arm_shift, P.arm_len + 5, P.hand_rx, P.hand_ry, fill_color=COLOR_EAR_INNER, stroke_color=COLOR_OUTLINE, stroke_width=3.5)
-        cr.restore()
+        # T43: a two-segment arm when an IK solution is attached, otherwise the
+        # original single capsule - which is what keeps the golden frames identical.
+        if self.arm_r_ik is None:
+            cr.save()
+            cr.translate(P.arm_attach_x, P.arm_attach_y)
+            cr.rotate(self.arm_r_angle)
+            draw_capsule(cr, 0, 0, P.arm_shift, P.arm_len, P.arm_r, fill_color=COLOR_FUR, stroke_color=COLOR_OUTLINE, stroke_width=3.5)
+            draw_ellipse(cr, P.arm_shift, P.arm_len + 5, P.hand_rx, P.hand_ry, fill_color=COLOR_EAR_INNER, stroke_color=COLOR_OUTLINE, stroke_width=3.5)
+            cr.restore()
+        else:
+            cr.save()
+            cr.translate(P.arm_attach_x, P.arm_attach_y)
+            draw_capsule(cr, 0, 0, self.arm_r_ik.elbow[0], self.arm_r_ik.elbow[1], P.arm_r, fill_color=COLOR_FUR, stroke_color=COLOR_OUTLINE, stroke_width=3.5)
+            draw_capsule(cr, self.arm_r_ik.elbow[0], self.arm_r_ik.elbow[1], self.arm_r_ik.wrist[0], self.arm_r_ik.wrist[1], P.arm_r * 0.86, fill_color=COLOR_FUR, stroke_color=COLOR_OUTLINE, stroke_width=3.5)
+            draw_ellipse(cr, self.arm_r_ik.wrist[0], self.arm_r_ik.wrist[1], P.hand_rx, P.hand_ry, fill_color=COLOR_EAR_INNER, stroke_color=COLOR_OUTLINE, stroke_width=3.5)
+            cr.restore()
 
         # 6. Head & Face
         cr.save()
