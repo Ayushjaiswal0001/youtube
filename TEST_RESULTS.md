@@ -520,10 +520,19 @@ so the camera lift carries those frames; a producer would prefer to stage the ha
 The key artwork is legible at the receiving hand but small in the giving hand - an art-polish
 follow-up, not a wiring one.
 
-Re-rendering an episode that carries **no** prop changed it imperceptibly: 637 of 962 frames
-byte-identical, worst PSNR 47.9 dB, no frame below 40 dB, differences confined to scenes 2-3.
-The cause is the loop reorder (poses are now updated before the camera is resolved), not the prop
-code. I did not isolate the exact call, and I am not claiming byte-identity.
+**Correction (T41).** I first wrote here that a prop-free episode re-rendered imperceptibly because
+of the loop reorder. That was wrong. The reorder is not the cause: `--force` deleted the studio
+intermediate tree, which *includes the recorded dialogue*, so every render re-synthesised the lines
+through Edge-TTS. That service does not return the same bytes for the same text twice, the visemes
+come from the audio envelope, and so the mouths - and about a third of the frames - moved a little
+on every render. The delta (637 of 962 frames identical, worst PSNR 47.9 dB) was TTS jitter, and
+it had been quietly polluting every comparison since the first render of this milestone.
+
+Fixed in `factory/media/hindi_renderer.py`: a forced re-render now keeps `*.mp3` and
+`*.boundaries.json` and discards only derived artifacts (`FACTORY_FRESH_AUDIO=1` asks for a fresh
+dub). Two consecutive forced renders of the same episode now produce the **same sha256**
+(`56b61c786a3a57e4f84a8ec3d18223955383bf782e121de7ca0ee565f834043a`), which is the property every
+before/after claim in this file depends on.
 
 ## 4. Not yet executed
 
