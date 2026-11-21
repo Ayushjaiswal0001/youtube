@@ -4,6 +4,7 @@ skeletal rigged characters (Chiku & Gappu), animated lipsync, cartoon effects,
 and mixes dialogue audio, sound effects, and background music with FFmpeg.
 """
 
+import json
 import math
 import os
 import subprocess
@@ -38,6 +39,11 @@ from studio.characters.performance import (
 from studio.characters.visemes import VisemeTimeline
 from studio.animation.background import BackgroundRenderer
 from studio.animation.camera import Camera, CameraDirector
+from studio.animation.framing import (
+    FramingReport,
+    plan_shot,
+    subject_from_schema,
+)
 from studio.animation.transitions import ffmpeg_fade_filters
 from studio.animation.effects import (
     draw_sparkle, draw_dust_puff, draw_exclamation_pop, draw_vignette,
@@ -198,6 +204,35 @@ class SceneRenderer:
             facing_b=int(math.copysign(1, gappu.facing)),
         )
 
+        # Shot planning (T39): the camera is told what has to be on screen. The subjects come
+        # from the character schemas - the same source the rigs use - so the framing can never
+        # disagree with the drawing. A character that gestures must be fully in frame, so the
+        # scripted style is treated as a request and widened when it would crop one.
+        subjects = {
+            "chiku": subject_from_schema("chiku", chiku.schema),
+            "gappu": subject_from_schema("gappu", gappu.schema),
+        }
+        # The planner applies each kind's own semantics: a close-up must belong to the character
+        # who is performing, and a relational shot (medium/two_shot/wide) must hold the whole
+        # cast. `must_show` is only for a caller that insists on particular characters.
+        must_show = None
+        # A hand-off or any scene that is about the pair rather than one of them asks for both
+        # characters on screen; pair lock is the blunt version of that, and also a switch for
+        # A/B renders while the shot policy is being decided by eye.
+        if (os.environ.get("FACTORY_CAMERA_PAIR_LOCK") == "1"
+                or str(scene_data.get("interaction", "")) in ("contact", "hand_off")):
+            must_show = ["chiku", "gappu"]
+        shot = plan_shot(camera_style, subjects, (self.width, self.height),
+                         speaker=speaker if speaker in subjects else None,
+                         must_show=must_show)
+        if os.environ.get("FACTORY_CAMERA_FRAMING", "1") == "1":
+            director.shot = shot
+        if shot.escalated:
+            print(f"[Render] Scene {scene_num}: camera {camera_style} -> {shot.kind} "
+                  f"({shot.reason}) to keep {', '.join(shot.subjects)} in frame")
+        framing = FramingReport((self.width, self.height), required=tuple(shot.subjects))
+        framing_gesture_frames = 0
+
         # Locomotion layer (T33). Scenes without a motion keep the pose exactly as it was,
         # so every existing episode renders unchanged.
         chiku_motion = MotionController(
@@ -349,25 +384,9 @@ class SceneRenderer:
                 chiku_talking = is_dialogue_playing and (speaker == "chiku")
                 gappu_talking = is_dialogue_playing and (speaker == "gappu")
 
-                camera_frame = director.state_at(t)
-                camera.zoom = camera_frame.zoom
-                camera.pan_x = camera_frame.pan_x
-                camera.pan_y = camera_frame.pan_y
-                if camera_style == "action_shake" and 0.3 < t < 1.2:
-                    camera.trigger_shake(0.2)
-                camera.update(1.0 / self.fps)
-
-                cr.save()
-                cr.set_operator(cairo.OPERATOR_CLEAR)
-                cr.paint()
-                cr.restore()
-
-                self.bg_renderer.render_by_name(bg_name, cr, t, camera.pan_x, camera.pan_y)
-
-                cr.save()
-                camera.apply(cr, t)
                 # Interaction resolves the two bodies together, so it has to run after both
-                # motions are known and before either rig is posed.
+                # motions are known and before either rig is posed - and before the camera,
+                # which now frames the characters where they actually are this frame.
                 chiku_body = chiku_perf.accent_at(t).on_body(chiku_motion.state_at(t))
                 gappu_body = gappu_perf.accent_at(t).on_body(gappu_motion.state_at(t))
                 hip_a, hip_b = interaction.resolve(chiku_body.hip_x, gappu_body.hip_x)
@@ -378,6 +397,34 @@ class SceneRenderer:
                     chiku_body = chiku_body.merged_with(layer_a)
                 if layer_b is not None:
                     gappu_body = gappu_body.merged_with(layer_b)
+
+                camera_frame = director.state_at(
+                    t, positions={"chiku": chiku.x + hip_a, "gappu": gappu.x + hip_b})
+                camera.zoom = camera_frame.zoom
+                camera.pan_x = camera_frame.pan_x
+                camera.pan_y = camera_frame.pan_y
+                reach_a = interaction.amount_at(t, 0)
+                reach_b = interaction.amount_at(t, 1)
+                if reach_a > 0.0 or reach_b > 0.0:
+                    framing_gesture_frames += 1
+                framing.add(t, camera.zoom, camera.pan_x, camera.pan_y, subjects,
+                            reach={"chiku": reach_a, "gappu": reach_b})
+                if camera_style == "action_shake" and 0.3 < t < 1.2:
+                    camera.trigger_shake(0.2)
+                camera.update(1.0 / self.fps)
+
+                cr.save()
+                cr.set_operator(cairo.OPERATOR_CLEAR)
+                cr.paint()
+                cr.restore()
+
+                self.bg_renderer.render_by_name(
+                    bg_name, cr, t, camera.pan_x, camera.pan_y,
+                    zoom=(camera.zoom if os.environ.get("FACTORY_CAMERA_ZOOM_BG", "1") == "1"
+                          else 1.0))
+
+                cr.save()
+                camera.apply(cr, t)
                 face_a, face_b = interaction.facing(hip_a, hip_b)
                 if face_a != int(math.copysign(1, chiku.facing)):
                     chiku.facing = float(face_a)
@@ -462,7 +509,38 @@ class SceneRenderer:
             err = ""
             if encoder.stderr is not None:
                 err = encoder.stderr.read().decode("utf-8", errors="replace")
-            raise RuntimeError(f"Scene {scene_num} video pipe failed: {err[-2000:]}") from exc
+            # Include the exception: an empty ffmpeg stderr used to hide a Python bug in the
+            # frame loop behind "video pipe failed", which told a reader nothing.
+            raise RuntimeError(
+                f"Scene {scene_num} video pipe failed: {type(exc).__name__}: {exc} "
+                f"| ffmpeg: {err[-1500:]}") from exc
+
+        # Framing report (T39): what the camera actually covered, frame by frame, measured with
+        # the same projection the renderer used. Written next to the scene so QC can gate on it
+        # and a human can see which subject was cropped and by how much.
+        summary = framing.summary()
+        summary.update({
+            "scene": scene_num,
+            "camera_style": camera_style,
+            "shot": shot.kind,
+            "shot_subjects": list(shot.subjects),
+            "shot_zoom": round(shot.zoom, 4),
+            "escalated": shot.escalated,
+            "reason": shot.reason,
+            "gesture_frames": framing_gesture_frames,
+        })
+        try:
+            report_path = Path(output_mp4).with_name(Path(output_mp4).stem + "_framing.json")
+            report_path.write_text(json.dumps(summary, ensure_ascii=False, indent=2),
+                                   encoding="utf-8")
+            cropped = {name: data["cropped_frames"]
+                       for name, data in summary["subjects"].items()
+                       if data["cropped_frames"]}
+            print(f"[Render] Scene {scene_num} framing: shot={shot.kind} "
+                  f"zoom={shot.zoom:.2f} "
+                  + (f"CROPPED {cropped}" if cropped else "all subjects in frame"))
+        except Exception as exc:  # a report must never fail a render
+            print(f"[Render] WARNING: could not write framing report: {exc}")
 
         print(f"[Render] Scene {scene_num} successfully encoded -> {output_mp4}")
         return output_mp4

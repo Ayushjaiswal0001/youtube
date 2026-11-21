@@ -132,6 +132,11 @@ def render_hindi_episode(
         raise RuntimeError(f"studio did not produce the expected episode: {source}")
     shutil.copy2(source, video_path)
 
+    # The framing report travels with the episode so QC can gate on it (T39).
+    framing_source = source.with_name(source.stem.replace("_final", "") + "_framing.json")
+    if framing_source.is_file():
+        shutil.copy2(framing_source, out_dir / "framing.json")
+
     streams = ffprobe_streams(video_path)
     video_stream = next(
         (stream for stream in streams.get("streams", []) if stream.get("codec_type") == "video"),

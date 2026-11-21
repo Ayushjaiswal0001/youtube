@@ -401,6 +401,72 @@ Known limitation: the gesture is aimed at the partner, but a `close_up_*` camera
 partner out, leaving a character reaching into empty frame. Camera and gesture planning are not
 yet aware of each other.
 
+## 3q. Camera-aware framing (T39) - measured
+
+The camera was a style with no idea what it was pointing at: `close_up_chiku` zoomed to 1.70
+around x=380 because someone worked that out by eye once, and nothing checked that a character -
+let alone the gesture they were performing - was inside the frame.
+
+Architectural review found seven defects before any code was written:
+
+1. Subject coordinates existed in three places (the camera module, the renderer, the rig
+   constructors) while the schemas were the real source.
+2. The camera was evaluated **before** the bodies were resolved, so it framed nominal anchors
+   rather than where the characters actually were that frame.
+3. No shot knew which characters had to be on screen.
+4. The background ignored the camera zoom: characters magnified, the backdrop did not.
+5. Screen shake lives inside `Camera.apply` and cannot be predicted by any analytic framing.
+6. `FACE_Y` was a vertical constant that means nothing at a different aspect.
+7. No framing check existed at all.
+
+Fixes, and what each was measured against:
+
+| Change | Evidence |
+| --- | --- |
+| `studio/animation/framing.py`: subject geometry from schemas, `fit_zoom`, `fits`, `plan_shot`, `FramingReport` | 35 tests |
+| Camera takes a planned shot; `state_at` accepts live positions | pre/post parity: **42/42 frames identical** when no shot is planned |
+| Shot semantics: a close-up must belong to the performing character; relational shots hold the whole cast | regression tests for both defects below |
+| Shots reserve each required subject's full arm reach | gesture frames cropped: **0** |
+| Background zooms with the camera | rendered episode inspected: scene 2's window magnifies with the close-up |
+| `framing.json` per episode plus two QC gates | `framing_subjects True`, `framing_continuity True (1.07/s, limit 1.60)` |
+
+Rendered episode (1080x1920, **963 frames**, `30/1` fps, 32.135 s, decode 0 errors,
+-14.0 LUFS / -1.4 dBTP, `qc_ok: true`, 4 931 644 B):
+
+* required-subject cropped frames: **0** - which was the point of the exercise;
+* scene 2 keeps its close-up because it belongs to the speaking character, and the listener that
+  shot deliberately excludes is reported as a QC warning (`gappu: 149` frames) rather than being
+  passed off as a clean pass;
+* peak zoom rate **1.07/s** against the 1.60/s ceiling.
+
+Defects this work introduced and then fixed, recorded because every one was caught by
+measurement rather than by reading the code:
+
+1. `max(1.70, fit)` in the close-up branch tightened a close-up to the 2.2 zoom clamp. `fit_zoom`
+   is an upper bound, so it has to be `min`.
+2. A "two shot" centred the speaker and cropped his partner out of the frame entirely - a two
+   shot that frames one character is not one. Relational shots now hold the whole cast.
+3. `FramingReport.add` shadowed the module's `overflow()` function with a local dict.
+4. `plan_shot(must_show=None)` crashed the first real render on `set(None)`.
+5. The planner sized shots on the idle silhouette while the report measured the gesture, leaving
+   a trailing hand just outside the frame.
+6. `fit_zoom`'s MAX_ZOOM clamp could return a zoom at which the boxes did **not** fit, breaking
+   its own contract; the bound is now explicit (`clamp=`).
+7. Pair shots never set a vertical pan, so in a 16:9 viewport the cast sat below the bottom edge.
+8. The style's vertical drift had been silenced with a `* 0.0`, and `two_shot_zoom` had lost its
+   push-in because the kind's nominal zoom had become a hard cap. The plan now separates the
+   requested zoom (`zoom`) from the permitted one (`limit`).
+
+Two mistakes in verification are worth recording too: a stale `framing.json` from an earlier
+build was read as if it were the new one (the render had actually aborted), and a light band in a
+downscaled contact sheet looked like a background coverage bug until the same strip was cut at
+full resolution. Both are reasons to check the artifact's timestamp before quoting its numbers.
+
+Honest limits: the 16:9 renderer still draws no characters, so landscape framing is verified
+geometrically and by unit tests, not by a rendered landscape episode. Screen shake is outside the
+framing model. A `close_up_*` may crop a listener by design, which is a policy decision rather
+than a measurement.
+
 ## 4. Not yet executed
 
 | Test | Status |

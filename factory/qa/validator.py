@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import re
 from pathlib import Path
 from typing import Any
@@ -14,6 +15,10 @@ from ..util import atomic_write_json, ffprobe_duration, ffprobe_streams, iso_now
 from studio.audio.loudness import measure as measure_loudness, within_tolerance
 
 TITLE_BANNED = re.compile(r"[<>]")
+
+# A shot may push or drift, but it must not snap. Ceiling for how fast the frame may re-zoom, in
+# zoom units per second, taken from the framing report (T39).
+FRAMING_MAX_ZOOM_RATE = 1.6
 PLACEHOLDER = re.compile(r"\?{3,}")
 
 
@@ -158,6 +163,41 @@ def validate_episode(
             )
     else:
         checks.append(_check("video_probe", False, "video missing; probe skipped"))
+
+    # Framing (T39): the camera is told which characters must be on screen, and this is the
+    # check that it got them there. The report is produced by the renderer from the same
+    # projection the frames were drawn with, so a cropped subject here means a cropped subject
+    # on screen. Episodes without character framing (the 16:9 renderer draws none yet) simply
+    # have no report, which is recorded as information rather than passed off as a check.
+    framing_path = video_path.with_name("framing.json")
+    if framing_path.is_file():
+        try:
+            framing = json.loads(framing_path.read_text(encoding="utf-8"))
+        except Exception as exc:
+            checks.append(_check("framing", False, f"unreadable framing report: {exc}"))
+            framing = None
+        if framing is not None:
+            cropped = {name: int(stats.get("cropped_frames", 0))
+                       for name, stats in (framing.get("subjects") or {}).items()
+                       if stats.get("required") and int(stats.get("cropped_frames", 0)) > 0}
+            excluded = {name: int(stats.get("cropped_frames", 0))
+                        for name, stats in (framing.get("subjects") or {}).items()
+                        if not stats.get("required") and int(stats.get("cropped_frames", 0))}
+            checks.append(_check("framing_subjects", not cropped,
+                                 "every required subject stayed inside the frame"
+                                 if not cropped else f"cropped: {cropped}"))
+            if excluded:
+                warnings.append(_check(
+                    "framing_off_shot_characters", False,
+                    f"characters outside the chosen shot (by design): {excluded}",
+                    severity="warning"))
+            zoom_rate = float(framing.get("max_zoom_rate", 0.0))
+            checks.append(_check("framing_continuity", zoom_rate <= FRAMING_MAX_ZOOM_RATE,
+                                 f"peak zoom change {zoom_rate:.2f}/s "
+                                 f"(limit {FRAMING_MAX_ZOOM_RATE:.2f})"))
+    else:
+        checks.append(_check("framing_subjects", True, "no framing report for this episode",
+                             severity="info"))
 
     title = script.title.strip()
     checks.append(_check("title_length", 0 < len(title) <= 100, f"{len(title)} chars"))

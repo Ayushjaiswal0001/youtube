@@ -50,6 +50,32 @@ They are disjoint, so there is no conflict either way. Recommended order: **#2 f
 (it fixes the runner install that T12 needs), then **#3**. Both stay unmerged until the
 owner approves.
 
+### Framing (T39)
+
+`studio/animation/framing.py` owns geometry and shot choice; `camera.py` keeps the move.
+
+- Subjects are built from the schemas (`subject_from_schema`). Do not reintroduce constants for
+  where a character stands; `camera.subject_x()` reads the schema for exactly this reason.
+- `plan_shot()` treats the script's style as a **request**: a close-up survives only if its
+  subject is the character who is performing, and `medium`/`two_shot`/`wide` must hold the whole
+  cast. Only widening is allowed, and a widened shot records `reason`.
+- `Shot.zoom` is what the shot asks for; `Shot.limit` is the tightest zoom that still holds every
+  required subject. The camera takes `min(style_zoom, limit)` so a push-in keeps moving but can
+  never crop. Collapsing these two fields into one removes `two_shot_zoom`'s entire move.
+- `fit_zoom()` returns an **upper bound**. `max()` against it is always a bug; use `min()`.
+  `clamp=False` gives the raw geometric bound, which is what the fit guarantee refers to.
+- `FramingReport` measures the frame the renderer will draw, using the same projection as
+  `Camera.apply`. It is written per scene and aggregated to `framing.json` beside `video.mp4`.
+  QC fails on cropped **required** subjects and warns about deliberately excluded ones.
+- If a render fails with `video pipe failed` and no ffmpeg output, read the exception now
+  included in the message - that path used to hide Python errors in the frame loop.
+- Frame-loop order matters: bodies, then interaction resolve, then camera, then draw. The camera
+  needs the resolved positions; moving it back before the bodies silently restores the "frames
+  the anchor, not the character" defect.
+- Environment switches: `FACTORY_CAMERA_FRAMING=0` (old camera), `FACTORY_CAMERA_ZOOM_BG=0`
+  (background ignores zoom), `FACTORY_CAMERA_PAIR_LOCK=1` (force both characters into every shot;
+  also triggered by a scene key `interaction: contact`).
+
 ### Interaction (T35b)
 
 `studio/characters/interaction.py`, wired in `scene_renderer.py` once per scene

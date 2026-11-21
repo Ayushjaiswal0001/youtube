@@ -25,7 +25,7 @@ class BackgroundRenderer:
     OVERSCAN = 1.13
 
     def render_by_name(self, name: str, cr: cairo.Context, t: float,
-                       camera_x: float = 0.0, camera_y: float = 0.0):
+                       camera_x: float = 0.0, camera_y: float = 0.0, zoom: float = 1.0):
         """Dispatches to the requested background renderer with safe default fallback."""
         bg_map: Dict[str, Callable] = {
             "jungle_clearing": self.render_jungle_clearing,
@@ -38,7 +38,10 @@ class BackgroundRenderer:
         render_fn = bg_map.get(name, self.render_jungle_clearing)
         cr.save()
         cr.translate(self.width / 2.0, self.height / 2.0)
-        cr.scale(self.OVERSCAN, self.OVERSCAN)
+        # The characters are drawn under the camera's zoom; the backdrop used to ignore it, so a
+        # 1.7x close-up pushed the rigs in while the background stayed at 1.13x (T39). Both now
+        # magnify together, and the internal parallax shifts scale with them.
+        cr.scale(self.OVERSCAN * zoom, self.OVERSCAN * zoom)
         cr.translate(-self.width / 2.0, -self.height / 2.0)
         render_fn(cr, t, camera_x, camera_y)
         cr.restore()

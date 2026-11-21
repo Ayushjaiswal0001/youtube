@@ -62,8 +62,42 @@ CAMERA_STYLES: Tuple[str, ...] = (
     "wide_finish", "action_shake",
 )
 
-SUBJECT_X = {"chiku": 380.0, "gappu": 780.0}
+# Read from the character schemas, which are the single source of truth for where a character
+# stands. The camera used to carry its own copy of these numbers, and the renderer a third, so
+# moving a character desynchronised the framing from the drawing (T39).
+from studio.characters.schema import load_schema  # noqa: E402  (kept below Camera on purpose)
+
+_SUBJECT_X_CACHE: dict = {}
+
+
+def subject_x(name: str) -> float:
+    """World x of a character's anchor, straight from its schema."""
+
+    if name not in _SUBJECT_X_CACHE:
+        _SUBJECT_X_CACHE[name] = float(load_schema(name).anchor["x"])
+    return _SUBJECT_X_CACHE[name]
+
+
+class _SubjectX(dict):
+    """Mapping view over the schemas, so `SUBJECT_X["chiku"]` still works for callers."""
+
+    def __getitem__(self, name):
+        return subject_x(name)
+
+
+SUBJECT_X = _SubjectX()
+
+# Where the framing puts the subject's head. A composition choice (headroom above, subtitle band
+# below), not geometry, so it stays a constant.
 FACE_Y = 1180.0
+
+# Where a pair shot puts the cast's vertical centre, as a fraction of frame height. The vertical
+# value is the ratio the pre-T39 pair shots produced at zoom 1.12, so the wide shot keeps its
+# composition exactly; at zoom 1.0 the same rule lifts the pair by 44 px, which is the one part of
+# this change that restyles existing shots (measured, not assumed). The landscape value pulls the
+# cast up, because a 16:9 frame has no room to waste under it.
+PAIR_TARGET_RATIO_VERTICAL = 0.7125
+PAIR_TARGET_RATIO_LANDSCAPE = 0.55
 
 
 def _smoothstep(value: float) -> float:
@@ -88,17 +122,22 @@ class CameraDirector:
     """
 
     def __init__(self, style: str = "medium_pan", duration: float = 6.0,
-                 viewport: Tuple[int, int] = (1080, 1920)) -> None:
+                 viewport: Tuple[int, int] = (1080, 1920), shot=None) -> None:
         self.style = style if style in CAMERA_STYLES else "medium_pan"
         self.duration = max(0.1, float(duration))
         self.vw, self.vh = viewport
         self.center_x = self.vw / 2.0
         self.center_y = self.vh / 2.0
+        # A planned shot (T39) says what must be on screen and how tight the frame may get.
+        # With no shot the director behaves exactly as it did before shot planning existed.
+        self.shot = shot
 
     @property
     def subject(self) -> Optional[str]:
         """The character this framing is about, if it is a close-up."""
 
+        if self.shot is not None:
+            return self.shot.subject
         if self.style == "close_up_chiku":
             return "chiku"
         if self.style == "close_up_gappu":
@@ -117,7 +156,7 @@ class CameraDirector:
         clear.
         """
 
-        pan_x = SUBJECT_X[subject] - self.center_x
+        pan_x = subject_x(subject) - self.center_x
         target_y = self.vh * target_y_ratio
         pan_y = FACE_Y - self.center_y + (self.center_y - target_y) / zoom
         return pan_x, pan_y
@@ -132,9 +171,56 @@ class CameraDirector:
 
     # -- the move -----------------------------------------------------------
 
-    def state_at(self, t: float) -> CameraFrame:
+    def _style_frame(self, t: float, u: float, style: str) -> CameraFrame:
+        """The style's own move, with no knowledge of what has to fit."""
+
+        if style == "two_shot_zoom":
+            return CameraFrame(zoom=1.0 + 0.13 * u, pan_x=0.0, pan_y=-0.02 * self.vh * u)
+        if style == "wide_finish":
+            return CameraFrame(zoom=1.12 - 0.12 * u, pan_x=0.0, pan_y=0.0)
+        if style == "action_shake":
+            return CameraFrame(zoom=1.04 + 0.03 * u, pan_x=0.0, pan_y=0.0)
+        if style == "two_shot":
+            return CameraFrame(zoom=1.0, pan_x=0.0, pan_y=0.0)
+        drift = math.sin(t * 0.36 - 0.4) * 26.0 * (0.35 + 0.65 * min(1.0, t / 1.5))
+        return CameraFrame(zoom=1.01 + 0.03 * u, pan_x=drift, pan_y=0.0)
+
+    def state_at(self, t: float, positions: Optional[dict] = None) -> CameraFrame:
         u = _smoothstep(t / self.duration)
         style = self.style
+        shot = self.shot
+
+        if shot is not None and shot.kind == "close_up":
+            # Track the subject where it actually is this frame. It can be walking, pushed aside
+            # by the separation clamp, or shifted by a performance beat, and a close-up that
+            # used the nominal anchor would drift off the character's face.
+            name = shot.subjects[0]
+            live_x = float((positions or {}).get(name, subject_x(name)))
+            zoom = 1.06 + max(0.0, shot.zoom - 1.06) * _smoothstep(min(1.0, t / 0.9))
+            target_y = self.vh * 0.42
+            pan_y = FACE_Y - self.center_y + (self.center_y - target_y) / zoom
+            settle = _smoothstep(min(1.0, t / 0.6))
+            return CameraFrame(zoom=zoom, pan_x=(live_x - self.center_x) * settle,
+                               pan_y=pan_y * settle)
+
+        if shot is not None:
+            # Pair and wide shots centre the pair rather than the frame, because the two
+            # characters do not sit symmetrically about the middle: chiku is 160 px off-centre.
+            base = self._style_frame(t, u, style)
+            # The style keeps its own move (a slow push-in, a settle) but can never exceed the
+            # shot's limit, which is the widest zoom that still holds every required subject.
+            zoom = min(base.zoom, shot.limit)
+            pan_x = shot.centre_x - self.center_x + base.pan_x
+            # Vertical framing has to follow the viewport. A 9:16 frame has room below the cast
+            # (subtitle band) and the target ratio below reproduces the existing composition to
+            # within a third of a pixel, so existing episodes do not move. A 16:9 frame is short:
+            # leaving pan_y at zero there put the characters below the bottom edge entirely.
+            target = self.vh * (PAIR_TARGET_RATIO_LANDSCAPE if self.vw > self.vh
+                                else PAIR_TARGET_RATIO_VERTICAL)
+            # The style's vertical drift is replaced by this centring, not added to it: two
+            # competing offsets would fight over the same margin.
+            pan_y = shot.centre_y - self.center_y + (self.center_y - target) / zoom
+            return CameraFrame(zoom=zoom, pan_x=pan_x, pan_y=pan_y)
 
         if style in ("close_up_chiku", "close_up_gappu"):
             subject = "chiku" if style.endswith("chiku") else "gappu"

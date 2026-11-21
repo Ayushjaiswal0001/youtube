@@ -140,3 +140,19 @@ or reaction-shot library.
 | Facing flips when a partner is behind | IMPLEMENTED BUT UNTESTED | unit tests only; no scene exercises it |
 | Gesture survives a close-up camera | NOT IMPLEMENTED | camera plan can crop the partner out |
 | Hand-off / object contact | NOT IMPLEMENTED | not started |
+
+## Camera and framing
+
+| Item | Status | Evidence |
+| --- | --- | --- |
+| Subject geometry from one source (schemas) | VERIFIED | 35 framing tests; pre/post camera parity 42/42 frames |
+| Planned shots keep required subjects in frame | VERIFIED | 0 required-subject cropped frames across the rendered episode |
+| Gestures never cropped | VERIFIED | shots reserve full arm reach; 0 gesture frames cropped |
+| Automatic wide/medium/close-up choice | VERIFIED | escalation unit-tested; the natkhat episode keeps its scripted shots because all of them are valid |
+| Close-up points at the performing character | VERIFIED | regression test; a mismatch widens the shot |
+| Abrupt zoom jumps prevented | VERIFIED | peak 1.07/s vs 1.60/s ceiling; QC gate `framing_continuity` |
+| Background magnifies with the camera | VERIFIED | rendered episode inspected; scene 2's window scales with the close-up |
+| 9:16 composition | VERIFIED | rendered episode |
+| 16:9 composition | GEOMETRY VERIFIED, NOT RENDERED | fit/shot tests at 1920x1080; the landscape renderer draws no characters yet |
+| Screen shake inside the framing model | NOT IMPLEMENTED | shake is applied in `Camera.apply` after planning |
+| Object-aware co-visibility (hand-off) | PARTIAL | `interaction: contact` scene key forces a pair shot; no object tracking |

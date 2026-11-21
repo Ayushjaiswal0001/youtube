@@ -245,6 +245,18 @@ class InteractionDirector:
         return (self.facing_a.update(self.anchor_a + x_a, self.anchor_b + x_b),
                 self.facing_b.update(self.anchor_b + x_b, self.anchor_a + x_a))
 
+    def amount_at(self, t: float, index: int) -> float:
+        """How strongly character 0 (chiku) or 1 (gappu) is gesturing at time ``t``."""
+
+        if not self.enabled or self.plan is None:
+            return 0.0
+        return self.plan.gesture_at(t, "chiku" if index == 0 else "gappu")
+
+    def gestures_in(self, index: int) -> int:
+        if self.plan is None:
+            return 0
+        return len(self.plan.gestures.get("chiku" if index == 0 else "gappu", ()))
+
     def bodies(self, t: float, hip_a: float, hip_b: float,
                speaker: str) -> tuple[Optional[BodyState], Optional[BodyState]]:
         """Gesture layers for both characters, or ``None`` when nothing is happening."""
