@@ -795,6 +795,32 @@ Defects found while building this:
 | Foreground occlusion | 0.0 in all six locations (not achieved) |
 | Locations rendered | 6 of 6, contact sheet inspected |
 
+## 3x. World-space pickup in production (T43 integration) - measured
+
+| Property | Result |
+| --- | --- |
+| Full suite | **648 passed** (17 new in `test_pickup_integration.py`) |
+| Golden frames | 78 frames, 0 changed, 0 new |
+| Production render | `render --scenes 3 --force` on the real Natkhat plan, 1920x1080, 30/1, 5.97 s |
+| Pickup report | states APPROACHING -> REACHING -> CONTACT -> GRIPPING -> HOLDING -> RELEASING -> COMPLETE |
+| Measured contact | **-13.93 px** on the drawn wrist (inside the object) |
+| Claimed contact without touch | 0 frames |
+| Reachability | shoulder-to-surface 57.4 px vs 83.8 px arm; bend 79.2 deg |
+| QC gate | `pickup_contact` passes; only the single-scene duration check fails, as expected for a proof render |
+
+Defects found by doing the integration rather than asserting it:
+
+1. `plan_scenes()` dropped the `pickup` and `lighting` keys, so both features were unreachable from an
+   authored plan. A render succeeded, reused a cached scene, and looked plausible while doing nothing.
+2. `UnboundLocalError: pickup_frame` - the framing box read a variable produced later in the frame
+   loop. Caught only by a forced render; the fast path had reused a cached scene.
+3. The released object returned to its original floor position at COMPLETE - a visible teleport that
+   also contradicted the story beat.
+4. `reachable` was measured against the object's exact grasp *centre*, so a pickup whose hand was
+   14 px inside the object was declared unreachable and failed its own QC gate.
+5. A `table_height` authored as a fraction (0.62) passed validation, because a range check on world
+   coordinates cannot distinguish it. Now bounded by the character's own shoulder and feet.
+
 ## 4. Not yet executed
 
 | Test | Status |

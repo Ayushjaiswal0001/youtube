@@ -63,6 +63,7 @@ from studio.animation.framing import (
 from studio.animation.silhouette import subject_from_rig
 from studio.animation.compositor import (DrawQueue, Layer, actor_depth, ground_prop_depth,
                                          held_prop_depth)
+from studio.animation.pickup_scene import PickupScene
 from studio.animation.lighting import (ambient_overlay, apply_grade, preset_for)
 from studio.animation.transitions import ffmpeg_fade_filters
 from studio.animation.effects import (
@@ -298,6 +299,21 @@ class SceneRenderer:
                     handoff_at=handoff_at,
                     handoff_duration=float(scene_data.get("prop_handoff_duration", 0.45)))
 
+        # World-space pickup (T43 integration): a scene may ask for an object on the floor or a
+        # table to be picked up. Without the key nothing below runs and the scene is unchanged.
+        pickup = None
+        pickup_spec = scene_data.get("pickup")
+        if isinstance(pickup_spec, dict):
+            try:
+                pickup = PickupScene(pickup_spec, {"chiku": chiku, "gappu": gappu},
+                                     total_duration, stage.ground_y)
+                print(f"[Render] Scene {scene_num}: pickup {pickup_spec.get('object')} by "
+                      f"{pickup.character}, bend {math.degrees(pickup.low_pose.bend):.0f} deg, "
+                      f"reachable={pickup.reachable}")
+            except Exception as exc:  # noqa: BLE001 - a bad spec must not kill the episode
+                print(f"[Render] WARNING: pickup spec rejected ({exc}); rendering without it")
+                pickup = None
+
         # The prop is part of what the camera has to frame, so the shot is planned with its
         # box included. Computed at the holder's *resting* hand so the plan is stable.
         prop_probe = None
@@ -307,9 +323,11 @@ class SceneRenderer:
                 "gappu": hand_point(gappu, prop_track.hand_for("gappu")),
             }
             prop_probe = prop_track.box_at(0.0, probe_hands)
+        pickup_probe = pickup.obj.box if pickup is not None else None
+        framing_extras = [box for box in (prop_probe, pickup_probe) if box is not None]
 
         shot = plan_shot(camera_style, subjects, (self.width, self.height),
-                         extras=[prop_probe] if prop_probe else [],
+                         extras=framing_extras,
                          speaker=speaker if speaker in subjects else None,
                          must_show=must_show, zoom_range=stage.zoom_range,
                          kind_zoom=stage.kind_zoom())
@@ -320,7 +338,8 @@ class SceneRenderer:
                   f"({shot.reason}) to keep {', '.join(shot.subjects)} in frame")
         framing = FramingReport(
             (self.width, self.height),
-            required=tuple(shot.subjects) + (("prop",) if prop_track is not None else ()))
+            required=tuple(shot.subjects) + (
+                ("prop",) if prop_track is not None or pickup is not None else ()))
         # Subtitle collision (T41): a character standing behind the caption band is unreadable and
         # the caption is unreadable too. Measured per frame from the same boxes the framing
         # report uses, against the band rectangle taken from the overlay's own alpha.
@@ -562,8 +581,13 @@ class SceneRenderer:
                     if shared > 0.0:
                         prop_occluded_frames += 1
                         prop_worst_overlap = max(prop_worst_overlap, shared)
+                # A pickup's object is framed and measured like any other prop. `pickup_frame` is
+                # produced later in the loop (after the poses it depends on), so this reads the
+                # scene's object box rather than the frame's point - reading the frame here was an
+                # UnboundLocalError on the first production run of this feature.
                 extra_boxes = ({"prop": prop_box(prop_point, prop_track.spec)}
-                               if prop_point else None)
+                               if prop_point is not None and prop_track is not None else
+                               {"prop": pickup.obj.box} if pickup is not None else None)
                 # Per-frame subjects: a jumping or gesturing character is not where the idle
                 # silhouette was, and the report exists to catch exactly that.
                 live_subjects = {
@@ -633,11 +657,22 @@ class SceneRenderer:
                 if face_b != int(math.copysign(1, gappu.facing)):
                     gappu.facing = float(face_b)
 
+                pickup_frame = None
+                if pickup is not None:
+                    pickup_frame = pickup.update(t)
+                    prop_point = pickup_frame["point"]
+
                 # Compositing (T45c): staged layers, then world depth within a layer. A held prop
                 # belongs above the actor holding it; a prop on the floor belongs with the cast and
                 # is ordered against them by depth. The old fixed order drew every prop under the
                 # hand that was holding it, which is visible in any pickup shot.
                 queue = DrawQueue()
+                if pickup is not None and pickup_frame is not None:
+                    _pt = pickup_frame["point"]
+                    queue.add_prop(held_prop_depth(stage.ground_y) if pickup_frame["held"]
+                                   else ground_prop_depth(_pt[1]),
+                                   lambda c, pt=_pt: draw_prop(c, pickup.spec_name.name, pt),
+                                   held=bool(pickup_frame["held"]), name="pickup_prop")
                 if prop_track is not None and prop_point is not None:
                     holder = prop_track.held_by(t)
                     held = holder in ("chiku", "gappu")
@@ -763,7 +798,9 @@ class SceneRenderer:
                                     "lifted_frames": prop_lifted_frames,
                                     "worst_overlap_px": round(prop_worst_overlap, 1),
                                     "band": [round(value, 1) for value in band_rect]}}
-                          if prop_track is not None and band_rect is not None else {}),
+                          if (prop_track is not None or pickup is not None) and band_rect is not None
+                          else {}),
+            "pickup": pickup.as_dict() if pickup is not None else None,
         })
         try:
             report_path = Path(output_mp4).with_name(Path(output_mp4).stem + "_framing.json")

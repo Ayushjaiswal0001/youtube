@@ -150,6 +150,11 @@ Status markers: `[ ]` todo, `[~]` in progress, `[x]` done.
   has produced a video.
 - [ ] **T49c. Upload test campaign.** The uploader has mocked-response tests; no real upload has been
   attempted since the original three manual ones, and 0 repository secrets exist.
+- [x] **T43b/T43d. Pickup in production.** World-space pickup is now driven by the scene renderer
+  (`"pickup": {...}` in a scene), not only by a demo tool: body mechanics, IK, contact measured on the
+  drawn wrist, staged compositing, a per-scene report, and a `pickup_contact` QC gate that fails on a
+  claimed grip without contact. Verified by a forced production render of the real Natkhat plan
+  (contact -13.93 px). See TEST_RESULTS 3x.
 - [ ] **T47. Story continuity intelligence.** Episode-level continuity, relationship state,
   previous-episode references and duplicate detection are not implemented; the series bible is a
   topic bank with series positions, not a continuity engine.

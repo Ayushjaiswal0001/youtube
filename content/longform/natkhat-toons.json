@@ -54,7 +54,14 @@
             "gappu_pose": "observing",
             "camera": "auto",
             "bg": "haunted_haveli",
-            "sfx": "twinkle"
+            "sfx": "twinkle",
+            "pickup": {
+              "object": "brass_key",
+              "grip": "small_object",
+              "holder": "chiku",
+              "offset": 46,
+              "surface": "ground"
+            }
           },
           {
             "n": 4,

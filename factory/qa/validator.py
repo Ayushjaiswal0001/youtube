@@ -107,6 +107,42 @@ def _frozen_at(path: Path) -> str:
     return f"{start:.1f}s ({length:.1f}s)"
 
 
+def _check_pickup(video_path: Path) -> dict[str, Any] | None:
+    """Gate a world-space pickup on measured contact, not on the schedule.
+
+    The pickup report is written by the renderer from the wrist it actually drew. A run of frames
+    where the state machine says CONTACT while the hand is outside the object's box is the exact
+    failure the interaction system exists to prevent, so it is an error rather than a warning.
+    """
+
+    path = video_path.with_name("framing.json")
+    if not path.is_file():
+        return None
+    try:
+        framing = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    pickups = [scene.get("pickup") for scene in (framing.get("scenes") or [])
+               if isinstance(scene, dict) and scene.get("pickup")]
+    if not pickups:
+        return None
+    lying = sum(int(item.get("report", {}).get("claimed_contact_without_touch") or 0)
+                for item in pickups)
+    errors = [item.get("report", {}).get("min_contact_error") for item in pickups]
+    measured = [value for value in errors if isinstance(value, (int, float))]
+    unreachable = [item for item in pickups if not item.get("report", {}).get("reachable", True)]
+    detail = (f"{len(pickups)} pickup(s), closest hand-to-object "
+              f"{min(measured):.1f} px" if measured else f"{len(pickups)} pickup(s)")
+    if lying:
+        return _check("pickup_contact", False,
+                      f"{detail}; contact claimed without touch on {lying} frames",
+                      severity="error")
+    if unreachable:
+        return _check("pickup_contact", False,
+                      f"{detail}; {len(unreachable)} declared out of reach", severity="error")
+    return _check("pickup_contact", True, detail)
+
+
 def _check_shot_continuity(video_path: Path) -> dict[str, Any]:
     """Read the directed shot plan, if the renderer wrote one, and gate its violations.
 
@@ -145,6 +181,9 @@ def validate_episode(
 
     checks.append(_check("video_exists", video_path.is_file(), str(video_path)))
     checks.append(_check_shot_continuity(video_path))
+    pickup_check = _check_pickup(video_path)
+    if pickup_check is not None:
+        checks.append(pickup_check)
     duration = 0.0
     streams: list[dict[str, Any]] = []
     if video_path.is_file():

@@ -212,7 +212,7 @@ def plan_scenes(plan: Dict[str, Any]) -> List[Dict[str, Any]]:
             "sfx": str(scene.get("sfx") or "whoosh"),
             **{key: scene[key] for key in
                ("prop", "prop_holder", "prop_side", "prop_handoff_to", "prop_handoff_side",
-                "prop_handoff_at", "prop_handoff_duration", "interaction")
+                "prop_handoff_at", "prop_handoff_duration", "interaction", "pickup", "lighting")
                if scene.get(key) is not None},
         })
     return out

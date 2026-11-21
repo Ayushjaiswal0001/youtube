@@ -126,6 +126,19 @@ def solve_crouch(rig, side: str, target: Point, *, max_bend: float = MAX_BEND,
                 distance, reach, _ = shoulder_reach(rig, side, pose, target)
                 if distance <= reach * margin:
                     return (pose, True)
+        # 3. Comfort is stricter than reach: the search above stops at 92% extension so an elbow
+        #    never locks. A target that needs the last 8% is still physically touchable, and
+        #    reporting it as unreachable made a real pickup fail a gate it met. Try the full reach
+        #    before giving up.
+        for bend_i in range(0, 31):
+            bend = max_bend * bend_i / 30.0
+            for squash_i in range(0, 15):
+                squash = 1.0 - (1.0 - min_squash) * squash_i / 14.0
+                pose = BodyPose(bend=bend, squash=squash)
+                distance, reach, _ = shoulder_reach(rig, side, pose, target)
+                if distance <= reach:
+                    return (pose, True)
+
         # Nothing worked: report the closest pose attempted so the caller can still animate a
         # credible attempt, and say plainly that it is not enough.
         best, best_gap = BodyPose(bend=max_bend, squash=min_squash), float("inf")

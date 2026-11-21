@@ -127,3 +127,29 @@ in T45's sense is not achieved yet.
 **Defect found and not fixed:** compositing by world depth is not sufficient for furniture. In the
 table demo the cup sits on the table in front of the character but sorts behind him, because its
 screen y is higher. Depth-aware layering needs explicit layer groups, not one y comparison.
+
+## 2026-11-21 - T43 pickup, in production
+
+The pickup system existed and no episode could ask for it. That is the gap this closes: a scene
+declares `"pickup": {"object", "grip", "holder", "offset", "surface"}`, and the renderer bends the
+body, solves the arm, moves the object only once the hand arrives, reports what happened, and gates on
+it.
+
+Evidence: production render of scene 3 of `natkhat-haveli-stage-e1` through `factory.cli render
+--scenes 3 --force` - 179 frames, 1920x1080, 30/1. Contact **-13.93 px** on the drawn wrist, every
+state reached, 0 frames of claimed contact without touch, bend 79.2 degrees, shoulder-to-surface
+57.4 px against an 83.8 px arm. Frames inspected: the character bends with his face up, the key
+follows the hand, and it stays released where it was put down.
+
+Five defects were found by doing this rather than by reasoning about it, and all five are recorded in
+TEST_RESULTS 3x. The two most instructive:
+
+* the plan normaliser silently dropped `pickup`, so the feature was unreachable from content and the
+  render "succeeded" by reusing a cached scene;
+* reachability was measured against the object's centre, so a pickup that demonstrably worked was
+  declared unreachable by its own QC gate. A measurement of the wrong quantity is worse than no
+  measurement, because it produces a confident wrong answer.
+
+Remaining: a pickup is authored on one scene of one episode. Multi-object scenes, pickups that
+combine with a hand-off in the same scene, and table-height furniture drawn as real set pieces are
+still outstanding.

@@ -238,7 +238,9 @@ def plan_pickup(rig, obj: WorldObject, *, character: str, side: str = "right",
     if behind:
         notes.append("object is behind the character; they must turn before reaching")
     if reach_distance > chain.reach + slack:
-        notes.append(f"out of reach by {reach_distance - chain.reach - slack:.1f} px")
+        # Measured in the character's *standing* pose: a bend (crouch.solve_crouch) can still bring
+        # the object within reach, so this note reports the standing gap rather than a verdict.
+        notes.append(f"out of reach standing by {reach_distance - chain.reach - slack:.1f} px")
     if grip.hands == 2:
         notes.append("two hands required; the second hand mirrors the first")
 
