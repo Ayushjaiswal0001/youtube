@@ -5,7 +5,7 @@ Provides zoom, smooth tracking pan, and impact screen shake.
 import math
 import random
 from dataclasses import dataclass
-from typing import Optional, Tuple
+from typing import List, Optional, Tuple
 import cairo
 
 class Camera:
@@ -143,6 +143,34 @@ class CameraDirector:
         self.face_y = FACE_Y if face_y is None else float(face_y)
         # A stage may allow a wider pull-back than a portrait background can paint.
         self.zoom_range = zoom_range or (MIN_ZOOM, MAX_ZOOM)
+        # A cut inside a line (T42b): the style changes at a beat and the move's clock restarts, so
+        # the new shot begins with its own push-in rather than half-way through the previous one.
+        self.base_style = self.style
+        self.cuts: List[Tuple[float, str]] = []
+
+    def cut_to(self, style: str, t: float) -> None:
+        """Schedule a new shot from ``t``. Idempotent, so a frame loop may call it every frame."""
+
+        if style not in CAMERA_STYLES:
+            return
+        for existing_t, existing_style in self.cuts:
+            if abs(existing_t - t) < 1e-6 and existing_style == style:
+                return
+        self.cuts = sorted(self.cuts + [(float(t), style)])
+        self.style = style
+
+    def shot_at(self, t: float) -> Tuple[str, float]:
+        """The style in effect at ``t`` and when it started.
+
+        A cut must not reach backwards: before this, calling ``cut_to`` made every earlier frame use
+        the *new* style, so a scene that cut once at four seconds opened on the second shot.
+        """
+
+        style, start = self.base_style, 0.0
+        for at, s in self.cuts:
+            if t + 1e-9 >= at:
+                style, start = s, at
+        return style, start
 
     @property
     def subject(self) -> Optional[str]:
@@ -216,8 +244,14 @@ class CameraDirector:
         return CameraFrame(zoom=1.01 + 0.03 * u, pan_x=drift, pan_y=0.0)
 
     def state_at(self, t: float, positions: Optional[dict] = None) -> CameraFrame:
+        # Cuts restart the clock: without this the second shot of a line would open at the zoom the
+        # first shot had already pushed to, which reads as a jump rather than a cut. Frames *before*
+        # the cut keep their own time - clamping them to zero silently changed the opening of every
+        # scene that had a cut anywhere in it.
+        style, cut_start = self.shot_at(t)
+        if cut_start:
+            t = t - cut_start
         u = _smoothstep(t / self.duration)
-        style = self.style
         shot = self.shot
 
         if shot is not None and shot.kind == "close_up":

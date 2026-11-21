@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import sys
 from dataclasses import replace
@@ -28,6 +29,26 @@ from .orchestrator import (
 from .publisher import analytics_for, publish_episode
 from .qa.validator import validate_episode
 from .util import IST, publish_at_utc, read_json
+
+
+@contextlib.contextmanager
+def _progress_to_stderr(as_json: bool):
+    """Keep stdout clean when the caller asked for JSON.
+
+    The renderer and the stage print their progress, and that progress used to land on stdout ahead
+    of the JSON payload, so `render --json | jq` failed on `[Render] Scene 1: ...`. Progress belongs
+    on stderr; only the payload belongs on stdout.
+    """
+
+    if not as_json:
+        yield
+        return
+    original = sys.stdout
+    sys.stdout = sys.stderr
+    try:
+        yield
+    finally:
+        sys.stdout = original
 
 
 def _print(payload: Any, as_json: bool) -> None:
@@ -308,17 +329,18 @@ def cmd_render(args: argparse.Namespace) -> int:
     if formats and not args.plan_id:
         raise ValueError("--formats requires --plan-id: one plan is rendered in each format")
     results = []
-    for spec in _specs(args.channel):
-        for fmt in (formats or [getattr(args, "format", None) or spec.format]):
-            results.append(
-                render_episode(
-                    replace(spec, format=fmt),
-                    plan_id=args.plan_id,
-                    force=args.force,
-                    only_scenes=_only_scenes(getattr(args, "scenes", None)),
-                    demo=bool(getattr(args, "demo", False)),
+    with _progress_to_stderr(bool(args.json)):
+        for spec in _specs(args.channel):
+            for fmt in (formats or [getattr(args, "format", None) or spec.format]):
+                results.append(
+                    render_episode(
+                        replace(spec, format=fmt),
+                        plan_id=args.plan_id,
+                        force=args.force,
+                        only_scenes=_only_scenes(getattr(args, "scenes", None)),
+                        demo=bool(getattr(args, "demo", False)),
+                    )
                 )
-            )
     _print(results if args.json else [json.dumps(item, ensure_ascii=False, indent=2) for item in results], args.json)
     return 0 if all(item["qc_ok"] for item in results) else 2
 

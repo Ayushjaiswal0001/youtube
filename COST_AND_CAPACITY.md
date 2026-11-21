@@ -103,3 +103,26 @@ chunked render (scene rendering is already resumable scene-by-scene, which is th
 Storage: a 64.5 s 1080p episode is ~9 MB, its scenes ~1.3 GB, and the artifact retention is 14 days.
 GitHub artifact storage and cache for this repository are far inside the free allowance; the binding
 constraint is runner minutes, not bytes.
+
+## Measured render benchmarks (2026-11-21)
+
+Produced by `python -m tools.benchmark`, which drives the real CLI in-process and samples process
+memory from the OS. Nothing in this table is extrapolated except the last two rows, which say so.
+
+| Workload | Video | Wall | Real-time factor | Render fps | Peak RSS | Disk written | QC |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Portrait Short (9:16, 963 frames) | 32.13 s | **156.95 s** | 4.88x | 6.14 | **117.8 MB** | 23.6 MB | pass |
+| Landscape episode (16:9, 1935 frames, 12 scenes) | 64.50 s | **292 s** | 4.53x | 6.63 | not sampled | ~30 MB | pass (27/27) |
+| 60 s episode | 60 s | ~293 s | - | - | - | - | **projection** |
+| 5 min episode | 300 s | ~1465 s (24 min) | - | - | - | - | **projection** |
+| 10 min episode | 600 s | ~2930 s (49 min) | - | - | - | - | **projection** |
+
+Cost of the features added this pass: near-camera set dressing adds ~14 % (250-278 s -> 292 s for the
+same landscape episode) and in-line cuts add nothing measurable, because a cut is the same draw with a
+different camera. Memory is not the constraint at this size - peak under 120 MB against ~2 GB free on
+this machine. Time is the constraint, and it scales linearly with frame count: roughly **6.5 frames per
+second per core** on this laptop.
+
+A three-channel daily schedule (1 Short + 1 long-form each) is therefore about
+3 x (157 + 292) s = **22 minutes of rendering per day**, comfortably inside a GitHub-hosted runner's
+job limit, provided the runner has the same 2-core class of CPU.

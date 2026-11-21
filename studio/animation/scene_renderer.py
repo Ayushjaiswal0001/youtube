@@ -66,6 +66,7 @@ from studio.animation.compositor import (DrawQueue, Layer, actor_depth, ground_p
 from studio.animation.pickup_scene import PickupScene
 from studio.animation.lighting import (ambient_overlay, apply_grade, preset_for)
 from studio.animation import set_dressing
+from studio.animation.shot_plan import line_cuts as _line_cuts
 from studio.animation.transitions import ffmpeg_fade_filters
 from studio.animation.effects import (
     draw_sparkle, draw_dust_puff, draw_exclamation_pop, draw_vignette,
@@ -187,6 +188,15 @@ class SceneRenderer:
         # Camera direction (T35): a style is a short deterministic move, not a static zoom.
         stage = self.stage
         camera = Camera(self.width, self.height)
+        # Cuts inside a line (T42b). A long line cut only between scenes is a slideshow of one
+        # person talking; a beat in the middle of it is where a reaction shot belongs. Off by
+        # request with "cuts": false, so a scene that wants one continuous take can have it.
+        inline_cuts = ([] if scene_data.get("cuts") is False
+                       or os.environ.get("FACTORY_INLINE_CUTS", "1") != "1"
+                       else _line_cuts(dialogue, total_duration, speaker=speaker,
+                                       listener=("gappu" if speaker == "chiku" else "chiku"),
+                                       style=camera_style))
+        next_cut = 0
         director = CameraDirector(camera_style, total_duration, (self.width, self.height),
                                   face_y=stage.eye_y, zoom_range=stage.zoom_range)
 
@@ -529,6 +539,11 @@ class SceneRenderer:
         try:
             for frame_idx in range(total_frames):
                 t = frame_idx / float(self.fps)
+                cut_this_frame = False
+                if next_cut < len(inline_cuts) and t >= inline_cuts[next_cut]["at"]:
+                    director.cut_to(inline_cuts[next_cut]["camera"], inline_cuts[next_cut]["at"])
+                    next_cut += 1
+                    cut_this_frame = True
                 is_dialogue_playing = t <= duration
                 chiku_talking = is_dialogue_playing and (speaker == "chiku")
                 gappu_talking = is_dialogue_playing and (speaker == "gappu")
@@ -653,7 +668,7 @@ class SceneRenderer:
 
                 framing.add(t, camera.zoom, camera.pan_x, camera.pan_y, live_subjects,
                             reach={"chiku": reach_a, "gappu": reach_b},
-                            extras=extra_boxes)
+                            extras=extra_boxes, cut=cut_this_frame)
                 if camera_style == "action_shake" and 0.3 < t < 1.2:
                     camera.trigger_shake(0.2)
                 camera.update(1.0 / self.fps)
@@ -845,6 +860,7 @@ class SceneRenderer:
                           if (prop_track is not None or pickup is not None) and band_rect is not None
                           else {}),
             "pickup": pickup.as_dict() if pickup is not None else None,
+            "inline_cuts": inline_cuts,
             "foreground_occlusion": occlusion,
             "dressing": set_dressing.describe(dressing) if dressing else {},
         })

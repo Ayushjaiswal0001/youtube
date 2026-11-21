@@ -450,6 +450,10 @@ class FrameRecord:
     zoom: float
     visible: dict = field(default_factory=dict)
     overflow: dict = field(default_factory=dict)
+    #: True on the first frame after a shot change. A cut is a discontinuity by design, so it must
+    #: not be read as a camera move that was too fast - the zoom-rate check exists to catch a *move*
+    #: that races, and an in-line cut otherwise failed that check on every episode that had one.
+    cut: bool = False
 
 
 class FramingReport:
@@ -471,7 +475,8 @@ class FramingReport:
 
     def add(self, t: float, zoom: float, pan_x: float, pan_y: float,
             subjects: Mapping[str, Subject], reach: Mapping[str, float] | None = None,
-            extras: Mapping[str, Tuple[float, float, float, float]] | None = None) -> None:
+            extras: Mapping[str, Tuple[float, float, float, float]] | None = None,
+            cut: bool = False) -> None:
         reach = dict(reach or {})
         boxes = {name: subject.bounds(reach.get(name, 0.0))
                  for name, subject in subjects.items()}
@@ -482,7 +487,7 @@ class FramingReport:
         for name, box in boxes.items():
             visible[name] = fits(box, zoom, pan_x, pan_y, self.viewport, self.margin)
             spill[name] = overflow(box, zoom, pan_x, pan_y, self.viewport)
-        self.records.append(FrameRecord(t, zoom, visible, spill))
+        self.records.append(FrameRecord(t, zoom, visible, spill, cut))
 
     def cropped_frames(self, name: str) -> int:
         return sum(1 for record in self.records if not record.visible.get(name, True))
@@ -495,6 +500,8 @@ class FramingReport:
 
         rates = []
         for previous, current in zip(self.records, self.records[1:]):
+            if current.cut:
+                continue
             dt = current.t - previous.t
             if dt > 0:
                 rates.append(abs(current.zoom - previous.zoom) / dt)

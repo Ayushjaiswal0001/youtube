@@ -166,6 +166,114 @@ def _resolve_narrator_shot(previous: Optional[ShotDecision]) -> Tuple[str, str]:
     return "two_shot", "narrator_watching_both"
 
 
+#: Words that open the second half of a Hindi sentence. A cut on one of these follows the thought
+#: rather than the punctuation, which is why it reads; cutting on every danda strobes.
+BEAT_CONJUNCTIONS = ("और", "लेकिन", "फिर",
+                     "अगर", "सो", "मगर",
+                     # "or" and "that": both introduce the half of the sentence the speaker actually
+                     # cares about, which is where a reaction shot earns its place.
+                     "या", "कि")
+#: A shot shorter than this is not a shot; it is a flash frame.
+MIN_CUT_GAP = 1.6
+#: More than this and a single line becomes a montage, which is worse than one long take.
+MAX_CUTS_PER_LINE = 2
+#: Below this much speech there is nothing to cut inside of.
+MIN_LINE_FOR_CUTS = 3.0
+#: Rough Hindi narration rate, syllables per second, used only to place beats in time.
+SYLLABLES_PER_SECOND = 5.2
+
+
+def _syllables(text: str) -> int:
+    return max(1, sum(1 for ch in text if ch not in " ।॥,.!?;:-"))
+
+
+def line_cuts(line: str, duration: float, *, speaker: str, listener: Optional[str] = None,
+              style: str = "medium_pan") -> List[Dict[str, Any]]:
+    """Shot changes *inside* one dialogue line (T42b).
+
+    Punctuation alone is a poor cut signal: Hindi narration uses the danda as a full stop, so cutting
+    on it produces a shot per clause. The signal used here is a change of thought - an interjection,
+    a conjunction that opens a new clause, a question in the middle of a statement - and each cut is
+    placed at the syllable it belongs to, never closer than ``MIN_CUT_GAP``.
+    """
+
+    text = (line or "").strip()
+    if not text or duration < MIN_LINE_FOR_CUTS:
+        return []
+    words = text.replace("।", " । ").split()
+    if len(words) < 6:
+        return []
+    total = _syllables(text)
+    spoken = [w for w in words if w not in "।|"]
+    if not spoken:
+        return []
+
+    candidates: List[Tuple[float, str]] = []
+    running = 0
+    for word in words:
+        clean = word.strip("।|,.!?;:-")
+        if clean and running > 0:
+            fraction = running / max(1, total)
+            # The punctuation has to be read off the raw word: stripping it first made "?" and "!"
+            # unreachable, so a question inside a line never produced a reaction shot.
+            marks = word.rstrip("।")
+            if clean in BEAT_CONJUNCTIONS:
+                candidates.append((fraction, "conjunction"))
+            elif marks.endswith("?"):
+                candidates.append((fraction, "question"))
+            elif marks.endswith("!") and fraction > 0.4:
+                candidates.append((fraction, "exclamation"))
+            elif word.endswith(",") and fraction > 0.30 and running >= 12:
+                # A comma after a real clause is where a Hindi sentence turns. It is a weaker signal
+                # than a conjunction, and it is also the only one that fires at all in short lines -
+                # without it five of twelve scenes had no interior cut available.
+                candidates.append((fraction, "clause"))
+        running += _syllables(word)
+
+    cuts: List[Dict[str, Any]] = []
+    last_at = 0.0
+    for fraction, reason in candidates:
+        at = round(duration * max(0.0, min(1.0, fraction)), 3)
+        if at - last_at < MIN_CUT_GAP or duration - at < MIN_CUT_GAP:
+            continue
+        # A cut to the listener is a reaction shot and is worth more than another angle on the
+        # speaker; it is also the cheapest way to make a long line feel like a conversation.
+        # The shot has to *change*, or the "cut" is only a restart of the same move and nobody sees
+        # it. A reaction is the strongest change available; a held two-shot is the calmest.
+        if listener and reason in ("question", "exclamation"):
+            target = f"close_up_{listener}"
+        elif reason in ("conjunction", "clause"):
+            target = "two_shot_hold"
+        else:
+            target = style
+        cuts.append({"at": at, "camera": target, "reason": f"line_{reason}"})
+        last_at = at
+        if len(cuts) >= MAX_CUTS_PER_LINE:
+            break
+    return cuts
+
+
+def apply_line_cuts(scenes: Sequence[Dict[str, Any]], *,
+                    participants: Sequence[str] = DEFAULT_PARTICIPANTS) -> Dict[int, List[Dict]]:
+    """Attach the in-line cuts to each scene, keyed by scene number.
+
+    Kept separate from ``plan_conversation`` because it needs the scene's *duration*, which the shot
+    planner does not know: the caller renders first and measures audio, then asks for cuts.
+    """
+
+    result: Dict[int, List[Dict]] = {}
+    for scene in scenes:
+        number = int(scene.get("scene_num") or scene.get("scene") or 0)
+        duration = float(scene.get("duration") or 0.0)
+        speaker = str(scene.get("speaker") or "")
+        listener = next((name for name in participants if name != speaker), None)             if speaker in participants else None
+        cuts = line_cuts(str(scene.get("dialogue") or ""), duration, speaker=speaker,
+                         listener=listener, style=str(scene.get("camera") or "medium_pan"))
+        if cuts:
+            result[number] = cuts
+    return result
+
+
 def plan_conversation(
     scenes: Sequence[Dict[str, Any]],
     *,

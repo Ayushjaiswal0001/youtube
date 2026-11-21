@@ -851,6 +851,36 @@ Defects found and fixed in this pass, including two of my own:
    failed a clump that covered nobody and would have passed an object covering a short character's
    face. Replaced with a measured head-band occlusion check.
 
+## 3z. In-line cuts, observability, and measured benchmarks (T42b / T49d / T50)
+
+| Property | Result |
+| --- | --- |
+| Full suite | **731 passed** (15 observability, 15 in-line cut/camera) |
+| Golden frames | 78 frames, 0 changed, 0 new |
+| Portrait Short, measured | 32.13 s video / 963 frames: **156.95 s wall (4.88x real time, 6.14 fps)**, peak RSS **117.8 MB**, disk **23.6 MB**, `qc_ok: true` |
+| Landscape episode, measured | 64.50 s video / 1935 frames: **292 s wall (4.5x real time, 6.6 fps)**, `qc_ok: true`, 27/27 checks |
+| Projections (labelled, not measured) | 60 s -> 293 s; 300 s -> 1465 s; 600 s -> 2930 s wall |
+| In-line cuts | 4 of 12 authored scenes get one; portrait Short gets 2 |
+| `--json` output | verified end-to-end with `json.loads` on real stdout; progress now goes to stderr |
+
+Defects found in this pass:
+
+1. **A regression the gate caught.** In-line cuts restart the camera, and `framing_continuity` read
+   that discontinuity as a zoom racing at **1.64/s** against a 1.60 limit, so the portrait Short went
+   from passing to failing. The metric now ignores the frame on which a cut lands and records cuts
+   separately; measured zoom rate returned to **1.07/s**. The limit itself was not changed.
+2. `CameraDirector.cut_to` changed the style for *all* times, so a scene that cut at 4 s opened on its
+   second shot. Cuts are now a schedule (`shot_at(t)` returns the style in effect, and its start).
+3. `?` and `!` beat detection read the punctuation-stripped word, so a question inside a line could
+   never produce a reaction shot.
+4. Peak memory was reported as `None` on Windows: `GetCurrentProcess()` was not declared with
+   `restype = HANDLE`, so the memory call rejected the handle. Now measured.
+
+**Disclosed change to the portrait path:** the portrait Short's bytes changed
+(`3406082b4bb0baec... -> 07d07da243a93a77...`, 963 frames, same duration) because it now receives
+in-line cuts. Set dressing does **not** apply to portrait (`width > height` guard) and the 78 golden
+pose frames are unchanged. `FACTORY_INLINE_CUTS=0` restores the previous look exactly.
+
 ## 4. Not yet executed
 
 | Test | Status |

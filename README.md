@@ -128,3 +128,18 @@ Runtime data lives outside the repository:
 - Logs: `C:\Users\DELL\.faceless-shorts\logs\youtube\`
 
 See `docs/oauth-consent.md`, `docs/uploader.md`, and `docs/test-plan.md`.
+
+## Benchmarks and observability
+
+    # measure a real render (wall time, peak RSS, disk, fps) and print projections
+    python -m tools.benchmark --channel natkhat-toons --format shorts --label portrait-short
+
+    # machine-readable pipeline output - stdout is now exactly one JSON document
+    python -m factory.cli render --channel natkhat-toons --format long --json 2>/dev/null | jq .
+
+    # near-camera set dressing: renders all six locations and measures occlusion of the cast
+    python -m tools.render_dressing_sheet --out build/dressing
+
+Notifications are off unless a provider is configured; `FACTORY_NOTIFY_WEBHOOK` is the only switch and
+no credential is read. `FACTORY_INLINE_CUTS=0` disables cuts inside a dialogue line;
+`FACTORY_SET_DRESSING=0` disables near-camera dressing.
