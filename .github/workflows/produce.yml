@@ -2,15 +2,23 @@ name: produce
 
 # Reusable single-channel production run.
 #
-# NOT YET EXECUTED ON GITHUB ACTIONS. Everything it calls is verified locally, but the
-# runner-side assumptions (PyCairo build, headless Chrome, Edge-TTS egress, secret
-# names) are unproven until the first dispatch. See TASKS.md T12 before scheduling it.
+# Stage boundaries are explicit and enforced by `if:` conditions, because the expensive mistake in a
+# factory like this is publishing something nobody approved:
+#
+#   PLAN -> RENDER -> QC -> PACKAGE (manifest) -> GATE -> [APPROVAL] -> UPLOAD -> ARTIFACT
+#
+# `upload` defaults to false everywhere; a render-only run cannot reach the upload steps even if a
+# later step fails in a surprising way. Real uploads additionally need FACTORY_ALLOW_UPLOAD=1 *and*
+# a passing publishing gate, both of which are checked inside the code, not just in YAML.
 #
 # Required repository secrets for uploads (upload: true):
 #   YT_<PREFIX>_CLIENT_ID / YT_<PREFIX>_CLIENT_SECRET / YT_<PREFIX>_REFRESH_TOKEN
 #   PREFIX = NEXUS_NODE | ACADEMIC_BIOHACKER | NATKHAT_TOONS
 #
-# Uploads stay private unless the channel config allows public uploads, which none do.
+# Uploads stay private unless a channel config explicitly allows public, which none do.
+#
+# NOT YET EXECUTED ON GITHUB ACTIONS as of T49: see CLOUD_DEPLOYMENT.md for the exact blocker and the
+# command that runs it once the branch reaches the default branch.
 
 on:
   workflow_call:
@@ -24,52 +32,117 @@ on:
         required: true
         type: string
       upload:
-        description: Perform a real (private) upload after QC passes
+        description: Perform a real (private) upload after QC and the publishing gate pass
         required: false
         type: boolean
         default: false
+      mode:
+        description: "render | validate | render+validate"
+        required: false
+        type: string
+        default: render+validate
+      plan_id:
+        description: Optional plan id; empty means "plan the next episode"
+        required: false
+        type: string
+        default: ""
+      format:
+        description: "Optional format override: shorts | long"
+        required: false
+        type: string
+        default: ""
       allow_unpublished:
         description: Natkhat only - plan the next episode even if the previous is unpublished
         required: false
         type: boolean
         default: false
 
+    # Declared explicitly so a caller passes only the three secrets that channel needs. With
+    # `secrets: inherit` every repository secret - including the other two channels' refresh tokens -
+    # arrived here whether or not this run could ever use it.
+    secrets:
+      YT_NEXUS_NODE_CLIENT_ID:
+        required: false
+      YT_NEXUS_NODE_CLIENT_SECRET:
+        required: false
+      YT_NEXUS_NODE_REFRESH_TOKEN:
+        required: false
+      YT_ACADEMIC_BIOHACKER_CLIENT_ID:
+        required: false
+      YT_ACADEMIC_BIOHACKER_CLIENT_SECRET:
+        required: false
+      YT_ACADEMIC_BIOHACKER_REFRESH_TOKEN:
+        required: false
+      YT_NATKHAT_TOONS_CLIENT_ID:
+        required: false
+      YT_NATKHAT_TOONS_CLIENT_SECRET:
+        required: false
+      YT_NATKHAT_TOONS_REFRESH_TOKEN:
+        required: false
+
 permissions:
   contents: read
 
 concurrency:
+  # One production run per channel, and never cancel a render in progress: a half-written episode is
+  # worse than a queued one.
   group: produce-${{ inputs.channel }}
   cancel-in-progress: false
+
+env:
+  CHANNEL: ${{ inputs.channel }}
+  PLAN_ID: ${{ inputs.plan_id }}
+  FORMAT: ${{ inputs.format }}
+  FACTORY_BUILD_DIR: ${{ github.workspace }}/build
+  FACTORY_STATE_DIR: ${{ github.workspace }}/pipeline_state
+  FACTORY_LOG_DIR: ${{ github.workspace }}/logs
+  YT_STATE_ROOT: ${{ github.workspace }}/.state/youtube
+  YT_SECRETS_ROOT: ${{ github.workspace }}/.secrets/youtube
+  CHROME_PATH: /usr/bin/google-chrome
+  PYTHONIOENCODING: utf-8
+  PYTHONUNBUFFERED: "1"
+  # The defaults that make accidental publishing impossible. The upload job overrides the first one
+  # only, and only when it has already been gated on the approval input.
+  UPLOAD_ENABLED: "false"
+  SCHEDULED_PUBLISHING_ENABLED: "false"
+  PUBLICATION_APPROVAL_REQUIRED: "true"
 
 jobs:
   produce:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
-    env:
-      CHANNEL: ${{ inputs.channel }}
-      FACTORY_BUILD_DIR: ${{ github.workspace }}/build
-      FACTORY_STATE_DIR: ${{ github.workspace }}/pipeline_state
-      FACTORY_LOG_DIR: ${{ github.workspace }}/logs
-      YT_STATE_ROOT: ${{ github.workspace }}/.state/youtube
-      YT_SECRETS_ROOT: ${{ github.workspace }}/.secrets/youtube
-      CHROME_PATH: /usr/bin/google-chrome
-      PYTHONIOENCODING: utf-8
+    timeout-minutes: 60
+    outputs:
+      plan_id: ${{ steps.resolve.outputs.plan_id }}
+      qc_ok: ${{ steps.qc.outputs.ok }}
+      gate_ok: ${{ steps.gate.outputs.ok }}
+      sha256: ${{ steps.package.outputs.sha256 }}
+      artifact_dir: ${{ steps.resolve.outputs.artifact_dir }}
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.2.2
+
+      - name: Verify repository identity
+        run: |
+          echo "repository: ${GITHUB_REPOSITORY}"
+          if [ "${GITHUB_REPOSITORY}" != "Ayushjaiswal0001/youtube" ]; then
+            echo "::error::this workflow is authorized only for Ayushjaiswal0001/youtube"
+            exit 1
+          fi
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0
         with:
           python-version: "3.12"
+          cache: pip
 
       - name: Install system dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             ffmpeg libcairo2-dev pkg-config python3-dev fonts-dejavu-core
-          google-chrome --version || chromium --version || true
+          ffmpeg -version | head -1
+          ffprobe -version | head -1
 
       - name: Install Python dependencies
         run: |
@@ -77,7 +150,7 @@ jobs:
           python -m pip install -r requirements.txt
 
       - name: Restore pipeline state
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830  # v4.2.0
         with:
           path: |
             pipeline_state
@@ -86,92 +159,247 @@ jobs:
           restore-keys: |
             state-${{ inputs.channel }}-
 
-      - name: Environment check
-        run: python -m factory.cli doctor
-
-      - name: Plan the next episode
-        id: plan
+      - name: Preflight
         run: |
-          EXTRA=""
-          if [ "${{ inputs.allow_unpublished }}" = "true" ]; then EXTRA="--allow-unpublished"; fi
-          python -m factory.cli plan new --channel "$CHANNEL" --json $EXTRA > plan.json
+          python -m factory.cli preflight --channel "$CHANNEL" --json | tee preflight.json
           python - <<'PY'
-          import json, pathlib
-          data = json.loads(pathlib.Path("plan.json").read_text())
-          item = data[0] if isinstance(data, list) else data
-          with open("plan_id.txt", "w") as handle:
-              handle.write(item["plan_id"])
-          print("planned:", item["plan_id"], item["plan"].get("title", ""))
+          import json, sys
+          report = json.load(open("preflight.json", encoding="utf-8"))
+          if not report["ok"]:
+              print("::error::preflight failed: " + ", ".join(report["failed"]))
+              sys.exit(1)
+          print("preflight ok:", len(report["checks"]), "checks")
           PY
-          echo "plan_id=$(cat plan_id.txt)" >> "$GITHUB_OUTPUT"
 
-      - name: Render episode
+      - name: Doctor
+        run: python -m factory.cli doctor --json | tee doctor.json
+
+      - name: Research (discovery record)
+        # Non-blocking by design: a dead feed is recorded in the report and the run continues with the
+        # authored topic bank. Research that can stop production is research nobody leaves enabled.
+        continue-on-error: true
         run: |
-          python -m factory.cli render --channel "$CHANNEL" --plan-id "${{ steps.plan.outputs.plan_id }}" --json | tee render.json
+          python -m factory.cli research --channel "$CHANNEL" --limit 10 --json \
+            > research.json 2> research.log || echo "::warning::research run failed, see research.log"
+          python -c "import json,pathlib; d=json.loads(pathlib.Path('research.json').read_text(encoding='utf-8')); i=d[0] if isinstance(d,list) else d; print(f\"::notice::research {i['candidates']} candidate(s) from {len(i['sources'])} source(s)\")" \
+            || echo "::notice::research produced no report"
+
+      - name: Resolve the plan
+        id: resolve
+        env:
+          ALLOW_UNPUBLISHED: ${{ inputs.allow_unpublished }}
+        run: |
+          if [ -n "$PLAN_ID" ]; then
+            RESOLVED="$PLAN_ID"
+            echo "using requested plan: $RESOLVED"
+          else
+            EXTRA=""
+            if [ "$ALLOW_UNPUBLISHED" = "true" ]; then EXTRA="--allow-unpublished"; fi
+            python -m factory.cli plan new --channel "$CHANNEL" --json $EXTRA > plan.json
+            RESOLVED=$(python - <<'PY'
+          import json
+          data = json.load(open("plan.json", encoding="utf-8"))
+          item = data[0] if isinstance(data, list) else data
+          print(item["plan_id"])
+          PY
+          )
+          fi
+          ARTIFACT_DIR="${FACTORY_BUILD_DIR}/${CHANNEL}"
+          echo "plan_id=${RESOLVED}" >> "$GITHUB_OUTPUT"
+          echo "artifact_dir=${ARTIFACT_DIR}" >> "$GITHUB_OUTPUT"
+
+      - name: Resume or render
+        if: ${{ inputs.mode != 'validate' }}
+        run: |
+          ARGS=(--channel "$CHANNEL" --plan-id "${{ steps.resolve.outputs.plan_id }}")
+          if [ -n "$FORMAT" ]; then ARGS+=(--format "$FORMAT"); fi
+          # `resume` re-renders only missing or stale scenes and never touches a verified artifact;
+          # `--force` is deliberately not used here.
+          python -m factory.cli resume "${ARGS[@]}" --json | tee resume.json
 
       - name: Quality assurance
+        id: qc
         run: |
-          python -m factory.cli qc --channel "$CHANNEL" --plan-id "${{ steps.plan.outputs.plan_id }}" --json | tee qc-step.json
+          ARGS=(--channel "$CHANNEL" --plan-id "${{ steps.resolve.outputs.plan_id }}")
+          if [ -n "$FORMAT" ]; then ARGS+=(--format "$FORMAT"); fi
+          python -m factory.cli validate "${ARGS[@]}" --json | tee qc-step.json
+          python - <<'PY'
+          import json
+          data = json.load(open("qc-step.json", encoding="utf-8"))
+          item = data[0] if isinstance(data, list) else data
+          ok = bool(item.get("qc_ok"))
+          print(f"::{'notice' if ok else 'error'}::QC {'passed' if ok else 'failed'} for {item.get('plan_id')}")
+          open("qc_ok.txt", "w").write("1" if ok else "0")
+          PY
+          echo "ok=$(cat qc_ok.txt)" >> "$GITHUB_OUTPUT"
+          test "$(cat qc_ok.txt)" = "1"
+
+      - name: Publishing gate
+        id: gate
+        run: |
+          ARGS=(--channel "$CHANNEL" --plan-id "${{ steps.resolve.outputs.plan_id }}")
+          python -m factory.cli gate "${ARGS[@]}" --json | tee gate.json
+          python - <<'PY'
+          import json
+          data = json.load(open("gate.json", encoding="utf-8"))
+          item = data[0] if isinstance(data, list) and data else (data or {})
+          ok = bool(item.get("ok"))
+          print(f"::{'notice' if ok else 'error'}::publishing gate "
+                f"{'PASS' if ok else 'BLOCKED: ' + ', '.join(item.get('blockers') or [])}")
+          open("gate_ok.txt", "w").write("1" if ok else "0")
+          PY
+          echo "ok=$(cat gate_ok.txt)" >> "$GITHUB_OUTPUT"
+          test "$(cat gate_ok.txt)" = "1"
+
+      - name: Package manifest
+        id: package
+        run: |
+          python - <<'PY'
+          import json, os, pathlib
+          channel = os.environ["CHANNEL"]
+          plan_id = os.environ.get("RESOLVED_PLAN") or ""
+          manifests = sorted(pathlib.Path("build", channel).glob("*/manifest.json"))
+          if not manifests:
+              manifests = sorted(pathlib.Path("build").glob(f"**/{channel}*/manifest.json"))
+          if not manifests:
+              print("::error::no manifest was produced by the render")
+              raise SystemExit(1)
+          manifest = json.loads(manifests[-1].read_text(encoding="utf-8"))
+          video = next((a for a in manifest["artifacts"] if a["name"] == "video"), None)
+          if not video or not video.get("complete"):
+              print("::error::the video artifact is missing or incomplete")
+              raise SystemExit(1)
+          print(f"::notice::artifact {video['name']} {video['bytes']} B sha256 {video['sha256']}")
+          with open(os.environ["GITHUB_OUTPUT"], "a") as handle:
+              handle.write(f"sha256={video['sha256']}\n")
+              handle.write(f"manifest={manifests[-1]}\n")
+          PY
+        env:
+          RESOLVED_PLAN: ${{ steps.resolve.outputs.plan_id }}
+
+      - name: Emergency stop check
+        # A repository variable (FACTORY_PAUSED / FACTORY_PAUSED_CHANNELS) stops the run before any work,
+        # so stopping production never depends on someone being at a keyboard.
+        env:
+          FACTORY_PAUSED: ${{ vars.FACTORY_PAUSED }}
+          FACTORY_PAUSED_CHANNELS: ${{ vars.FACTORY_PAUSED_CHANNELS }}
+        run: |
+          python -c "import sys; from factory.controls import pause_state; s = pause_state('${{ inputs.channel }}'); print(s.reason) if s.paused else None; sys.exit(1 if s.paused else 0)"
+
+      - name: Validate channel slug
+        # The slug becomes a directory name and a command argument, so it is checked to be one of the
+        # three known channels before any step uses it.
+        run: |
+          case "$CHANNEL" in
+            nexus-node|academic-biohacker|natkhat-toons) ;;
+            *) echo "::error::unknown channel '$CHANNEL'"; exit 1 ;;
+          esac
 
       - name: Export channel credentials
+        id: creds
         if: ${{ inputs.upload }}
         env:
+          # Passed through the environment: interpolating a dispatch input straight into a shell
+          # command is how `$(...)` typed into an input becomes a command on the runner.
+          SECRET_PREFIX: ${{ inputs.secret_prefix }}
           CLIENT_ID: ${{ secrets[format('YT_{0}_CLIENT_ID', inputs.secret_prefix)] }}
           CLIENT_SECRET: ${{ secrets[format('YT_{0}_CLIENT_SECRET', inputs.secret_prefix)] }}
           REFRESH_TOKEN: ${{ secrets[format('YT_{0}_REFRESH_TOKEN', inputs.secret_prefix)] }}
         run: |
-          PREFIX=$(printf '%s' "${{ inputs.secret_prefix }}" | tr 'a-z' 'A-Z')
-          export PREFIX
+          PREFIX=$(printf '%s' "$SECRET_PREFIX" | tr 'a-z' 'A-Z')
           if [ -z "$CLIENT_ID" ] || [ -z "$CLIENT_SECRET" ] || [ -z "$REFRESH_TOKEN" ]; then
-            echo "::warning::YT_${PREFIX}_* secrets are missing; skipping upload"
-            echo "UPLOAD_READY=0" >> "$GITHUB_ENV"
+            echo "::warning::YT_${PREFIX}_* secrets are missing; upload will be skipped"
+            echo "ready=0" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          # The uploader reads env credentials as YT_<SLUG_UPPER_SNAKE>_*; never echo them.
+          # Never echoed. `::add-mask::` is belt-and-braces in case a future step prints an env dump.
+          echo "::add-mask::${CLIENT_ID}"
+          echo "::add-mask::${CLIENT_SECRET}"
+          echo "::add-mask::${REFRESH_TOKEN}"
           {
-            echo "YT_${PREFIX}_CLIENT_ID=$CLIENT_ID"
-            echo "YT_${PREFIX}_CLIENT_SECRET=$CLIENT_SECRET"
-            echo "YT_${PREFIX}_REFRESH_TOKEN=$REFRESH_TOKEN"
+            echo "YT_${PREFIX}_CLIENT_ID=${CLIENT_ID}"
+            echo "YT_${PREFIX}_CLIENT_SECRET=${CLIENT_SECRET}"
+            echo "YT_${PREFIX}_REFRESH_TOKEN=${REFRESH_TOKEN}"
           } >> "$GITHUB_ENV"
-          echo "UPLOAD_READY=1" >> "$GITHUB_ENV"
+          echo "ready=1" >> "$GITHUB_OUTPUT"
 
-      - name: Verify channel identity
-        if: ${{ inputs.upload && env.UPLOAD_READY == '1' }}
+      - name: Verify channel identity before upload
+        if: ${{ inputs.upload && steps.creds.outputs.ready == '1' }}
         run: python -m uploader.cli verify --channel "$CHANNEL"
 
-      - name: Upload (private)
-        if: ${{ inputs.upload && env.UPLOAD_READY == '1' }}
+      - name: Upload (private, gated)
+        if: ${{ inputs.upload && steps.creds.outputs.ready == '1' && steps.gate.outputs.ok == '1' }}
         env:
           FACTORY_ALLOW_UPLOAD: "1"
+          UPLOAD_ENABLED: "true"
         run: |
           python -m factory.cli publish \
             --channel "$CHANNEL" \
-            --plan-id "${{ steps.plan.outputs.plan_id }}" \
+            --plan-id "${{ steps.resolve.outputs.plan_id }}" \
             --execute \
             --confirm-channel "$CHANNEL" \
             --json | tee publish.json
 
+      - name: Notify on failure
+        # Provider-independent: silently a no-op unless FACTORY_NOTIFY_WEBHOOK is configured.
+        if: failure()
+        continue-on-error: true
+        env:
+          FACTORY_NOTIFY_WEBHOOK: ${{ secrets.FACTORY_NOTIFY_WEBHOOK }}
+        run: |
+          python -m factory.cli notify --subject "production failed: $CHANNEL" \
+            --message "run ${{ github.run_id }} on ${{ github.ref_name }} failed; see the job log" || true
+
+      - name: Operational summary
+        if: always()
+        run: |
+          python -m factory.cli ops --channel "$CHANNEL" | tee ops.txt || true
+          {
+            echo "## ${CHANNEL} production"
+            echo ""
+            echo "| item | value |"
+            echo "| --- | --- |"
+            echo "| plan | \`${{ steps.resolve.outputs.plan_id }}\` |"
+            echo "| QC | ${{ steps.qc.outputs.ok }} |"
+            echo "| publishing gate | ${{ steps.gate.outputs.ok }} |"
+            echo "| video sha256 | \`${{ steps.package.outputs.sha256 }}\` |"
+            echo "| upload requested | ${{ inputs.upload }} |"
+            echo "| upload performed | ${{ steps.creds.outputs.ready == '1' && inputs.upload }} |"
+            echo ""
+            echo '```'
+            cat ops.txt 2>/dev/null || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Upload artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.4.3
         with:
           name: ${{ inputs.channel }}-${{ github.run_id }}
           if-no-files-found: warn
           retention-days: 14
           path: |
             plan.json
-            render.json
+            resume.json
             qc-step.json
+            gate.json
             publish.json
+            preflight.json
+            doctor.json
+            ops.txt
             build/**/qc.json
             build/**/captions.srt
             build/**/thumbnail.jpg
+            build/**/manifest.json
+            build/**/framing.json
+            build/**/video.mp4
             build/**/runs.jsonl
             pipeline_state/**/runs.jsonl
+            pipeline_state/jobs/**/job.json
 
       - name: Save pipeline state
         if: always()
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830  # v4.2.0
         with:
           path: |
             pipeline_state

@@ -547,6 +547,11 @@ def _draw_scene(
     draw.rounded_rectangle((WIDTH / 2 - 60, y + 15, WIDTH / 2 + 60, y + 21), radius=3, fill=accent)
 
     _draw_motif(draw, line.visual or "network", t, c, 1.0 if local > 0 else 0.0)
+    if local > 0.0:
+        # After the motif: the motif plate is opaque, so a ring drawn first is painted over. It was, and the
+        # measurement showed it - 0.28 grey levels of change where a rotating 36-segment ring should be
+        # obvious. The overlay is thin and stays inside the empty band around the motif.
+        _draw_motion_ring(draw, t, c)
 
     _draw_caption(draw, line, t, c)
 
@@ -568,6 +573,139 @@ def _draw_scene(
             width=3,
         )
 
+
+# The card is a composition, not a photograph: the motif for several kinds (chip, robot, shield,
+# sandbox, screen) is entirely still, and the only thing that changed between frames was a 8 px
+# progress bar, which is below `freezedetect`'s noise tolerance. A card held for one narration line
+# therefore measured as a 1.5-2.2 s freeze. The fix is a slow, continuous camera drift over the whole
+# card: constant velocity, no reset, no cut, so a line boundary never produces a pop.
+DRIFT_PER_SECOND = 0.0030   # ~5.8 px/s at 1080 wide: above freezedetect's -50 dB floor on a flat card
+DRIFT_MAX = 0.060           # never more than a 6 % push-in
+RING_RATE = 0.55            # radians per second, the accent ring's rotation
+
+
+def camera_scale(t: float) -> float:
+    """Deterministic push-in for a time in seconds: linear, so it never stalls, then held at the cap.
+
+    An earlier version added a sine "breath" on top of the ramp. That was worse than useless: wherever the
+    breath's derivative cancelled the ramp the picture stopped moving for a few frames, which is exactly
+    what `freezedetect` measures - academic-biohacker froze at 3.4 s because of it.
+    """
+
+    t = max(0.0, float(t))
+    return 1.0 + min(DRIFT_MAX, DRIFT_PER_SECOND * t)
+
+
+def _draw_motion_ring(draw: ImageDraw.ImageDraw, t: float, c: dict[str, str]) -> None:
+    """A slow accent ring around the motif: real content motion that survives any duration.
+
+    The push-in alone is a camera move, and once it reaches its cap a long card would be still again. This
+    ring rotates for as long as the video runs, sits behind the motif in a band that holds no type, and
+    keeps the composition and the safe margins exactly where they were.
+    """
+
+    cx, cy = 540, 980
+    accent = c["accent"]
+    accent2 = c["accent2"]
+    faint = _mix(c["bg"], c["muted"], 0.55)
+    # Two counter-rotating rings: one ring at this width moved the frame by 0.45 grey levels a second, which
+    # is still inside freezedetect's tolerance on a flat card. Counter-rotation doubles the churn without
+    # making the card any busier to read.
+    for radius, rate, width in ((342, RING_RATE, 2.0), (296, -RING_RATE * 1.6, 1.0)):
+        phase = t * rate
+        for index in range(24):
+            start = math.degrees(phase + index * 15)
+            draw.arc((cx - radius, cy - radius, cx + radius, cy + radius), start, start + 8.0,
+                     fill=accent2 if index % 4 == 0 else faint, width=int(3 * width) or 3)
+    outer = 366
+    for index in range(6):
+        angle = t * RING_RATE * 1.9 + index * (math.pi / 3)
+        x = cx + math.cos(angle) * outer
+        y = cy + math.sin(angle) * outer
+        _dot(draw, x, y, 6 + (index % 3) * 3, accent if index % 2 == 0 else accent2)
+
+
+def apply_camera_drift(frame: "Image.Image", t: float) -> None:
+    """Push the finished card in by :func:`camera_scale`. In place, so the encode loop copies nothing."""
+
+    scale = camera_scale(t)
+    if abs(scale - 1.0) < 1e-6:
+        return
+    width, height = frame.size
+    inner = frame.resize((int(width * scale + 0.5), int(height * scale + 0.5)), Image.BILINEAR)
+    left = (inner.width - width) // 2
+    top = (inner.height - height) // 2
+    frame.paste(inner.crop((left, top, left + width, top + height)), (0, 0))
+
+
+def compose_frame(
+    base: "Image.Image",
+    lines: list[ScriptLine],
+    t: float,
+    duration: float,
+    spec: ChannelSpec,
+    brand: tuple[str, str, str],
+) -> "Image.Image":
+    """One finished frame. The encode loop and the tests call this, so they measure the same pixels."""
+
+    line, line_index = _active_line(lines, t)
+    frame = base.convert("RGB")
+    _draw_scene(frame, line, t, duration, line_index, len(lines), spec, brand)
+    apply_camera_drift(frame, t)
+    apply_light_sweep(frame, t, spec.colors["accent"])
+    return frame
+
+
+SWEEP_PERIOD = 6.5          # seconds for one pass
+SWEEP_PEAK = 0.13           # how much of the accent colour the band mixes in at its centre
+SWEEP_WIDTH = 0.16          # band half-width as a fraction of the card
+
+
+def _sweep_band(phase: float) -> "np.ndarray":
+    """A soft vertical band of accent light, one column weight per x. Cached per phase step."""
+
+    key = int(round(phase * 128)) % 128
+    cached = _SWEEP_CACHE.get(key)
+    if cached is not None:
+        return cached
+    # Two passes half a period apart, max-combined: a single pass fades to nothing at the wrap point, and the
+    # measurement showed the picture going quiet there (0.28 grey levels a second). Two of them always leave
+    # one band on the card, so the light never switches off.
+    columns = np.arange(WIDTH) / WIDTH
+    band = None
+    for phase_offset in (0.0, 0.5):
+        shifted = (key / 128.0 + phase_offset) % 1.0
+        centre = -0.35 + 1.7 * shifted
+        offset = (columns - centre) / SWEEP_WIDTH
+        envelope = 0.25 + 0.75 * math.sin(math.pi * shifted) ** 0.7
+        current = np.exp(-offset * offset) * envelope * SWEEP_PEAK
+        band = current if band is None else np.maximum(band, current)
+    band = band.astype(np.float32)
+    _SWEEP_CACHE[key] = band
+    return band
+
+
+def apply_light_sweep(frame: "Image.Image", t: float, accent: str) -> None:
+    """Move a band of light across the card.
+
+    The push-in is the primary motion, but it reaches its cap on a long video, and a rotating ring touches
+    too few pixels: `freezedetect` compares whole frames, so 20 000 changed pixels out of 2 073 600 still
+    measured as a freeze at -50 dB. A broad, slow sweep is a real motion-graphics element - the same "shine"
+    pass used in title design - and it keeps a large area of the card moving for as long as the video runs.
+
+    The blend is done by PIL as a masked paste of one flat colour, not by numpy arithmetic on the frame:
+    the first version did the arithmetic and cost 60 ms a frame, most of it copying 6 MB three times.
+    """
+
+    band = _sweep_band((t % SWEEP_PERIOD) / SWEEP_PERIOD)
+    if not band.any():
+        return
+    mask = Image.fromarray(np.broadcast_to((band * 89.0).astype(np.uint8)[None, :],
+                                           (frame.height, frame.width)).copy(), "L")
+    frame.paste(accent, (0, 0), mask)
+
+
+_SWEEP_CACHE: dict[int, "np.ndarray"] = {}
 
 def _active_line(lines: list[ScriptLine], t: float) -> tuple[ScriptLine, int]:
     if not lines:
@@ -645,9 +783,7 @@ def render_english(
     try:
         for frame_index in range(total_frames):
             t = frame_index / FPS
-            line, line_index = _active_line(lines, t)
-            frame = base.copy()
-            _draw_scene(frame, line, t, duration, line_index, len(lines), spec, brand)
+            frame = compose_frame(base, lines, t, duration, spec, brand)
             process.stdin.write(frame.convert("RGB").tobytes())
         process.stdin.close()
         stderr = process.stderr.read().decode("utf-8", errors="replace") if process.stderr else ""

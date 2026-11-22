@@ -147,8 +147,8 @@ class FakeCredentials:
         return ChannelCredentials(
             channel_slug=slug,
             client_id="client-id",
-            client_secret="client-secret",
-            refresh_token="refresh-token",
+            client_secret="client-secret",  # pragma: allowlist secret - fixture, not a credential
+            refresh_token="refresh-token",  # pragma: allowlist secret
             source=self.source_name,
         )
 

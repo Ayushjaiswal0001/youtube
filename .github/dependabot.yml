@@ -1,0 +1,39 @@
+version: 2
+
+# Conservative by design: the factory's output is judged frame by frame, so an unrelated minor release
+# that changes antialiasing or a TTS voice is a production risk, not an improvement. Security updates are
+# handled by Dependabot's automated security fixes (enabled at repository level) and are not gated by the
+# schedule below; these rules only govern routine version updates.
+
+updates:
+  - package-ecosystem: pip
+    directory: "/"
+    schedule:
+      interval: monthly
+      day: monday
+      time: "04:00"
+      timezone: "Asia/Kolkata"
+    open-pull-requests-limit: 2
+    allow:
+      - dependency-type: direct
+        update-types: ["patch"]
+    groups:
+      patch-updates:
+        patterns: ["*"]
+        update-types: ["patch"]
+    commit-message:
+      prefix: "deps"
+      include: scope
+    labels: ["dependencies", "security"]
+    reviewers: ["Ayushjaiswal0001"]
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 2
+    commit-message:
+      prefix: "ci"
+      include: scope
+    labels: ["dependencies", "ci"]
+    reviewers: ["Ayushjaiswal0001"]

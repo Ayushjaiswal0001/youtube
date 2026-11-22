@@ -3,19 +3,33 @@
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from pathlib import Path
 from typing import Any, Iterable
 
-from .config import BUILD_ROOT, ChannelSpec, load_channel_specs
+from .config import BUILD_ROOT, STATE_ROOT, ChannelSpec, load_channel_specs
+
+LOCK_ROOT = STATE_ROOT / "locks"
 from .content.models import Script
 from .content.script import build_english_script, build_hindi_script, load_plans_for, story_packet
 from .media.captions import build_srt
 from .media.english_renderer import render_english
+from .media.landscape_renderer import render_landscape
 from .media.hindi_renderer import render_hindi_episode
 from .media.thumbnail import make_thumbnail, thumbnail_path
 from .media.tts import synthesize_script
 from .qa.validator import validate_episode
 from .state import ChannelState
+from .reliability import (
+    JobJournal,
+    JobLock,
+    LockBusy,
+    disk_usage_report,
+    job_id_for,
+    memory_report,
+    preflight,
+    production_manifest,
+)
 from .util import read_json, sha256_file, slugify
 
 
@@ -26,13 +40,29 @@ def plan_identifier(plan: dict[str, Any]) -> str:
 
 def episode_out_dir(spec: ChannelSpec, plan: dict[str, Any]) -> Path:
     plan_id = plan_identifier(plan)
+    if resolve_engine(spec, plan) == "stage":
+        from .media.landscape_stage import stage_story_id
+
+        return BUILD_ROOT / spec.slug / stage_story_id(spec, plan)
     if spec.is_hindi:
         return BUILD_ROOT / spec.slug / f"{spec.slug}_{plan_id}"
     return BUILD_ROOT / spec.slug / plan_id
 
 
+def _plan_specs(spec: ChannelSpec) -> list[ChannelSpec]:
+    """Both composition profiles a channel can render (9:16 and 16:9)."""
+
+    other = "long" if spec.format == "shorts" else "shorts"
+    return [spec, replace(spec, format=other)]
+
+
 def find_plan(spec: ChannelSpec, plan_id: str | None = None) -> dict[str, Any]:
-    plans = load_plans_for(spec)
+    plans: list[dict[str, Any]] = []
+    for candidate in _plan_specs(spec):
+        try:
+            plans.extend(load_plans_for(candidate))
+        except ValueError:
+            continue
     if plan_id:
         wanted = slugify(plan_id)
         for plan in plans:
@@ -71,13 +101,46 @@ def _render_english(
             "skipped": True,
         }
     narration = synthesize_script(script, spec, out_dir / "audio")
-    return render_english(
+    renderer = render_landscape if spec.format == "long" else render_english
+    return renderer(
         script,
         narration,
         spec,
         video_path,
         force=force,
     )
+
+
+def resolve_engine(spec: ChannelSpec, plan: dict[str, Any]) -> str:
+    """Which renderer this plan needs.
+
+    Three engines exist and they are not interchangeable: the Shorts character engine (9:16), the
+    editorial card renderer (16:9 diagrams and text, no cast) and the landscape stage engine (16:9
+    with the cast). Choosing between them is a property of the *plan*, not of which CLI verb the
+    operator typed, so every entry point resolves it the same way.
+    """
+
+    engine = str(plan.get("engine") or "").strip().lower()
+    if engine:
+        if engine not in {"stage", "cards", "shorts"}:
+            raise ValueError(f"unknown engine {engine!r} for plan {plan_identifier(plan)}")
+        return engine
+    # No inference from a `scenes` key: the existing Shorts plans carry one too, and guessing
+    # routed a 9:16 Short through the landscape stage. A stage plan declares `engine`.
+    return "shorts" if spec.format == "shorts" else "cards"
+
+
+def _render_stage(
+    spec: ChannelSpec,
+    plan: dict[str, Any],
+    *,
+    force: bool,
+    only_scenes: list[int] | None,
+) -> tuple[Script, dict[str, Any], Path, dict[str, Any]]:
+    from .media.landscape_stage import render_stage_episode
+
+    result = render_stage_episode(spec, plan, force=force, only_scenes=only_scenes)
+    return result["script"], result["story"], result["out_dir"], result
 
 
 def _render_hindi(
@@ -104,9 +167,71 @@ def render_episode(
     *,
     plan_id: str | None = None,
     force: bool = False,
+    only_scenes: list[int] | None = None,
+    demo: bool = False,
 ) -> dict[str, Any]:
+    """Produce one episode, whichever engine its plan needs.
+
+    Everything after the render - thumbnail, subtitles, QC, state, the returned payload - is shared.
+    That sharing is the point: the landscape stage used to be a separate verb with its own copy of
+    those steps, so a fix to QC or to captions had to be made twice and stayed wrong in one place.
+    """
+
     selected = plan or find_plan(spec, plan_id)
-    if spec.is_hindi:
+    selected_id = plan_identifier(selected)
+    job = JobJournal(job_id_for(spec.slug, selected_id))
+    lock = JobLock(LOCK_ROOT / f"{spec.slug}_{selected_id}.lock",
+                   job_id=job.job_id, ttl=3600.0)
+    job.transition("QUEUED", channel=spec.slug, plan_id=selected_id)
+    try:
+        lock.acquire()
+    except Exception:  # noqa: BLE001 - a lock failure must be reported, not swallowed
+        job.transition("FAILED", error="could not acquire the job lock")
+        raise
+    if lock.read() is not None and not lock._held:  # pragma: no cover - defensive
+        job.transition("FAILED", error="another job holds this channel and plan")
+    try:
+        return _render_tracked(
+            spec, selected, selected_id, job, lock,
+            force=force, only_scenes=only_scenes, demo=demo)
+    finally:
+        lock.release()
+
+
+def _render_tracked(
+    spec: ChannelSpec,
+    selected: dict[str, Any],
+    selected_id: str,
+    job: JobJournal,
+    lock: JobLock,
+    *,
+    force: bool,
+    only_scenes: list[int] | None,
+    demo: bool,
+) -> dict[str, Any]:
+    """The production run, with its state transitions recorded as it goes.
+
+    Split out of `render_episode` so the lock and the journal have exactly one owner and one exit
+    path: a failed render must still release the lock and leave a FAILED record behind.
+    """
+
+    job.transition("PREFLIGHT", disk=disk_usage_report(BUILD_ROOT), memory=memory_report())
+    report = preflight(channels=(spec.slug,))
+    if not report.ok:
+        job.transition("FAILED", error="preflight failed", failed=report.to_dict()["failed"])
+        raise RuntimeError("preflight failed: " + ", ".join(report.to_dict()["failed"]))
+    # A plan can request the horizontal profile; the composition system, QA geometry
+    # and duration bounds all follow from spec.format.
+    requested = str(selected.get("format") or "").lower()
+    if requested in {"long", "shorts"} and requested != spec.format:
+        spec = replace(spec, format=requested)
+    engine = resolve_engine(spec, selected)
+    stage_result: dict[str, Any] = {}
+    job.transition("GENERATING", engine=engine)
+    if engine == "stage":
+        script, story, out_dir, stage_result = _render_stage(
+            spec, selected, force=force, only_scenes=only_scenes)
+    elif spec.is_hindi:
         script, story, out_dir = _render_hindi(spec, selected, force=force)
     else:
         script, out_dir = _english_script(spec, selected)
@@ -120,6 +245,7 @@ def render_episode(
     if not timeline:
         raise RuntimeError(f"missing timeline for {video_path}")
 
+    job.transition("RENDERING", video=str(video_path))
     thumb_path = thumbnail_path(out_dir)
     thumb_result = make_thumbnail(
         spec,
@@ -135,6 +261,7 @@ def render_episode(
         out_dir / "captions.srt",
         story=story or read_json(out_dir / "story.json"),
     )
+    job.transition("VALIDATING")
     qc = validate_episode(
         spec,
         script,
@@ -142,6 +269,7 @@ def render_episode(
         thumbnail=thumb_path,
         srt=out_dir / "captions.srt",
         report_path=out_dir / "qc.json",
+        demo=demo,
     )
 
     state = ChannelState(spec.slug)
@@ -163,11 +291,40 @@ def render_episode(
             "captions": srt_result,
         }
     )
-    return {
+    job.transition("PACKAGING")
+    artifacts = {
+        "video": video_path,
+        "thumbnail": thumb_path,
+        "captions": out_dir / "captions.srt",
+        "qc_report": out_dir / "qc.json",
+        "timeline": out_dir / "timeline.json",
+    }
+    for optional in ("framing.json", "shot_plan.json", "story.json", "script.json",
+                     "continuity.json", "audio.json", "video.json"):
+        if (out_dir / optional).is_file():
+            artifacts[optional.replace(".json", "")] = out_dir / optional
+    manifest = production_manifest(
+        channel=spec.slug,
+        plan_id=selected_id,
+        engine=engine,
+        format=spec.format,
+        artifacts=artifacts,
+        qc=qc,
+        inputs={"plan_id": selected_id, "language": spec.language,
+                "engine_digest": engine_digest_for(engine)},
+        resources={"disk": disk_usage_report(BUILD_ROOT), "memory": memory_report()},
+        job={"id": job.job_id, "lock": str(lock.path)},
+    )
+    (out_dir / "manifest.json").write_text(
+        json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    payload = {
         "channel": spec.slug,
         "plan_id": plan_identifier(selected),
         "title": script.title,
         "language": spec.language,
+        "format": spec.format,
+        "engine": engine,
         "video_path": str(video_path),
         "duration": qc["duration"],
         "size_bytes": video_path.stat().st_size,
@@ -184,6 +341,23 @@ def render_episode(
         "qc_report": str(out_dir / "qc.json"),
         "skipped_render": bool(timeline and video_path.is_file() and not force),
     }
+    payload["manifest_path"] = str(out_dir / "manifest.json")
+    payload["job_id"] = job.job_id
+    if qc["ok"]:
+        job.transition("READY_TO_PUBLISH", sha256=payload["sha256"],
+                       duration=qc["duration"], manifest=str(out_dir / "manifest.json"))
+    else:
+        job.transition("FAILED", error="qc failed",
+                       blockers=[c["name"] for c in qc["checks"] if not c["ok"]])
+    if stage_result:
+        payload.update({
+            "scene_count": len(stage_result["scenes"]),
+            "rendered_scenes": stage_result["rendered_scenes"],
+            "reused_scenes": stage_result["reused_scenes"],
+            "skipped_render": stage_result["skipped_render"],
+            "framing_report": str(out_dir / "framing.json"),
+        })
+    return payload
 
 
 def render_channels(
@@ -196,6 +370,16 @@ def render_channels(
     for spec in channels:
         results.append(render_episode(spec, plan_id=plan_id, force=force))
     return results
+
+
+def engine_digest_for(engine: str) -> str:
+    """Provenance for the manifest: which engine drew these frames."""
+
+    if engine == "stage":
+        from .media.landscape_stage import engine_digest
+
+        return engine_digest()
+    return f"{engine}:portrait"
 
 
 def load_specs() -> dict[str, ChannelSpec]:

@@ -1,0 +1,104 @@
+name: security
+
+# Runs on every change and once a week. It deliberately has no write token, no secrets and no
+# `pull_request_target` trigger: this job's whole purpose is to look for credentials, so it must not be
+# a place where a fork can obtain one.
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  schedule:
+    - cron: "0 3 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  secrets:
+    name: secret scan (tree, staged, history)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.2.2
+        with:
+          # Full history: a credential deleted in the latest commit is still in the history and still
+          # works, so a shallow clone would report a clean bill of health for the wrong repository.
+          fetch-depth: 0
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0
+        with:
+          python-version: "3.12"
+      - name: Working tree
+        run: python tools/secret_scan.py
+      - name: Commit history, every ref
+        run: python tools/secret_scan.py --history
+      - name: Confirm the scanner itself still catches a planted secret
+        # A scanner that has silently stopped matching is worse than no scanner, because the green
+        # check is believed. This plants a fake Google client secret in a temp file and requires a hit.
+        run: |
+          mkdir -p /tmp/probe && cd /tmp/probe
+          printf 'client_secret = "GOCSPX-%s"\n' "$(head -c 24 /dev/urandom | base64 | tr -d '+/=' | head -c 24)" > planted.py
+          if python "$GITHUB_WORKSPACE/tools/secret_scan.py" --root /tmp/probe > out.txt; then
+            echo "::error::the secret scanner did not detect a planted secret"
+            cat out.txt
+            exit 1
+          fi
+          echo "scanner detected the planted secret:"
+          sed -n '1,3p' out.txt
+
+  gitleaks:
+    name: gitleaks (independent scanner)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.2.2
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5  # v5.5.0
+        with:
+          go-version: "1.23"
+      - name: Build Gitleaks from a pinned version
+        # Built from source at an exact tag rather than downloaded as a binary, so the scanner cannot be
+        # swapped underneath the check.
+        run: go install github.com/zricethezav/gitleaks/v8@v8.30.1
+      - name: Scan the working tree
+        run: "$(go env GOPATH)/bin/gitleaks dir . --no-banner --redact --exit-code 3 --config .gitleaks.toml"
+      - name: Scan every commit in every ref
+        run: "$(go env GOPATH)/bin/gitleaks git . --no-banner --redact --log-opts=--all --exit-code 3 --config .gitleaks.toml"
+
+  dependencies:
+    name: dependency audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.2.2
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0
+        with:
+          python-version: "3.12"
+      - name: Install cairo headers and pip-audit
+        # pip-audit resolves the requirements in a fresh environment, and pycairo has no wheel here, so
+        # it needs the same system headers the render job installs. Without them the audit failed on a
+        # build error rather than on a vulnerability.
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libcairo2-dev pkg-config python3-dev
+          python -m pip install --disable-pip-version-check pip-audit
+      - name: Audit the pinned runtime requirements against the reviewed baseline
+        run: python -m tools.dependency_audit
+
+  workflow-audit:
+    name: workflow permissions and pinning
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.2.2
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0
+        with:
+          python-version: "3.12"
+      - name: Every workflow keeps a read-only token, pins actions and avoids dangerous triggers
+        run: python -m tools.workflow_audit

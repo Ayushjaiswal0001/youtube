@@ -21,7 +21,10 @@ def synth_whoosh(filename: Path = SFX_DIR / "whoosh.wav", duration: float = 0.45
     """Synthesizes a cartoon air whoosh / leap sound."""
     t = np.linspace(0, duration, int(SAMPLE_RATE * duration), False)
     # Bandpass filtered sweeping noise + sine
-    noise = np.random.uniform(-1, 1, len(t))
+    # Seeded: an unseeded synth made the whoosh different on every render, and the mouth/energy envelope
+    # it drives made the *video* pixels differ too. Two renders of one plan produced two different
+    # files, which is why the portrait artifact hash kept drifting.
+    noise = np.random.default_rng(17).uniform(-1, 1, len(t))
     envelope = np.sin(np.pi * (t / duration)) ** 2
     f_sweep = 200 + 1200 * np.sin(np.pi * (t / duration))
     carrier = np.sin(2 * np.pi * f_sweep * t)

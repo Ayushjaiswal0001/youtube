@@ -155,8 +155,9 @@ def build_english_script(spec: ChannelSpec, plan: dict[str, Any]) -> Script:
     lines = [_line(hook, str(plan.get("hook_headline", "The big idea")), str(plan.get("hook_visual", "network")), "whoosh")]
 
     beats = plan.get("beats") or []
-    if not isinstance(beats, list) or len(beats) < 4:
-        raise ValueError(f"plan {topic!r} needs at least four beats")
+    minimum_beats = 6 if spec.format == "long" else 4
+    if not isinstance(beats, list) or len(beats) < minimum_beats:
+        raise ValueError(f"plan {topic!r} needs at least {minimum_beats} beats")
     for beat in beats:
         if not isinstance(beat, dict) or not beat.get("text"):
             raise ValueError(f"plan {topic!r} has an invalid beat")
@@ -172,10 +173,11 @@ def build_english_script(spec: ChannelSpec, plan: dict[str, Any]) -> Script:
     lines.append(_line(str(plan.get("cta", "Follow for more.")), str(plan.get("cta_headline", "Follow")), "logo", "pop"))
 
     total_words = sum(word_count(line.text) for line in lines)
-    if total_words < 60:
-        raise ValueError(f"plan {topic!r} is too short ({total_words} words)")
-    if total_words > 140:
-        raise ValueError(f"plan {topic!r} is too long ({total_words} words)")
+    minimum_words, maximum_words = (300, 1800) if spec.format == "long" else (60, 140)
+    if total_words < minimum_words:
+        raise ValueError(f"plan {topic!r} is too short ({total_words} words, {spec.format} needs {minimum_words}+)")
+    if total_words > maximum_words:
+        raise ValueError(f"plan {topic!r} is too long ({total_words} words, {spec.format} allows {maximum_words})")
 
     tags = list(dict.fromkeys([*spec.safe_tags(), *[str(tag) for tag in plan.get("tags", [])]]))
     sources = [str(source) for source in plan.get("sources", []) if str(source).strip()]
@@ -200,6 +202,7 @@ def build_english_script(spec: ChannelSpec, plan: dict[str, Any]) -> Script:
             "slot": plan.get("slot"),
             "angle": plan.get("angle", ""),
             "word_count": total_words,
+            "chapters": plan.get("chapters", []),
         },
     )
 
@@ -307,7 +310,13 @@ def load_plans_for(spec: ChannelSpec, batch_path: Path | str | None = None) -> l
     lost when a new batch appears.
     """
 
-    paths = [Path(batch_path)] if batch_path else sorted(CONTENT_DIR.glob("batch_*.json"))
+    if batch_path:
+        paths = [Path(batch_path)]
+    else:
+        longform = CONTENT_DIR / "longform"
+        paths = sorted(CONTENT_DIR.glob("batch_*.json"))
+        if longform.is_dir():
+            paths.extend(sorted(longform.glob("*.json")))
     plans: list[dict[str, Any]] = []
     seen: set[str] = set()
     for path in paths:
@@ -322,6 +331,12 @@ def load_plans_for(spec: ChannelSpec, batch_path: Path | str | None = None) -> l
                 continue
             seen.add(key)
             plans.append(plan)
+    wanted = str(spec.format).lower()
+    plans = [
+        plan
+        for plan in plans
+        if str(plan.get("format") or "shorts").lower() == wanted
+    ]
     if not plans:
-        raise ValueError(f"no batch has plans for channel {spec.slug!r}")
+        raise ValueError(f"no {wanted} plans for channel {spec.slug!r}")
     return plans

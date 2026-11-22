@@ -4,6 +4,10 @@ The uploader layer has its own 50 tests. These cover the factory-side guarantees
 sit in front of it: nothing uploads without an explicit environment gate, the channel
 confirmation must match, privacy stays private by default, and a second Hindi render in
 the same process cannot reuse the first episode's studio directories.
+
+These fixtures use placeholder byte files, not real media, so the publishing gate (which
+measures the actual container) is bypassed here with `skip_gate=True`. The gate has its own
+tests in `test_publish_gate.py`, and it is enforced - not bypassable - for a real upload.
 """
 
 from __future__ import annotations
@@ -65,7 +69,7 @@ class PublishGateTests(unittest.TestCase):
 
     def test_dry_run_is_the_default(self) -> None:
         router = FakeRouter()
-        result = publish_episode(self.spec, self.script, self.video, router=router)
+        result = publish_episode(self.spec, self.script, self.video, router=router, skip_gate=True)
         self.assertEqual(router.calls[0]["execute"], False)
         self.assertEqual(result["status"], "dry_run")
         self.state_mock.assert_not_called()
@@ -79,6 +83,7 @@ class PublishGateTests(unittest.TestCase):
                 execute=True,
                 confirm_channel=self.spec.slug,
                 router=FakeRouter(),
+                skip_gate=True,
             )
 
     def test_scheduled_execute_without_schedule_gate_is_refused(self) -> None:
@@ -92,6 +97,7 @@ class PublishGateTests(unittest.TestCase):
                 confirm_channel=self.spec.slug,
                 publish_at="2026-11-21T06:30:00+00:00",
                 router=FakeRouter(),
+                skip_gate=True,
             )
         self.assertIn("scheduled releases are disabled", str(caught.exception))
 
@@ -105,6 +111,7 @@ class PublishGateTests(unittest.TestCase):
                 execute=True,
                 confirm_channel="natkhat-toons",
                 router=FakeRouter(),
+                skip_gate=True,
             )
 
     def test_public_upload_needs_explicit_flag_and_stays_private_otherwise(self) -> None:
@@ -117,6 +124,7 @@ class PublishGateTests(unittest.TestCase):
             execute=True,
             confirm_channel=self.spec.slug,
             router=router,
+            skip_gate=True,
         )
         self.assertEqual(router.calls[0]["data"]["privacyStatus"], "private")
         self.assertEqual(result["requested_privacy"], "private")
@@ -135,6 +143,7 @@ class PublishGateTests(unittest.TestCase):
                 execute=True,
                 confirm_channel=spec.slug,
                 router=FakeRouter(),
+                skip_gate=True,
             )
         self.assertEqual(result["series_state"], {"next_episode": 2})
         advance.assert_called_once()

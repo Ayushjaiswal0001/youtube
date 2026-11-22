@@ -24,7 +24,7 @@ https://www.googleapis.com/auth/youtube.readonly
 Run one channel at a time. The consent URL forces the Google account chooser; select the matching Google/Brand Account and, if prompted, the matching YouTube channel. Add `--force` only when replacing a secret that failed scope or identity checks.
 
 ```powershell
-Set-Location "C:\Users\DELL\AppData\Local\Temp\opencode\youtube"
+Set-Location "<path-to-your-clone>"
 
 python -m uploader.cli consent --channel nexus-node `
   --legacy-credentials "D:\animated\ytcredetials.txt" --open

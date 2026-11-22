@@ -1,0 +1,11 @@
+{
+  "_comment": [
+    "Advisories this project has reviewed and chosen to accept. tools/dependency_audit.py fails on anything",
+    "outside these ceilings, so a new package or a new version still blocks CI.",
+    "Empty as of 2026-11-22: the only entry was pillow 12.3.0, which was upgraded to 13.0.0 after a",
+    "compatibility investigation (750 tests, 78 goldens, a full portrait render and a pixel comparison of",
+    "the two builds). rembg, which pinned pillow<13, is not used anywhere in this repository - it only",
+    "exists on the workstation."
+  ],
+  "ceilings": []
+}

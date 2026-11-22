@@ -68,10 +68,29 @@ def publish_episode(
     thumbnail: Path | str | None = None,
     allow_public: bool = False,
     router: ChannelRouter | None = None,
+    skip_gate: bool = False,
 ) -> dict[str, Any]:
     video_path = Path(video_path)
     if not video_path.is_file():
         raise FileNotFoundError(f"video not found: {video_path}")
+
+    # The publishing gate runs for dry runs too, so an operator sees the same verdict the workflow
+    # would see. It is enforced - not advisory - for a real upload: an artifact that fails the gate
+    # is not published, whatever the CLI flags say.
+    from .qa.publish_gate import evaluate_publish_gate
+
+    gate = evaluate_publish_gate(
+        spec, script, video_path, out_dir=video_path.parent, thumbnail=thumbnail,
+        measure_decode=execute, measure_loudness=True,
+    )
+    if not gate.ok and not skip_gate:
+        if execute:
+            raise PermissionError(
+                "publishing gate failed: " + ", ".join(gate.blockers))
+    if not gate.ok and skip_gate:
+        gate_note = "gate bypassed by --skip-gate (dry run only)"
+    else:
+        gate_note = ""
     if execute and not bool_env("FACTORY_ALLOW_UPLOAD"):
         raise PermissionError(
             "real uploads are disabled; set FACTORY_ALLOW_UPLOAD=1 only after approval"
@@ -104,6 +123,9 @@ def publish_episode(
     )
     result["requested_privacy"] = privacy
     result["scheduled"] = bool(publish_at)
+    result["gate"] = gate.to_dict()
+    if gate_note:
+        result["gate_note"] = gate_note
 
     if execute and result.get("status") == "uploaded":
         state = ChannelState(spec.slug)

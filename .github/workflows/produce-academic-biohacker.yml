@@ -23,4 +23,9 @@ jobs:
       channel: academic-biohacker
       secret_prefix: ACADEMIC_BIOHACKER
       upload: ${{ inputs.upload || false }}
-    secrets: inherit
+    # Only this channel's credentials. The other channels' tokens are not passed here, so
+    # they cannot be reached from this run even by a mistake.
+    secrets:
+      YT_ACADEMIC_BIOHACKER_CLIENT_ID: ${{ secrets.YT_ACADEMIC_BIOHACKER_CLIENT_ID }}
+      YT_ACADEMIC_BIOHACKER_CLIENT_SECRET: ${{ secrets.YT_ACADEMIC_BIOHACKER_CLIENT_SECRET }}
+      YT_ACADEMIC_BIOHACKER_REFRESH_TOKEN: ${{ secrets.YT_ACADEMIC_BIOHACKER_REFRESH_TOKEN }}

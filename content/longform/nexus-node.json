@@ -1,0 +1,77 @@
+{
+  "batch_id": "longform-nexus-node-01",
+  "created_at": "2026-11-20T00:00:00+00:00",
+  "format": "long",
+  "channels": {
+    "nexus-node": [
+      {
+        "id": "long-nexus-power-grid",
+        "format": "long",
+        "slot": "pm",
+        "title": "The Real Limit on AI Is Not Chips",
+        "topic": "data centre energy demand and AI scaling",
+        "angle": "why electricity, land and cooling now decide how fast AI can grow",
+        "hook": "For three years the story of AI was a shortage of chips. The next shortage is harder to ship: electricity, land, and the equipment that connects a building to a grid.",
+        "hook_headline": "The next bottleneck",
+        "hook_visual": "grid",
+        "beats": [
+          {
+            "text": "A modern AI data centre is a factory that converts electricity into predictions. Every training run and every answer you read is billed in watts before it is billed in dollars.",
+            "headline": "Electricity in, answers out",
+            "visual": "flow"
+          },
+          {
+            "text": "Accelerators get the attention because they are visible and expensive, but a rack of them is useless without power distribution, cooling, and a grid connection sized for the load.",
+            "headline": "The rack is the easy part",
+            "visual": "chip"
+          },
+          {
+            "text": "Grid interconnection is where timelines stretch. New connections and upgraded substations routinely take years, longer than it takes to order and install servers.",
+            "headline": "Years, not weeks",
+            "visual": "clock"
+          },
+          {
+            "text": "Cooling is the second constraint. Dense racks produce heat that air alone struggles to remove, which pushes operators toward liquid cooling, tighter rack design and colder locations where the air itself does some of the work.",
+            "headline": "Heat is the tax",
+            "visual": "thermo"
+          },
+          {
+            "text": "That is why new capacity clusters near cheap power, near fibre, and near water, and why some projects are built with their own generation on site.",
+            "headline": "Geography becomes strategy",
+            "visual": "map"
+          },
+          {
+            "text": "Efficiency is the counterweight. Better chips, better batching, better scheduling and cheaper inference can deliver more useful work per watt, and that quietly decides which operators can afford to scale while the grid catches up.",
+            "headline": "Efficiency is leverage",
+            "visual": "bars"
+          },
+          {
+            "text": "There is also a public cost. Large loads affect local grids, water use and electricity prices, which is why data centre approvals are now a political question, not only an engineering one.",
+            "headline": "The local bill",
+            "visual": "scale"
+          },
+          {
+            "text": "Put together, the constraint is not one number. It is a chain of dependencies: power contracts, transformers, cooling plant, water rights, local permits and skilled construction labour, each with its own queue and its own delay. A single missing link can hold up a building that is otherwise finished.",
+            "headline": "A chain of delays",
+            "visual": "nodes"
+          }
+        ],
+        "chapters": [
+          { "line": 1, "title": "Watts are the real currency" },
+          { "line": 3, "title": "The grid decides the timeline" },
+          { "line": 5, "title": "Efficiency and geography" },
+          { "line": 7, "title": "The chain, not the chip" }
+        ],
+        "payoff": "Watch power purchase agreements, interconnection queues and cooling retrofits, not only benchmark charts. Those three numbers predict the next leap in AI capacity more reliably than a leaderboard does.",
+        "payoff_headline": "Follow the watts",
+        "cta": "Follow Nexus Node for more on the systems behind the headlines.",
+        "cta_headline": "Follow",
+        "tags": ["ai", "energy", "infrastructure", "explainer"],
+        "sources": [
+          "https://www.iea.org/reports/energy-and-ai",
+          "https://eta.lbl.gov/publications/2024-united-states-data-center-energy"
+        ]
+      }
+    ]
+  }
+}

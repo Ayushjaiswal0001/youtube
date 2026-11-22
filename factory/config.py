@@ -105,6 +105,10 @@ class ChannelSpec:
     palette: str
     niche: str
     queries: tuple[str, ...] = field(default_factory=tuple)
+    # Terms that must appear in a discovered item before it may be produced for this channel. A generic
+    # relevance score let a Nature astronomy story top the learning-science channel at 0.62, because
+    # freshness and title quality carried it; a channel now states what it is actually about.
+    focus_terms: tuple[str, ...] = field(default_factory=tuple)
     publish_time_ist: str = ""
     series_key: str | None = None
     category_id: str = "27"
@@ -195,6 +199,7 @@ def load_channel_specs(channels_dir: Path | str | None = None) -> dict[str, Chan
             palette=palette,
             niche=str(factory.get("niche", "")),
             queries=tuple(queries),
+            focus_terms=tuple(str(term).lower() for term in (factory.get("focus_terms") or [])),
             publish_time_ist=str(factory.get("publish_time_ist", "")),
             series_key=factory.get("series_key"),
             category_id=str(defaults.get("category_id", "27")),

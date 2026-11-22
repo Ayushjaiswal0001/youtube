@@ -11,7 +11,8 @@ class IdentityTests(unittest.TestCase):
     def test_verified_identity(self) -> None:
         evidence = verify_identity(FakeApi(), make_channel())
         self.assertTrue(evidence.verified)
-        self.assertEqual(evidence.token_channel_id, "UCx9O8VivWkiEylDjs5_Zzag")
+        # Public channel identifier, not a credential.  
+        self.assertEqual(evidence.token_channel_id, "UCx9O8VivWkiEylDjs5_Zzag")  # gitleaks:allow
         self.assertEqual(evidence.handle_channel_id, "UCx9O8VivWkiEylDjs5_Zzag")
 
     def test_wrong_token_channel_id_aborts(self) -> None:

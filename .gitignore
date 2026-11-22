@@ -243,3 +243,8 @@ output/
 .secrets/
 .state/
 pipeline_state/**/studio_data/
+# Operational state written at runtime: job journals, locks, ledgers.
+pipeline_state/jobs/
+pipeline_state/locks/
+state/
+.state/
