@@ -166,3 +166,24 @@ still outstanding.
 | A test that measured a proxy | medium | run the dressing tests | a clump covering nobody failed; an object covering a face would have passed | frame-height threshold instead of face coverage | head-band occlusion measured on drawn pixels | tests assert `< 2 %` of the head band |
 
 Measured cost: the dressing adds ~14 % to render time (250-278 s -> 292 s for the same 64.5 s episode).
+
+## 2026-11-22 — hand-off inside one scene, and what the render showed (T43B)
+
+Implemented: `PickupScene` accepts `handoff_to`, plans a meeting point, walks both characters toward
+each other, solves both arms toward that point, and transfers ownership only when the two *drawn*
+wrists are measurably together. The transfer is recorded in a scene-local `OwnershipLedger`
+(register → claim on measured contact → transfer), and episode QC now fails a scene that declares a
+hand-off which never completed (`pickup_contact`), alongside the existing claimed-contact check.
+
+Rendered evidence (`tools/render_handoff_demo.py`, 7 s, 210 frames, production stage and environment):
+contact between the two drawn hands **2.0 px**, `transferred: true`, ledger holder `gappu`, and the
+brass key visible in the hand at transfer. Frames inspected at full resolution.
+
+**Defect, disclosed: the two characters interpenetrate during the hand-off.** With the shoulders 98 px
+apart (the distance at which 78 % of the smaller arm's reach meets in the middle) the drawn bodies, which
+are 150–200 px wide, overlap — Chiku occludes most of Gappu and the giver's forearm crosses in front of
+the receiver's chest. This is a proportion limit of the rigs, not a tunable staging choice: raising the
+separation to 92 % of reach requires 1.06 of the receiver's reach, so the hand-off becomes physically
+impossible (the demo refuses to render it, by design). The fix is a torso lean during the hand-off, or a
+longer forearm in the character schema; neither is done here. Everything else about the beat is correct:
+the key is held, carried, and passed at a measured 2 px, and it does not teleport.

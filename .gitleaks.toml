@@ -1,0 +1,18 @@
+# Extends Gitleaks' default rules; nothing is disabled.
+[extend]
+useDefault = true
+
+# Both entries below are values a scanner cannot distinguish from a credential. They were reviewed by
+# hand and are also present in historical commits, so an inline `gitleaks:allow` in the current file is
+# not enough. The allowlist matches the exact value, not the file: a real secret in either file is still
+# reported.
+
+[[allowlists]]
+description = "Public YouTube channel ID used by identity tests - a public identifier, not a credential"
+regexTarget = "match"
+regexes = ['''UCx9O8VivWkiEylDjs5_Zzag''']
+
+[[allowlists]]
+description = "Synthetic Slack-shaped fixture built at runtime by the scanner's own test"
+regexTarget = "match"
+regexes = ['''xoxb-1234567890-abcdefghij''']  # pragma: allowlist secret - synthetic fixture

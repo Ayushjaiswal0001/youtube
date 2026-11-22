@@ -158,6 +158,13 @@ def _check_pickup(video_path: Path) -> dict[str, Any] | None:
     errors = [item.get("report", {}).get("min_contact_error") for item in pickups]
     measured = [value for value in errors if isinstance(value, (int, float))]
     unreachable = [item for item in pickups if not item.get("report", {}).get("reachable", True)]
+    # A hand-off that was authored but never happened is the same class of defect as a pickup whose
+    # hand never arrived: the object must appear in the next shot in someone's hand, and if it was left
+    # in the giver's, the story is now wrong.
+    broken_handoffs = [item for item in pickups
+                       if item.get("report", {}).get("handoff_to")
+                       and (item.get("report", {}).get("transferred") is not True
+                            or item.get("report", {}).get("handoff_reachable") is False)]
     detail = (f"{len(pickups)} pickup(s), closest hand-to-object "
               f"{min(measured):.1f} px" if measured else f"{len(pickups)} pickup(s)")
     if lying:
@@ -167,6 +174,14 @@ def _check_pickup(video_path: Path) -> dict[str, Any] | None:
     if unreachable:
         return _check("pickup_contact", False,
                       f"{detail}; {len(unreachable)} declared out of reach", severity="error")
+    if broken_handoffs:
+        worst = broken_handoffs[0].get("report", {})
+        return _check("pickup_contact", False,
+                      f"{detail}; {len(broken_handoffs)} hand-off(s) did not complete "
+                      f"(to {worst.get('handoff_to')}, transferred={worst.get('transferred')})",
+                      severity="error")
+    if any(item.get("report", {}).get("handoff_to") for item in pickups):
+        detail += f"; hand-off(s) transferred: {sum(1 for i in pickups if i.get('report', {}).get('transferred'))}"
     return _check("pickup_contact", True, detail)
 
 

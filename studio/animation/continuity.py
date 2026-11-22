@@ -233,6 +233,17 @@ def build_states(scenes: Sequence[Mapping[str, Any]], *,
                 report.add("handoff_to_self", ERROR, number,
                            f"{name!r} is handed off to the character already holding it",
                            object=name)
+            elif before is not None and end_owner != before and record.get("pickup"):
+                # Picking up an object that someone else is still holding is a conflict, not a
+                # transfer. Without this the ledger silently reassigned it and a plan where both
+                # characters pick up the same key passed continuity.
+                if holder is not None and holder != before:
+                    report.add("ownership_conflict", ERROR, number,
+                               f"{name!r} is held by {before!r}; {holder!r} cannot pick it up "
+                               f"without a hand-off", object=name, before=before, after=holder)
+                    end_owner = before
+                else:
+                    end_owner = before
             elif before is not None and end_owner != before:
                 if not (target or record.get("pickup")):
                     report.add("ownership_without_transfer", ERROR, number,

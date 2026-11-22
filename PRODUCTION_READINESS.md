@@ -256,3 +256,17 @@ or reaction-shot library.
 | Ground contact | VERIFIED | 0.0 px error, both rigs |
 | Foreground occlusion of the cast | NOT IMPLEMENTED | measured 0.0 |
 | Pickup integrated into `render_episode` | NOT IMPLEMENTED | demos drive the modules directly |
+
+## Security remediation close-out (2026-11-22)
+
+| Item | Status | Evidence |
+| --- | --- | --- |
+| Historical artifacts with local paths deleted | **VERIFIED** | artifacts `14658931783`, `14657666224` deleted; API returns `total_count: 0` |
+| `main` protected (PR + 1 approval, CI checks, no force-push, no deletion, conversation resolution) | **VERIFIED** | `gh api repos/.../branches/main/protection` |
+| Dependabot alerts + security updates | **VERIFIED** | `security_and_analysis.dependabot_security_updates: enabled`; `.github/dependabot.yml` added (monthly, patch-only, grouped) |
+| SHA pinning enforced by the platform | **VERIFIED** | `actions/permissions: sha_pinning_required: true`; every third-party action pinned with a version comment |
+| Pillow 12.3.0 → 13.0.0 | **VERIFIED** | 750 tests, goldens unchanged, full render QC pass, 0 advisories; `rembg` is not used in this repository |
+| Secret scanning provider patterns + push protection | **VERIFIED** | enabled |
+| Non-provider patterns, validity checks | **OWNER-BLOCKED** | API accepts the PATCH but the flags stay `disabled`; needs the GitHub UI (Settings → Code security) with Advanced Security entitlement |
+| Gitleaks in CI as an independent scanner | **VERIFIED locally** | tree and history both exit 0 with `.gitleaks.toml` |
+| `secrets: inherit` removed | **VERIFIED** | each caller passes only its own three secrets; the reusable workflow declares all nine explicitly |

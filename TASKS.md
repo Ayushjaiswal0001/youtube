@@ -251,3 +251,12 @@ Status markers: `[ ]` todo, `[~]` in progress, `[x]` done.
   `tools/block_credentials.py`, `.pre-commit-config.yaml`, `.github/workflows/security.yml`, and
   `SECURITY_AUDIT.md`. History clean apart from four annotated fake fixtures; artifacts leaked local
   paths (fixed in code, the two old artifacts await owner deletion); `main` is still unprotected.
+
+- [x] **T52. Security remediation close-out.** Artifacts deleted, `main` protected, Dependabot enabled,
+  SHA pinning enforced, Pillow upgraded to 13.0.0 (0 advisories), Gitleaks added to CI as an independent
+  scanner, `secrets: inherit` replaced by explicit per-channel secrets.
+- [x] **T43B2. Pickup and hand-off in one scene.** `PickupScene(handoff_to=…)`: measured two-hand
+  contact (2.0 px), ledger transfer, QC gate, 17 tests, rendered demo. Known defect: bodies overlap
+  during the hand-off (proportion limit of the rigs) — see ANIMATION_QUALITY_REPORT.md.
+- [x] **T50b. Long-form benchmark.** 650.4 s video rendered in 2921.5 s (4.49x, 6.6 fps). The plan was
+  deliberately incoherent (repeated pickups) and QC failed it with 14 continuity errors — correct.

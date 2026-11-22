@@ -922,3 +922,30 @@ Defects found, including two in the tools written for this audit:
 6. My workflow auditor flagged a workflow for the word `pull_request_target` inside the comment that
    explains why it is not used, and flagged `produce.yml` for a job-level permission gap its top-level
    block already closed. Both rules corrected.
+
+## 3ab. Security close-out, hand-off, and a real 10-minute benchmark (2026-11-22)
+
+| Check | Result |
+| --- | --- |
+| Full suite | **767 passed** |
+| Golden frames | 78 frames, 0 changed, 0 new |
+| `tools.secret_scan` tree / history | 0 / 0 findings |
+| Gitleaks tree / history (independent) | exit 0 / exit 0 |
+| `tools.dependency_audit` | 0 unaccepted, 0 accepted (pillow 13.0.0) |
+| `tools.workflow_audit` | 0 findings across 8 workflows |
+| Portrait Short, fresh build | 32.135 s, 963 frames, `qc_ok: true`, 171 s wall |
+| Landscape episode, fresh build | 64.501 s, `qc_ok: true`, 27/27 checks, 312 s wall, sha256 `bf93b056…` |
+| 96-scene long-form plan | 650.4 s video, 2921.5 s wall (4.49x, 6.6 fps), **QC failed: 14 continuity errors** (deliberate plan defect) |
+| Hand-off demo | 210 frames, contact 2.0 px, `transferred: true`, ledger → `gappu` |
+
+Defects found in this pass:
+
+1. `portable_path()` did nothing on POSIX for Windows-shaped paths (`Path().name` returns the whole
+   string). Fixed and covered by CI, which runs Linux.
+2. The hand-off was planned at the midpoint of wherever the characters stood — 523 px of air between two
+   84 px arms. It now stages them: each steps toward the other, and the meeting *height* is solved
+   because the two shoulder lines differ by ~100 px.
+3. Continuity accepted a scene where a second character picked up an object that was still held, and
+   silently reassigned it. Now `ownership_conflict` ERROR.
+4. The 5-minute benchmark plan was built by repeating the authored scenes, which duplicated the pickup
+   and produced 14 continuity errors. Recorded as a failed acceptance, not hidden.

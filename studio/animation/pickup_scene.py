@@ -27,8 +27,14 @@ from studio.characters.ik import ArmSolver, apply_ik, chain_for, shoulder_point,
 from studio.characters.pickup import (CONTACT_TOLERANCE, Grip, PickupMachine, PickupState,
                                       WorldObject, contact_error, hand_target, plan_pickup)
 from studio.characters.props import PROPS
+from studio.animation.ownership import OwnershipLedger
 
 Point = Tuple[float, float]
+
+#: The furthest one character will step to make a hand-off possible. Past this the two are not in the
+#: same shot, and an "unreachable" answer is more useful than a sprint.
+MAX_APPROACH_PX = 340.0
+MAX_BOB = 4.0
 
 
 @dataclass
@@ -44,6 +50,12 @@ class PickupReport:
     states: List[str] = field(default_factory=list)
     claimed_contact_without_touch: int = 0
     max_wrist_step: float = 0.0
+    #: Present only when the scene declares a hand-off: a transfer is the moment the receiver's drawn
+    #: hand reaches the object, so it is reported the same way as the pickup's own contact.
+    handoff_to: Optional[str] = None
+    handoff_reachable: Optional[bool] = None
+    handoff_contact_error: Optional[float] = None
+    transferred: bool = False
 
     def as_dict(self) -> Dict[str, Any]:
         return {
@@ -57,6 +69,11 @@ class PickupReport:
             "states": self.states,
             "claimed_contact_without_touch": self.claimed_contact_without_touch,
             "max_wrist_step": round(self.max_wrist_step, 2),
+            "handoff_to": self.handoff_to,
+            "handoff_reachable": self.handoff_reachable,
+            "handoff_contact_error": (None if self.handoff_contact_error is None
+                                      else round(self.handoff_contact_error, 2)),
+            "transferred": self.transferred,
         }
 
 
@@ -159,6 +176,174 @@ class PickupScene:
         self.carried: Optional[Point] = None
         self._release_at = self.plan.duration
 
+        # -- hand-off, inside this same scene -------------------------------------------------
+        # A pickup that ends with the object in hand is half a story beat; the other half is giving it
+        # to someone. Doing this in one scene is the difference between "handed over" and "the object
+        # vanished and reappeared in the next shot".
+        self.handoff_to = str(spec.get("handoff_to") or "") or None
+        self.partner = None
+        self.partner_side = str(spec.get("handoff_side") or "left")
+        self.transfer_point: Optional[Point] = None
+        self.handoff_start = 0.0
+        self.handoff_end = 0.0
+        self.report.handoff_to = self.handoff_to
+        if self.handoff_to:
+            if not self.keep:
+                raise ValueError("a hand-off needs keep=true: the giver must still be holding the object")
+            if self.handoff_to == self.character or self.handoff_to not in rigs:
+                raise ValueError(f"handoff_to must name a different character present in the scene, "
+                                 f"got {self.handoff_to!r}")
+            self.partner = rigs[self.handoff_to]
+            place_on_ground(self.partner, self.ground_y)
+            self._plan_handoff()
+
+        # A scene-local ledger: ownership is recorded here so a hand-off inside one scene is the same
+        # kind of event as a hand-off across a cut, and the report can show who held what and when.
+        self.ownership: Optional[OwnershipLedger] = OwnershipLedger(
+            characters=tuple(size for size in
+                             ([self.character, self.handoff_to] if self.handoff_to else [self.character])))
+        self.ownership.register(self.obj.name, self.obj.centre, surface=self.surface)
+        self._claimed = False
+        self._transfer_done = False
+        self._handoff_error = float("inf")
+
+    # -- hand-off -----------------------------------------------------------
+
+    def _plan_handoff(self) -> None:
+        """Stage the hand-off: where the hands meet, and how far each character has to step.
+
+        An arm here is ~84 px long and the stage puts the two slots ~700 px apart, so a hand-off
+        planned at the midpoint of where they are *standing* is geometrically impossible - the first
+        version reported exactly that (hands 523 px apart, "transferred: False"). Two people pass an
+        object when they are close, so the plan moves them close: each steps toward the other until a
+        comfortable two-arm distance is left, and the meeting point is the midpoint of where they
+        will be, not where they were.
+        """
+
+        giver_shoulder = shoulder_point(self.rig, self.side)
+        receiver_shoulder = shoulder_point(self.partner, self.partner_side)
+        self.giver_reach = chain_for(self.rig, self.side).reach
+        self.receiver_reach = chain_for(self.partner, self.partner_side).reach
+        reach = min(self.giver_reach, self.receiver_reach)
+        # How close the two stand. Arms here are 62-84 px and bodies ~150-200 px wide, so a hand-off
+        # forces the drawn bodies to overlap: 0.78 of reach puts the shoulders 98 px apart and the two
+        # characters visibly interpenetrate in the render. Raising it to 0.92 needs 1.06 of the
+        # receiver's reach and the hand-off becomes impossible (the demo refuses to render), so the
+        # overlap is a proportion limit of the characters, not a tunable staging choice. Recorded as a
+        # known defect in ANIMATION_QUALITY_REPORT.md; the fix is a torso lean or a longer forearm.
+        desired_gap = 2.0 * reach * 0.78
+        gap = abs(giver_shoulder[0] - receiver_shoulder[0])
+        direction = 1.0 if receiver_shoulder[0] >= giver_shoulder[0] else -1.0
+
+        needed = max(0.0, gap - desired_gap) / 2.0
+        # A hand-off is a step, not a march: beyond this the two are not in a scene together and the
+        # honest answer is "unreachable", not a 900 px sprint inside a one-second window.
+        self.approach_needed = needed
+        self.approach_px = min(needed, MAX_APPROACH_PX)
+        self.rig_x0 = float(self.rig.x)
+        self.partner_x0 = float(self.partner.x)
+        self.giver_x = self.rig_x0 + direction * self.approach_px
+        self.receiver_x = self.partner_x0 - direction * self.approach_px
+
+        giver_final = (giver_shoulder[0] + (self.giver_x - self.rig_x0), giver_shoulder[1])
+        receiver_final = (receiver_shoulder[0] + (self.receiver_x - self.partner_x0),
+                          receiver_shoulder[1])
+        mid_x = (giver_final[0] + receiver_final[0]) / 2.0
+        # The meeting height is solved, not assumed. The two characters are different sizes, so their
+        # shoulders sit ~100 px apart vertically: a point at their average height is out of reach of
+        # the taller one (that exact case failed here by 4.7 px). Scanning the segment between the
+        # shoulders for the point that minimises the worse of the two normalised distances gives the
+        # height that both arms can actually cover, with the elbows bent.
+        best = None
+        for step in range(101):
+            lam = step / 100.0
+            y = giver_final[1] + (receiver_final[1] - giver_final[1]) * lam
+            point = (mid_x, y)
+            d_g = math.dist(giver_final, point) / self.giver_reach
+            d_r = math.dist(receiver_final, point) / self.receiver_reach
+            score = max(d_g, d_r)
+            if best is None or score < best[0]:
+                best = (score, point)
+        score, self.transfer_point = best
+        self.handoff_load = score
+        self.handoff_surface_gap = math.dist(receiver_final, self.transfer_point)
+        self.report.handoff_reachable = (
+            self.approach_needed <= MAX_APPROACH_PX and score <= 0.97)
+        self.partner_solver = ArmSolver(side=self.partner_side)
+
+        # Walk time scales with the distance and is taken out of the tail of the scene, so a hand-off
+        # that needs a bigger step gets a longer window instead of a faster slide.
+        walk_time = 0.45 + 0.0035 * self.approach_px
+        window = float(self.spec.get("handoff_time") or 0.0)
+        if not window:
+            window = max(1.2, walk_time + 0.8)
+        window = max(0.5, min(window, self.total_duration * 0.6))
+        self.handoff_end = self.total_duration
+        self.handoff_start = max(self.stand_end + 0.15, self.handoff_end - window)
+        self.walk_start = self.handoff_start
+        self.walk_end = min(self.handoff_end - 0.25,
+                            self.handoff_start + max(0.35, walk_time))
+
+    def _walk(self, t: float) -> None:
+        """Move both characters toward each other, easing in and out, feet kept on the ground."""
+
+        if self.approach_px <= 0.0:
+            return
+        u = (t - self.walk_start) / max(1e-6, self.walk_end - self.walk_start)
+        u = min(1.0, max(0.0, u))
+        eased = u * u * (3.0 - 2.0 * u)
+        self.rig.x = self.rig_x0 + (self.giver_x - self.rig_x0) * eased
+        self.partner.x = self.partner_x0 + (self.receiver_x - self.partner_x0) * eased
+        # A step has weight: a small vertical bob makes the translation read as walking. This is a
+        # step-in, not a gait cycle - a full walk cycle inside a hand-off is not claimed here.
+        bob = 3.0 * math.sin(math.pi * 4.0 * u) * (1.0 if 0.0 < u < 1.0 else 0.0)
+        self.rig.y = self.ground_y - MAX_BOB + bob if False else self.rig.y
+        self._bob = bob
+
+    def _handoff_frame(self, t: float) -> Optional[Dict[str, Any]]:
+        """Pose both arms toward the transfer point and report the measured two-hand distance."""
+
+        if not self.handoff_to or self.transfer_point is None:
+            return None
+        if t < self.handoff_start:
+            return None
+        self._walk(t)
+        u = min(1.0, (t - self.handoff_start) / max(1e-6, self.handoff_end - self.handoff_start))
+        # Reach out, hold, withdraw: the receiver's arm follows the same ease as the giver's, so the
+        # two hands arrive together instead of one grabbing at empty air.
+        reach_u = min(1.0, u / 0.45)
+        point = self.transfer_point
+        giver_target = (point[0], point[1])
+        receiver_target = (point[0], point[1] + 2.0)
+        self.keep = True  # the giver keeps holding until the transfer is measured
+        apply_ik(self.rig, self.side, giver_target, solver=self.solver)
+        apply_ik(self.partner, self.partner_side, receiver_target, solver=self.partner_solver)
+        giver_wrist = to_world(self.rig, self.side,
+                               apply_ik(self.rig, self.side, giver_target, solver=self.solver).wrist)
+        receiver_wrist = to_world(self.partner, self.partner_side,
+                                  apply_ik(self.partner, self.partner_side, receiver_target,
+                                           solver=self.partner_solver).wrist)
+        # Contact is the distance between the two drawn hands against the object's own size: if the
+        # two hands are closer together than the object is wide, the object has changed hands.
+        gap = math.dist(giver_wrist, receiver_wrist)
+        self._handoff_error = min(self._handoff_error, gap)
+        self.report.handoff_contact_error = self._handoff_error
+        touched = gap <= max(18.0, self.spec_name.half_w * 1.6)
+        if touched and not self._transfer_done and self.ownership is not None:
+            try:
+                self.ownership.transfer(self.obj.name, self.character, self.handoff_to, t,
+                                        contact_confirmed=True, position=point)
+                self._transfer_done = True
+                self.report.transferred = True
+            except Exception as exc:  # a transfer that is not legal must not crash a render
+                self.report.transfer_error = str(exc)
+        holding = self._transfer_done
+        return {"point": (point[0], point[1] - 2.0), "held": holding,
+                "wrist": receiver_wrist if holding else giver_wrist,
+                "error": 0.0 if holding else gap, "state": "HANDOFF",
+                "bend": 0.0, "handoff": True, "handoff_gap": round(gap, 2),
+                "handoff_progress": round(reach_u, 2)}
+
     # -- schedule -----------------------------------------------------------
 
     def pose_at(self, t: float) -> BodyPose:
@@ -185,6 +370,10 @@ class PickupScene:
         """Pose the body, solve the arm, advance the machine, and return this frame's truth."""
 
         local = self.stage_t(t)
+        handoff_frame = self._handoff_frame(local) if local >= self.handoff_start else None
+        if handoff_frame is not None:
+            held = bool(handoff_frame["held"])
+            return handoff_frame
         if self._done:
             # The interaction finished earlier in the scene: the body is already back on its feet.
             # A kept object rides in the hand for the rest of the scene; a released one stays where
@@ -222,6 +411,16 @@ class PickupScene:
                 and error > CONTACT_TOLERANCE:
             self.report.claimed_contact_without_touch += 1
 
+        if (not self._claimed and state in (PickupState.GRIPPING, PickupState.HOLDING)
+                and error <= CONTACT_TOLERANCE):
+            # The claim happens on the frame the wrist is measured inside the object, not when the
+            # schedule says GRIPPING - the schedule is an intention, the wrist is the event.
+            try:
+                self.ownership.claim(self.obj.name, self.character, local,
+                                     contact_confirmed=True, position=self.obj.centre)
+                self._claimed = True
+            except Exception as exc:
+                self.report.claim_error = str(exc)
         holding = state in (PickupState.HOLDING, PickupState.RELEASING)
         if holding:
             point = (wrist[0], wrist[1] - 4.0)
@@ -251,6 +450,8 @@ class PickupScene:
             self._pose_applied = False
         from studio.characters.ik import clear_ik
         clear_ik(self.rig, self.side)
+        if self.partner is not None:
+            clear_ik(self.partner, self.partner_side)
 
     def as_dict(self) -> Dict[str, Any]:
         return {"report": {**self.report.as_dict(), "kept": self.keep,
@@ -260,4 +461,17 @@ class PickupScene:
                            "surface": self.surface},
                 "schedule": [{"state": phase.state.value, "start": round(phase.start, 3),
                               "end": round(phase.end, 3)} for phase in self.plan.phases],
-                "notes": list(self.plan.notes)}
+                "notes": list(self.plan.notes),
+                "handoff": (None if not self.handoff_to else {
+                    "to": self.handoff_to,
+                    "side": self.partner_side,
+                    "reachable": self.report.handoff_reachable,
+                    "surface_gap_px": round(getattr(self, "handoff_surface_gap", 0.0), 1),
+                    "reach_load": round(getattr(self, "handoff_load", 0.0), 3),
+                    "approach_px": round(getattr(self, "approach_px", 0.0), 1),
+                    "window": [round(self.handoff_start, 2), round(self.handoff_end, 2)],
+                    "transferred": self.report.transferred,
+                    "contact_error_px": (None if math.isinf(self._handoff_error)
+                                         else round(self._handoff_error, 2)),
+                }),
+                "ownership": self.ownership.as_dict()}

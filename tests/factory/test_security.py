@@ -46,7 +46,7 @@ def test_every_rule_detects_its_own_shape(tmp_path: Path) -> None:
         "youtube-access-token": _fake("ya29.", "a0AfB1c2D3e4F5g6H7i8", 22),
         "github-token": _fake("ghp_", "A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6Q7r8", 36),
         "aws-access-key": "AKIA" + "Q1W2E3R4T5Y6U7I8",
-        "slack-token": "xoxb-1234567890-abcdefghij",  # pragma: allowlist secret
+        "slack-token": "xoxb-" + "1234567890-abcdefghij",  # gitleaks:allow
         "private-key": "-----BEGIN RSA PRIVATE KEY-----",  # pragma: allowlist secret - header only
         "connection-string": "postgres://user:sup3rs3cret@db.internal:5432/app",  # pragma: allowlist secret
     }

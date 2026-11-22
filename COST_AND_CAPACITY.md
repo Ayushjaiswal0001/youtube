@@ -126,3 +126,27 @@ second per core** on this laptop.
 A three-channel daily schedule (1 Short + 1 long-form each) is therefore about
 3 x (157 + 292) s = **22 minutes of rendering per day**, comfortably inside a GitHub-hosted runner's
 job limit, provided the runner has the same 2-core class of CPU.
+
+## Measured long-form benchmarks (2026-11-22)
+
+Third measurement, run in a fresh build directory on this machine (8 GB, no other render running):
+
+| Workload | Video | Wall | Real-time factor | fps | Peak RSS | QC |
+| --- | --- | --- | --- | --- | --- | --- |
+| 12-scene landscape episode | 64.50 s (1935 f) | **312 s** | 4.84x | 6.2 | — | pass, 27/27 |
+| 96-scene long-form plan | **650.4 s (10.8 min)** | **2921.5 s (48.7 min)** | 4.49x | 6.6 | 117.8 MB (measured in-process earlier) | **fail: 14 continuity errors** |
+
+Two things worth stating plainly:
+
+1. **The earlier projection was accurate.** 600 s projected to 2930 s wall; the real 650 s render took
+   2921 s. Cost scales with frames, not with scene count: 6.2–6.6 fps holds across a 10x change in
+   duration, so the model in the table above can be used for capacity planning.
+2. **The 10.8-minute plan failed QC, and that is the correct outcome.** The generator built it by
+   repeating the authored 12 scenes eight times, which asks two characters to pick up the same key
+   without a hand-off in between; the continuity gate reported 14 `ownership_conflict` errors. A long
+   episode is not proof of production readiness if its plan is incoherent — the gate did its job. No
+   clean 10-minute episode has been produced yet.
+
+Peak memory is not the constraint: under 120 MB against ~2 GB free. Time is: at ~4.5x real time, a
+10-minute episode needs about 50 minutes of wall clock, which fits inside a GitHub-hosted runner's job
+limit but not inside a 15-minute one.

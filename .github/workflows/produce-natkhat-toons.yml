@@ -30,4 +30,9 @@ jobs:
       secret_prefix: NATKHAT_TOONS
       upload: ${{ inputs.upload || false }}
       allow_unpublished: ${{ inputs.allow_unpublished || false }}
-    secrets: inherit
+    # Only this channel's credentials. The other channels' tokens are not passed here, so
+    # they cannot be reached from this run even by a mistake.
+    secrets:
+      YT_NATKHAT_TOONS_CLIENT_ID: ${{ secrets.YT_NATKHAT_TOONS_CLIENT_ID }}
+      YT_NATKHAT_TOONS_CLIENT_SECRET: ${{ secrets.YT_NATKHAT_TOONS_CLIENT_SECRET }}
+      YT_NATKHAT_TOONS_REFRESH_TOKEN: ${{ secrets.YT_NATKHAT_TOONS_REFRESH_TOKEN }}

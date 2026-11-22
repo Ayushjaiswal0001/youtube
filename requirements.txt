@@ -9,7 +9,7 @@
 #   * PyCairo needs libcairo2/libcairo2-dev (Linux) or cairo.dll (Windows via pip wheel)
 
 numpy==2.4.6
-pillow==12.3.0
+pillow==13.0.0
 edge-tts==7.3.1
 gTTS==2.5.4
 pycairo==1.29.0

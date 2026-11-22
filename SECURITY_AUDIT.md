@@ -230,3 +230,27 @@ and Google Cloud console configuration, the owner's workstation beyond this clon
 attacker may hold from outside this repository, or logs of runs that do not exist. Secret scanning being
 enabled on GitHub means GitHub also reports provider patterns it recognises — but only for patterns it
 knows, which is not the same as "this repository is clean".
+
+---
+
+## 10. Remediation close-out (2026-11-22, same auditor)
+
+| Item | Status | Evidence |
+| --- | --- | --- |
+| F1 artifacts deleted | **VERIFIED** | `gh api .../actions/artifacts` → `total_count: 0`; the two old IDs now return 404 |
+| `main` protected | **VERIFIED** | required PR + 1 approval, dismiss stale reviews, checks `uploader (py3.11)`, `uploader (py3.12)`, `secret scan (tree, staged, history)`, no force-push, no deletion, conversation resolution; `enforce_admins: false` so the owner is not locked out |
+| Dependabot alerts and security updates | **VERIFIED** | `dependabot_security_updates: enabled`; `.github/dependabot.yml` (monthly, patch-only, grouped) |
+| SHA pinning | **VERIFIED** | `sha_pinning_required: true`; all third-party actions pinned with `# vX.Y.Z` comments |
+| Pillow 13.0.0 | **VERIFIED** | 0 advisories; 767 tests; goldens unchanged; portrait and landscape renders pass QC; visual diff vs 12.3.0 is sub-1 % in subtitle glyph rasterisation only |
+| Non-provider patterns / validity checks | **OWNER-BLOCKED** | API accepts the PATCH but the flags remain `disabled`; requires the repository UI (Settings → Code security) |
+| Gitleaks as an independent scanner | **VERIFIED** | `.gitleaks.toml` + a CI job built from a pinned tag; tree and history exit 0 |
+| `secrets: inherit` removed | **VERIFIED** | each caller passes its own three secrets only; the callee declares all nine |
+
+Two findings from this pass are worth keeping in view:
+
+* **A scanner that cannot see history is decoration.** Annotations added today do not change yesterday's
+  blobs, so a history scan needs an explicit, reviewed allowlist (two values here: a public channel ID
+  and a synthetic Slack-shaped fixture), not inline comments.
+* **A clean scan is still not a secure repository.** The three gaps that mattered most were settings —
+  artifacts, branch protection, Dependabot — and none of them is visible in the source.
+
