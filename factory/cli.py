@@ -328,6 +328,9 @@ def cmd_render(args: argparse.Namespace) -> int:
     formats = [f for f in str(getattr(args, "formats", "") or "").split(",") if f]
     if formats and not args.plan_id:
         raise ValueError("--formats requires --plan-id: one plan is rendered in each format")
+    from .controls import ensure_allowed
+
+    ensure_allowed(args.channel, action="render")
     results = []
     with _progress_to_stderr(bool(args.json)):
         for spec in _specs(args.channel):
@@ -425,6 +428,30 @@ def _research_now(value: str):
     from datetime import datetime, timezone
 
     return datetime.fromisoformat(value).replace(tzinfo=timezone.utc)
+
+
+def cmd_pause(args: argparse.Namespace) -> int:
+    from .controls import pause, pause_state, resume
+
+    if args.resume:
+        removed = resume(args.channel or None)
+        _print({"resumed": args.channel or "all", "removed": removed}, args.json)
+        return 0
+    path = pause(args.channel or None)
+    _print({"paused": args.channel or "all", "flag": str(path),
+            "state": pause_state(args.channel or None).as_dict()}, args.json)
+    return 0
+
+
+def cmd_notify(args: argparse.Namespace) -> int:
+    """Send one operational message through the configured notifier (null when unconfigured)."""
+
+    from .observability import notifier_from_env
+
+    notifier = notifier_from_env()
+    delivered = notifier.send(args.subject, {"message": args.message})
+    _print({"delivered": delivered, "notifier": type(notifier).__name__}, args.json)
+    return 0 if delivered else 1
 
 
 def cmd_analytics(args: argparse.Namespace) -> int:
@@ -606,6 +633,18 @@ def build_parser() -> argparse.ArgumentParser:
     publish.add_argument("--allow-public", action="store_true")
     publish.add_argument("--json", action="store_true", help=argparse.SUPPRESS)
     publish.set_defaults(func=cmd_publish)
+
+    pause = subparsers.add_parser("pause", help="stop all production, or one channel")
+    pause.add_argument("--channel", default="")
+    pause.add_argument("--resume", action="store_true", help="clear the pause instead of setting it")
+    pause.add_argument("--json", action="store_true", help=argparse.SUPPRESS)
+    pause.set_defaults(func=cmd_pause)
+
+    notify = subparsers.add_parser("notify", help="send one operational message if a notifier is set")
+    notify.add_argument("--subject", default="X100 factory")
+    notify.add_argument("--message", required=True)
+    notify.add_argument("--json", action="store_true", help=argparse.SUPPRESS)
+    notify.set_defaults(func=cmd_notify)
 
     research = subparsers.add_parser("research",
                                      help="discover topics from permitted feeds and record sources")

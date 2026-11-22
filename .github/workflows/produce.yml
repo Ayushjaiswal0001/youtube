@@ -277,6 +277,15 @@ jobs:
         env:
           RESOLVED_PLAN: ${{ steps.resolve.outputs.plan_id }}
 
+      - name: Emergency stop check
+        # A repository variable (FACTORY_PAUSED / FACTORY_PAUSED_CHANNELS) stops the run before any work,
+        # so stopping production never depends on someone being at a keyboard.
+        env:
+          FACTORY_PAUSED: ${{ vars.FACTORY_PAUSED }}
+          FACTORY_PAUSED_CHANNELS: ${{ vars.FACTORY_PAUSED_CHANNELS }}
+        run: |
+          python -c "import sys; from factory.controls import pause_state; s = pause_state('${{ inputs.channel }}'); print(s.reason) if s.paused else None; sys.exit(1 if s.paused else 0)"
+
       - name: Validate channel slug
         # The slug becomes a directory name and a command argument, so it is checked to be one of the
         # three known channels before any step uses it.
@@ -330,6 +339,16 @@ jobs:
             --execute \
             --confirm-channel "$CHANNEL" \
             --json | tee publish.json
+
+      - name: Notify on failure
+        # Provider-independent: silently a no-op unless FACTORY_NOTIFY_WEBHOOK is configured.
+        if: failure()
+        continue-on-error: true
+        env:
+          FACTORY_NOTIFY_WEBHOOK: ${{ secrets.FACTORY_NOTIFY_WEBHOOK }}
+        run: |
+          python -m factory.cli notify --subject "production failed: $CHANNEL" \
+            --message "run ${{ github.run_id }} on ${{ github.ref_name }} failed; see the job log" || true
 
       - name: Operational summary
         if: always()
