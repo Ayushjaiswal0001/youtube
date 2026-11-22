@@ -64,12 +64,30 @@ def _volume_stats(video_path: Path) -> dict[str, float | None]:
     }
 
 
+def _duration_seconds(path: Path) -> float:
+    """Container duration, so a freeze that outlives the last frame can be sized."""
+
+    command = ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of",
+               "default=nw=1:nk=1", str(path)]
+    result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+                            check=False)
+    try:
+        return float(result.stdout.strip())
+    except ValueError:
+        return 0.0
+
+
 def _freeze_events(path: Path) -> list[tuple[float, float]]:
     """Freeze segments detected in the video, as ``(start, duration)``.
 
     A frozen frame is what a broken animation loop looks like: the renderer keeps writing frames but
     the picture stops. `freezedetect` is the cheap honest measurement - it decodes, which catches
     streams that ffprobe alone would call healthy.
+
+    A freeze that runs to the end of the file emits ``freeze_start`` and never emits ``freeze_end``.
+    Ignoring that case - which is what this function did until it was found by its own regression test -
+    hid the most likely stall of all: a renderer that stops animating on the last line and keeps writing
+    the same frame until the video ends.
     """
 
     command = ["ffmpeg", "-v", "info", "-i", str(path), "-vf",
@@ -91,6 +109,10 @@ def _freeze_events(path: Path) -> list[tuple[float, float]]:
                 continue
             events.append((start, end - start))
             start = None
+    if start is not None:
+        end = _duration_seconds(path)
+        if end > start:
+            events.append((start, end - start))
     return events
 
 

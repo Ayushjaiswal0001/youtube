@@ -183,6 +183,10 @@ def mix_narration(
                 f":measured_LRA={measured['lra_lu']}:measured_thresh={measured['threshold_lufs']}"
                 ":linear=true:print_format=summary"
             )
+    # A final brick-wall limiter after normalisation. `loudnorm` in linear mode targets -1.0 dBTP, and AAC
+    # encoding overshoots that by a few tenths, which is enough to fail the -1.0 dBTP true-peak gate:
+    # academic-biohacker measured -0.7 dBTP. The gate is unchanged; the mix now leaves headroom for the codec.
+    chain += ",alimiter=limit=0.89:level=disabled"
     run(
         [
             "ffmpeg", "-y", "-i", str(raw_path), "-af", chain,
