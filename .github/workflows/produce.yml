@@ -222,11 +222,20 @@ jobs:
         run: |
           ARGS=(--channel "$CHANNEL" --plan-id "${{ steps.resolve.outputs.plan_id }}")
           if [ -n "$FORMAT" ]; then ARGS+=(--format "$FORMAT"); fi
+          # A plan id that is not in the repository is an error now, not an empty report.
           python -m factory.cli validate "${ARGS[@]}" --json | tee qc-step.json
           python - <<'PY'
-          import json
+          import json, os, sys
           data = json.load(open("qc-step.json", encoding="utf-8"))
           item = data[0] if isinstance(data, list) else data
+          if not item:
+              # An empty report means nothing was rendered, which is a different failure from "QC failed".
+              # Run 45071096194 died here with `IndexError: list index out of range`, three steps away from
+              # the real cause (a plan id that is not in the repository).
+              plan = os.environ.get("PLAN_ID") or "(auto)"
+              print(f"::error::nothing was rendered for plan {plan!r} on channel "
+                    f"{os.environ.get('CHANNEL')!r}; is that plan in content/?")
+              sys.exit(1)
           ok = bool(item.get("qc_ok"))
           print(f"::{'notice' if ok else 'error'}::QC {'passed' if ok else 'failed'} for {item.get('plan_id')}")
           open("qc_ok.txt", "w").write("1" if ok else "0")
@@ -402,6 +411,15 @@ jobs:
             build/**/manifest.json
             build/**/framing.json
             build/**/video.mp4
+            # Everything the manifest hashes has to be downloadable, or "verified" can only mean
+            # "the runner said so". The gate reads story.json, script.json, shot_plan.json and
+            # continuity.json; none of them were in this list.
+            build/**/story.json
+            build/**/script.json
+            build/**/timeline.json
+            build/**/shot_plan.json
+            build/**/continuity.json
+            build/**/publish_gate.json
             build/**/runs.jsonl
             pipeline_state/**/runs.jsonl
             pipeline_state/jobs/**/job.json
