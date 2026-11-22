@@ -99,15 +99,14 @@ class GateDecisionTests(unittest.TestCase):
         from PIL import Image
 
         Image.new("RGB", (1280, 720), (10, 10, 30)).save(self.out / "thumbnail.jpg", "JPEG")
-        self.manifest = {
-            "schema": "factory.manifest.v1",
-            "artifacts": [{"name": "video", "path": "video.mp4",
-                           "sha256": gate_mod.__dict__.get("_x", "")}],
-        }
-        from factory.reliability import sha256_file
+        # The manifest is built by the same routine production uses, over every artifact this fixture writes.
+        # It used to be a hand-written one-entry manifest, which the gate accepted because it only checked the
+        # entries it was given; a package with seven unlisted artifacts was "complete". The gate now verifies
+        # the whole package, so the fixture has to be a real one.
+        from factory import manifesting
 
-        self.manifest["artifacts"][0]["sha256"] = sha256_file(self.video)
-        (self.out / "manifest.json").write_text(json.dumps(self.manifest), encoding="utf-8")
+        manifesting.rebuild(self.out, channel=SPEC.slug, plan_id="fixture", format=SPEC.format)
+        self.manifest = json.loads((self.out / "manifest.json").read_text(encoding="utf-8"))
 
         self.patches = [
             mock.patch.object(gate_mod, "ffprobe_streams", return_value={"streams": [

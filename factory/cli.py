@@ -268,6 +268,43 @@ def cmd_preflight(args: argparse.Namespace) -> int:
     return run(args, specs=load_channel_specs(), print_fn=lambda value: _print(value, args.json))
 
 
+def cmd_manifest(args: argparse.Namespace) -> int:
+    """Re-hash the package as it stands now. The workflow calls this after its own QC step."""
+
+    from .manifesting import rebuild, verify
+
+    results: list[dict[str, Any]] = []
+    for spec in _specs(args.channel):
+        if getattr(args, "format", None):
+            spec = replace(spec, format=args.format)
+        for plan in load_plans_for(spec):
+            plan_id = plan_identifier(plan)
+            if args.plan_id and plan_id != args.plan_id:
+                continue
+            out_dir = episode_out_dir(spec, plan)
+            if not (out_dir / "video.mp4").is_file():
+                continue
+            manifest = rebuild(out_dir, channel=spec.slug, plan_id=plan_id, format=spec.format)
+            problems = verify(out_dir)
+            results.append({
+                "channel": spec.slug,
+                "plan_id": plan_id,
+                "path": str(out_dir / "manifest.json"),
+                "artifacts": len(manifest["artifacts"]),
+                "missing_required": manifest["package"]["missing_required"],
+                "problems": problems,
+                "ok": not problems and not manifest["package"]["missing_required"],
+            })
+    if not results:
+        _print([] if args.json else ["no rendered artifacts found"], args.json)
+        return 1
+    _print(results if args.json else [
+        f"{item['channel']} {item['plan_id']}: {item['artifacts']} artifacts, "
+        f"{'verified' if item['ok'] else 'problems: ' + '; '.join(item['problems'] or item['missing_required'])}"
+        for item in results], args.json)
+    return 0 if all(item["ok"] for item in results) else 2
+
+
 def cmd_gate(args: argparse.Namespace) -> int:
     from .ops import cmd_gate as run
 
@@ -586,6 +623,14 @@ def build_parser() -> argparse.ArgumentParser:
     preflight.add_argument("--reserve-mb", type=int, default=4096)
     preflight.add_argument("--json", action="store_true", help=argparse.SUPPRESS)
     preflight.set_defaults(func=cmd_preflight)
+
+    manifest = subparsers.add_parser(
+        "manifest", help="re-hash an episode package and rebuild manifest.json")
+    manifest.add_argument("--channel", default="all")
+    manifest.add_argument("--plan-id", default="")
+    manifest.add_argument("--format", default="")
+    manifest.add_argument("--json", action="store_true", help=argparse.SUPPRESS)
+    manifest.set_defaults(func=cmd_manifest)
 
     gate = subparsers.add_parser("gate", help="publishing gate: may this artifact be published?")
     gate.add_argument("--channel", default="all")

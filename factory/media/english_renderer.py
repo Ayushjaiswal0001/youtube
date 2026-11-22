@@ -472,27 +472,35 @@ def _draw_caption(
     line: ScriptLine,
     t: float,
     c: dict[str, str],
-) -> None:
+) -> tuple[float, float, float, float] | None:
     if t < line.start - 0.05:
-        return
+        return None
     chunk = _active_chunk(line, t)
     if not chunk:
-        return
+        return None
     words: list[WordTiming] = chunk["words"]
     text = " ".join(word.text for word in words)
+    pad_x, pad_y = 34, 22
+    # The capsule has to fit the same safe width as everything else, with 8 px of clearance so its outline is
+    # not drawn on the boundary. It used to be sized against a fixed 930 px of type, which put the capsule
+    # outside the safe margin on long lines; then against `textlength(text)`, which is not the width that gets
+    # drawn - the drawn width is the sum of the word advances plus the spaces, and the two differ by enough to
+    # leave 8 px of overflow on a caption with many words. So the loop measures what it is about to draw.
+    available = LAYOUT_HALF_WIDTH - 2 * pad_x - 8
     size = 78
-    font = _font(TITLE_FONT, size)
-    while size > 52 and draw.textlength(text, font=font) > 930:
-        size -= 4
+    while True:
         font = _font(TITLE_FONT, size)
-    space = draw.textlength(" ", font=font)
-    widths = [draw.textlength(word.text, font=font) for word in words]
-    total = sum(widths) + space * max(0, len(words) - 1)
+        space = draw.textlength(" ", font=font)
+        widths = [draw.textlength(word.text, font=font) for word in words]
+        total = sum(widths) + space * max(0, len(words) - 1)
+        if total <= available or size <= 44:
+            break
+        size -= 4
     x = (WIDTH - total) / 2
     y = 1480
-    pad_x, pad_y = 34, 22
+    capsule = (x - pad_x, y - pad_y, x + total + pad_x, y + size + pad_y + 12)
     draw.rounded_rectangle(
-        (x - pad_x, y - pad_y, x + total + pad_x, y + size + pad_y + 12),
+        capsule,
         radius=26,
         fill=_mix(c["bg"], "#000000", 0.72),
         outline=_mix(c["bg"], c["accent"], 0.4),
@@ -506,6 +514,7 @@ def _draw_caption(
         fill = c["accent"] if clean == target or clean == longest else c["text"]
         draw.text((x, y), word.text, font=font, fill=fill)
         x += width + space
+    return tuple(round(value, 2) for value in capsule)
 
 
 def _draw_scene(
@@ -536,15 +545,19 @@ def _draw_scene(
     draw.rounded_rectangle((64, 142, 76, 154), radius=2, fill=c["bg"])
 
     headline = line.headline or line.caption or line.text[:40]
-    font, lines = _fit_headline(draw, headline, 900, 3)
+    font, lines = _fit_headline(draw, headline, int(LAYOUT_HALF_WIDTH) - 13, 3)
     y = 250
+    drawn = []
     for text in lines:
         box = draw.textbbox((0, 0), text, font=font)
         x = (WIDTH - (box[2] - box[0])) / 2
         draw.text((x + 3, y + 3), text, font=font, fill=_mix(c["bg"], "#000000", 0.65))
         draw.text((x, y), text, font=font, fill=c["text"])
+        drawn.append((x, y, x + (box[2] - box[0]), y + (box[3] - box[1])))
         y += (box[3] - box[1]) + 10
     draw.rounded_rectangle((WIDTH / 2 - 60, y + 15, WIDTH / 2 + 60, y + 21), radius=3, fill=accent)
+    headline_rect = (min(r[0] for r in drawn), min(r[1] for r in drawn),
+                     max(r[2] for r in drawn), max(r[3] for r in drawn)) if drawn else None
 
     _draw_motif(draw, line.visual or "network", t, c, 1.0 if local > 0 else 0.0)
     if local > 0.0:
@@ -553,7 +566,7 @@ def _draw_scene(
         # obvious. The overlay is thin and stays inside the empty band around the motif.
         _draw_motion_ring(draw, t, c)
 
-    _draw_caption(draw, line, t, c)
+    caption_rect = _draw_caption(draw, line, t, c)
 
     handle = brand[2]
     hfont = _font(SMALL_FONT, 24)
@@ -564,7 +577,10 @@ def _draw_scene(
 
     if local < 0.34:
         alpha = 1.0 - local / 0.34
-        y_line = int(HEIGHT * min(1.0, local / 0.34))
+        # The entrance wipe sweeps down to the caption band and stops there. It used to run to the bottom of
+        # the card, crossing the caption for the first frames of every line: measured as 6 collisions of 180
+        # sampled frames on academic-cool-to-sleep, where the light palette makes the bar an obvious edge.
+        y_line = int((CAPTION_BAND[0] - 24) * min(1.0, local / 0.34))
         draw.rectangle((0, max(0, y_line - 8), WIDTH, y_line + 8), fill=_mix(c["bg"], accent, 0.45 * alpha))
         radius = 80 * (1 + local)
         draw.ellipse(
@@ -572,6 +588,8 @@ def _draw_scene(
             outline=_mix(c["bg"], c["accent2"], max(0.0, min(1.0, alpha))),
             width=3,
         )
+
+    return {"headline": headline_rect, "caption": caption_rect}
 
 
 # The card is a composition, not a photograph: the motif for several kinds (chip, robot, shield,
@@ -638,6 +656,84 @@ def apply_camera_drift(frame: "Image.Image", t: float) -> None:
     frame.paste(inner.crop((left, top, left + width, top + height)), (0, 0))
 
 
+# Composition evidence. The publishing gate requires `framing.json` for every channel and refused an
+# English video with "framing.json missing: composition unverified". Writing a report with zeroes would be
+# worse than writing nothing, so these boxes are measured from the frames that were actually encoded.
+SAFE_AREA = {"left": 56, "right": WIDTH - 56, "top": 150, "bottom": HEIGHT - 150}
+# The camera pushes in by up to DRIFT_MAX, which moves everything further from the centre by that factor. Text
+# laid out to the safe width and then pushed in lands outside it: a full-width caption measured 29 frames of
+# overflow for exactly this reason. So the layout target is the safe area *divided by the maximum push-in*, and
+# the framing report measures the pushed-in result against the real safe area.
+DRIFT_MAX_SCALE = 1.0 + 0.060
+LAYOUT_HALF_WIDTH = (SAFE_AREA["right"] - SAFE_AREA["left"]) / DRIFT_MAX_SCALE
+HEADLINE_BAND = (232, 720)      # below the brand row (ends ~215) and above the motif plate
+CAPTION_BAND = (1430, 1680)     # the caption capsule is drawn at y=1480
+FRAMING_SAMPLE_STRIDE = 6       # every sixth frame is measured; a card does not change fast
+INK_THRESHOLD = 60               # local gradient that counts as ink, for the sanity check only
+
+
+def _scale_rect(box: tuple[float, float, float, float] | None, scale: float) -> tuple[float, float, float, float] | None:
+    """Map a rectangle through the camera push-in, which is a centre crop about the frame centre.
+
+    Without this the report would describe the composition before the camera moved it, and 6 % of drift is
+    32 px at the frame edge - more than the clearance a caption has.
+    """
+
+    if box is None:
+        return None
+    cx, cy = WIDTH / 2.0, HEIGHT / 2.0
+    left, top, right, bottom = box
+    return ((left - cx) * scale + cx, (top - cy) * scale + cy,
+            (right - cx) * scale + cx, (bottom - cy) * scale + cy)
+
+
+def _overflow(box: tuple[float, float, float, float] | None) -> int:
+    """How far a rectangle leaves the safe area, in pixels. Zero means it is inside."""
+
+    if box is None:
+        return 0
+    left, top, right, bottom = box
+    return int(max(0, SAFE_AREA["left"] - left, right - SAFE_AREA["right"],
+                   SAFE_AREA["top"] - top, bottom - SAFE_AREA["bottom"]))
+
+
+def _has_ink(frame: "Image.Image", box: tuple[float, float, float, float]) -> bool:
+    """Is there actually something drawn inside this rectangle?
+
+    The framing report is built from the rectangles the draw calls returned, which is exact but would also be
+    exact if a call reported a rectangle it never painted. This reads the encoded frame and requires an edge
+    inside the box, so a report cannot outrun the picture.
+    """
+
+    left, top, right, bottom = (int(max(0, box[0])), int(max(0, box[1])),
+                                int(min(WIDTH, box[2])), int(min(HEIGHT, box[3])))
+    if right - left < 2 or bottom - top < 2:
+        return False
+    luma = np.asarray(frame.convert("L"), dtype=np.uint8)[top:bottom, left:right].astype(np.int16)
+    gradient = np.abs(np.diff(luma, axis=1)).sum() + np.abs(np.diff(luma, axis=0)).sum()
+    return bool(gradient > INK_THRESHOLD)
+
+
+def measure_geometry(geometry: dict[str, Any], frame: "Image.Image") -> dict[str, Any]:
+    """One frame's framing evidence, from the rectangles the renderer drew on that frame."""
+
+    headline = geometry.get("headline")
+    caption = geometry.get("caption")
+    collision = False
+    if headline and caption:
+        collision = not (caption[2] < headline[0] or caption[0] > headline[2]
+                         or caption[3] < headline[1] or caption[1] > headline[3])
+    return {
+        "headline": list(headline) if headline else None,
+        "caption": list(caption) if caption else None,
+        "headline_overflow": _overflow(headline),
+        "caption_overflow": _overflow(caption),
+        "collision": collision,
+        "headline_painted": _has_ink(frame, headline) if headline else False,
+        "caption_painted": _has_ink(frame, caption) if caption else False,
+    }
+
+
 def compose_frame(
     base: "Image.Image",
     lines: list[ScriptLine],
@@ -645,14 +741,23 @@ def compose_frame(
     duration: float,
     spec: ChannelSpec,
     brand: tuple[str, str, str],
+    geometry: dict[str, Any] | None = None,
 ) -> "Image.Image":
-    """One finished frame. The encode loop and the tests call this, so they measure the same pixels."""
+    """One finished frame. The encode loop and the tests call this, so they measure the same pixels.
+
+    `geometry` is an out-parameter: when given, it receives the rectangles that were drawn on this frame, which
+    is what the framing report is built from. It is filled before the camera and light passes, so the numbers
+    describe the layout the frame was composed with.
+    """
 
     line, line_index = _active_line(lines, t)
     frame = base.convert("RGB")
-    _draw_scene(frame, line, t, duration, line_index, len(lines), spec, brand)
+    drawn = _draw_scene(frame, line, t, duration, line_index, len(lines), spec, brand)
     apply_camera_drift(frame, t)
     apply_light_sweep(frame, t, spec.colors["accent"])
+    if geometry is not None:
+        scale = camera_scale(t)
+        geometry.update({name: _scale_rect(box, scale) for name, box in (drawn or {}).items()})
     return frame
 
 
@@ -780,10 +885,16 @@ def render_english(
     ]
     process = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     assert process.stdin is not None
+    samples: list[dict[str, Any]] = []
     try:
         for frame_index in range(total_frames):
             t = frame_index / FPS
-            frame = compose_frame(base, lines, t, duration, spec, brand)
+            geometry: dict[str, Any] = {}
+            frame = compose_frame(base, lines, t, duration, spec, brand, geometry=geometry)
+            if frame_index % FRAMING_SAMPLE_STRIDE == 0:
+                sample = measure_geometry(geometry, frame)
+                sample["t"] = round(t, 3)
+                samples.append(sample)
             process.stdin.write(frame.convert("RGB").tobytes())
         process.stdin.close()
         stderr = process.stderr.read().decode("utf-8", errors="replace") if process.stderr else ""
@@ -808,4 +919,73 @@ def render_english(
     (output_path.parent / "render.json").write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     (output_path.parent / "timeline.json").write_text(json.dumps(narration.to_dict(), ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     (output_path.parent / "script.json").write_text(json.dumps(script.to_dict(), ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+    headline_bad = [s for s in samples if s["headline_overflow"] > 0]
+    caption_bad = [s for s in samples if s["caption_overflow"] > 0 or s["collision"]]
+    missing_headline = [s for s in samples if s["headline"] is None]
+    framing = {
+        "schema": "framing/1",
+        "channel": spec.slug,
+        "plan_id": script.metadata.get("plan_id"),
+        "engine": "shorts",
+        "measured": True,
+        "method": "rectangles returned by the draw calls, per sampled frame, cross-checked for ink",
+        "safe_area": SAFE_AREA,
+        "sample_stride": FRAMING_SAMPLE_STRIDE,
+        "frames_sampled": len(samples),
+        "cropped_required_frames": len(headline_bad) + len(missing_headline),
+        "subtitle_collision_frames": len(caption_bad),
+        "elements": {
+            "headline": {
+                "band": list(HEADLINE_BAND),
+                "painted_frames": len([s for s in samples if s["headline_painted"]]),
+                "missing_frames": len(missing_headline),
+                "max_overflow_px": max((s["headline_overflow"] for s in samples), default=0),
+            },
+            "caption": {
+                "band": list(CAPTION_BAND),
+                "painted_frames": len([s for s in samples if s["caption_painted"]]),
+                "max_overflow_px": max((s["caption_overflow"] for s in samples), default=0),
+                "collisions": len([s for s in samples if s["collision"]]),
+            },
+        },
+        "samples": samples[:120],
+    }
+    (output_path.parent / "framing.json").write_text(
+        json.dumps(framing, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+    scenes = []
+    for index, line in enumerate(lines):
+        scenes.append({
+            "index": index + 1,
+            "headline": line.headline,
+            "text": line.text,
+            "start": round(line.start, 3),
+            "end": round(line.end, 3),
+            "visual": line.visual or "network",
+            "sfx": line.sfx,
+            "assets": {"motif": line.visual or "network", "palette": spec.palette,
+                       "base": "generated/card-plate"},
+        })
+    story = {
+        "schema": "story/1",
+        "story_id": getattr(script, "story_id", None) or script.metadata.get("story_id"),
+        "channel": spec.slug,
+        "plan_id": script.metadata.get("plan_id"),
+        "title": script.title,
+        "format": spec.format,
+        "language": spec.language,
+        "engine": "shorts",
+        "created_at": iso_now(),
+        "scene_count": len(scenes),
+        "scenes": scenes,
+        "provenance": {
+            "visuals": "generated in-process from primitives; no stock photography, no third-party media",
+            "fonts": [p.name for p in (TITLE_FONT, SERIF_FONT, SMALL_FONT)],
+            "music": "synthesised bed (factory.media.music)",
+            "narration": "TTS provider declared in script.json",
+        },
+    }
+    (output_path.parent / "story.json").write_text(
+        json.dumps(story, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     return payload

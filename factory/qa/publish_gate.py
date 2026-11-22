@@ -335,21 +335,13 @@ def evaluate_publish_gate(
                or str(script.title).strip() != "", "madeForKids channels need a clean title")
 
     # 20. manifest
-    manifest = _read_json(out / "manifest.json")
-    if manifest:
-        mismatched = []
-        for entry in manifest.get("artifacts") or []:
-            candidate = out / str(entry.get("path"))
-            if candidate.is_file():
-                from ..reliability import sha256_file
+    from ..manifesting import verify as verify_manifest
 
-                if sha256_file(candidate) != entry.get("sha256"):
-                    mismatched.append(entry.get("name"))
-        result.add("manifest", not mismatched,
-                   f"{len(manifest.get('artifacts') or [])} artifacts"
-                   + (f", hash mismatch: {mismatched}" if mismatched else ""))
-    else:
-        result.add("manifest", False, "manifest.json missing: package unverifiable")
+    problems = verify_manifest(out)
+    manifest = _read_json(out / "manifest.json") or {}
+    result.add("manifest", not problems,
+               f"{len(manifest.get('artifacts') or [])} artifacts"
+               + (f", {len(problems)} problem(s): {problems}" if problems else ""))
 
     return result
 
