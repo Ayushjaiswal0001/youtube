@@ -49,7 +49,29 @@ def episode_out_dir(spec: ChannelSpec, plan: dict[str, Any]) -> Path:
     return BUILD_ROOT / spec.slug / plan_id
 
 
-def _plan_specs(spec: ChannelSpec) -> list[ChannelSpec]:
+def build_script(spec: ChannelSpec, plan: dict[str, Any]) -> Script:
+    """Build the script a plan's *engine* needs, not the one its channel's language suggests.
+
+    Every read-side verb (`validate`, `manifest`, `gate`, `status`) used to call `build_hindi_script` for Hindi
+    channels regardless of engine, so a landscape plan - whose scenes carry `line`, not `dialogue` - was
+    rejected as "invalid scene" even though the renderer had produced and QC'd it. The render path already
+    dispatched correctly; this makes the read path agree with it instead of duplicating the rule.
+
+    A landscape plan is normalised by `landscape_stage.plan_scenes`, which validates `scenes[].line` and maps it
+    to `dialogue` before anything else sees it. Portrait Hindi plans still go through `build_hindi_script`,
+    which stays strict about its own schema.
+    """
+
+    if resolve_engine(spec, plan) == "stage":
+        from .media.landscape_stage import build_script as build_stage_script
+
+        return build_stage_script(spec, plan)
+    if spec.is_hindi:
+        return build_hindi_script(spec, plan)
+    return build_english_script(spec, plan)
+
+
+def plan_specs(spec: ChannelSpec) -> list[ChannelSpec]:
     """Both composition profiles a channel can render (9:16 and 16:9)."""
 
     other = "long" if spec.format == "shorts" else "shorts"
@@ -58,7 +80,7 @@ def _plan_specs(spec: ChannelSpec) -> list[ChannelSpec]:
 
 def find_plan(spec: ChannelSpec, plan_id: str | None = None) -> dict[str, Any]:
     plans: list[dict[str, Any]] = []
-    for candidate in _plan_specs(spec):
+    for candidate in plan_specs(spec):
         try:
             plans.extend(load_plans_for(candidate))
         except ValueError:

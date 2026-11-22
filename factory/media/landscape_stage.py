@@ -199,7 +199,12 @@ def plan_scenes(plan: Dict[str, Any]) -> List[Dict[str, Any]]:
         raise ValueError(f"landscape stage plan {plan.get('id')!r} has no scenes")
     out = []
     for index, scene in enumerate(scenes, 1):
-        if not str(scene.get("line") or "").strip():
+        if not isinstance(scene, dict):
+            raise ValueError(f"landscape plan scene {index} is not an object")
+        line = scene.get("line")
+        if line is not None and not isinstance(line, str):
+            raise ValueError(f"landscape plan scene {index} has a non-string line")
+        if not (line or "").strip():
             raise ValueError(f"landscape plan scene {index} has no line")
         out.append({
             "scene_num": int(scene.get("n") or index),
@@ -238,6 +243,15 @@ def build_script(spec: ChannelSpec, plan: Dict[str, Any]) -> Script:
         series=plan.get("series"),
         episode=plan.get("episode"),
         series_title=str(plan.get("series_title") or ""),
+        metadata={
+            "plan_id": str(plan.get("id") or ""),
+            "engine": "stage",
+            "chapters": plan.get("chapters", []),
+            "slot": plan.get("slot"),
+            "director": plan.get("director"),
+            # the normalised scenes, so a downstream report can see the beats the plan asked for
+            "scenes": scenes,
+        },
     )
 
 

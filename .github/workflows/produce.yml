@@ -234,6 +234,15 @@ jobs:
           echo "ok=$(cat qc_ok.txt)" >> "$GITHUB_OUTPUT"
           test "$(cat qc_ok.txt)" = "1"
 
+      - name: Rebuild manifest after QC
+        # The render writes a manifest, then this workflow's own QC step rewrites qc.json. The first cloud run
+        # failed here: the manifest still hashed the pre-QC report, same size, different bytes. The manifest is
+        # now rebuilt from the bytes that are final, and the gate verifies against those.
+        run: |
+          ARGS=(--channel "$CHANNEL" --plan-id "${{ steps.resolve.outputs.plan_id }}")
+          if [ -n "$FORMAT" ]; then ARGS+=(--format "$FORMAT"); fi
+          python -m factory.cli manifest "${ARGS[@]}" --json | tee manifest-step.json
+
       - name: Publishing gate
         id: gate
         run: |

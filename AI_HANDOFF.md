@@ -573,3 +573,13 @@ previous run's state restored. See the completion criteria at the end of `TASKS.
 - **`secrets: inherit`** in the three per-channel callers passes every repository secret into
   `produce.yml`. Acceptable today only because nothing there triggers on `pull_request`; keep it that way.
 - `env -u GITHUB_TOKEN` for every `gh` call remains mandatory - the ambient token is a different account.
+
+## Trap: a local render is not a read-only operation
+
+`factory.cli render` and `factory.cli plan new` consume the tracked batch ledger: `content/batch_2026-11-*.json`
+is rewritten, and an older batch can be **deleted** from the working tree. Two full-suite runs failed with
+`PlanGenerationError: topic bank exhausted` because of this, and were green again after
+`git checkout HEAD -- content/`.
+
+Before any commit, run `git status --porcelain content/` and restore it. Never assume a local plan run left the
+repository unchanged.
