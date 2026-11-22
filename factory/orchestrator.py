@@ -199,11 +199,31 @@ def render_episode(
     those steps, so a fix to QC or to captions had to be made twice and stayed wrong in one place.
     """
 
+    # The choke point for every producing path, including `resume` - which is the verb `produce.yml` calls
+    # to render, and which was NOT guarded. `FACTORY_PAUSED=1` + `resume` started TTS and created a build
+    # directory, so the emergency stop stopped the local `render` verb and nothing else. A guard that lives
+    # only in individual CLI verbs is a guard someone will route around.
+    from .controls import ensure_allowed
+
+    ensure_allowed(spec.slug, action="render")
     selected = plan or find_plan(spec, plan_id)
     selected_id = plan_identifier(selected)
     job = JobJournal(job_id_for(spec.slug, selected_id))
     lock = JobLock(LOCK_ROOT / f"{spec.slug}_{selected_id}.lock",
                    job_id=job.job_id, ttl=3600.0)
+    # `pipeline_state` is cached across workflow runs; `build/` is not. So a re-run of the same plan lands on a
+    # journal that says READY_TO_PUBLISH with no artefact next to it, and the unconditional QUEUED transition
+    # raised `READY_TO_PUBLISH -> QUEUED is not a legal transition` (cloud run 45073494545). Re-rendering is
+    # legitimate - repairing the gate is exactly why an operator re-runs a plan - so the rewind is recorded
+    # instead of being smuggled past the state machine. A PUBLISHED episode is not rewound without `force`:
+    # re-producing something already on YouTube is how a factory publishes the same video twice.
+    previous = job.state()
+    if previous in {"READY_TO_PUBLISH", "PUBLISHING", "PUBLISHED"}:
+        if previous == "PUBLISHED" and not force:
+            raise ValueError(
+                f"{selected_id} is already published; pass --force to re-produce it"
+            )
+        job.transition("RECOVERABLE", reason=f"re-run after {previous}", requeued=True)
     job.transition("QUEUED", channel=spec.slug, plan_id=selected_id)
     try:
         lock.acquire()

@@ -161,6 +161,7 @@ jobs:
 
       - name: Preflight
         run: |
+          set -o pipefail
           python -m factory.cli preflight --channel "$CHANNEL" --json | tee preflight.json
           python - <<'PY'
           import json, sys
@@ -172,7 +173,9 @@ jobs:
           PY
 
       - name: Doctor
-        run: python -m factory.cli doctor --json | tee doctor.json
+        run: |
+          set -o pipefail
+          python -m factory.cli doctor --json | tee doctor.json
 
       - name: Research (discovery record)
         # Non-blocking by design: a dead feed is recorded in the report and the run continues with the
@@ -215,6 +218,9 @@ jobs:
           if [ -n "$FORMAT" ]; then ARGS+=(--format "$FORMAT"); fi
           # `resume` re-renders only missing or stale scenes and never touches a verified artifact;
           # `--force` is deliberately not used here.
+          # `set -o pipefail` is not optional: `cmd | tee file` reports tee's status, so a failing
+          # `resume` looked like a passing step in run 45073494545 and the next step failed instead.
+          set -o pipefail
           python -m factory.cli resume "${ARGS[@]}" --json | tee resume.json
 
       - name: Quality assurance
@@ -223,11 +229,13 @@ jobs:
           ARGS=(--channel "$CHANNEL" --plan-id "${{ steps.resolve.outputs.plan_id }}")
           if [ -n "$FORMAT" ]; then ARGS+=(--format "$FORMAT"); fi
           # A plan id that is not in the repository is an error now, not an empty report.
+          set -o pipefail
           python -m factory.cli validate "${ARGS[@]}" --json | tee qc-step.json
           python - <<'PY'
           import json, os, sys
           data = json.load(open("qc-step.json", encoding="utf-8"))
-          item = data[0] if isinstance(data, list) else data
+          items = data if isinstance(data, list) else [data]
+          item = items[0] if items else {}
           if not item:
               # An empty report means nothing was rendered, which is a different failure from "QC failed".
               # Run 45071096194 died here with `IndexError: list index out of range`, three steps away from
@@ -250,12 +258,14 @@ jobs:
         run: |
           ARGS=(--channel "$CHANNEL" --plan-id "${{ steps.resolve.outputs.plan_id }}")
           if [ -n "$FORMAT" ]; then ARGS+=(--format "$FORMAT"); fi
+          set -o pipefail
           python -m factory.cli manifest "${ARGS[@]}" --json | tee manifest-step.json
 
       - name: Publishing gate
         id: gate
         run: |
           ARGS=(--channel "$CHANNEL" --plan-id "${{ steps.resolve.outputs.plan_id }}")
+          set -o pipefail
           python -m factory.cli gate "${ARGS[@]}" --json | tee gate.json
           python - <<'PY'
           import json

@@ -278,8 +278,11 @@ def cmd_resume(args: argparse.Namespace) -> int:
     QC is left untouched unless `--force` is given.
     """
 
+    from .controls import ensure_allowed
+
     results: list[dict[str, Any]] = []
     for spec, plan in _iter_requested_plans(args):
+            ensure_allowed(spec.slug, action="render")
             plan_id = plan_identifier(plan)
             out_dir = episode_out_dir(spec, plan)
             qc = read_json(out_dir / "qc.json", {})
