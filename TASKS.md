@@ -260,3 +260,11 @@ Status markers: `[ ]` todo, `[~]` in progress, `[x]` done.
   during the hand-off (proportion limit of the rigs) — see ANIMATION_QUALITY_REPORT.md.
 - [x] **T50b. Long-form benchmark.** 650.4 s video rendered in 2921.5 s (4.49x, 6.6 fps). The plan was
   deliberately incoherent (repeated pickups) and QC failed it with 14 continuity errors — correct.
+
+- [x] **T53. Research and topic-discovery engine.** `factory/research.py` + `content/research/sources.json`
+  + `factory.cli research`: RSS/Atom parsing without dependencies, niche relevance, freshness decay with a
+  stated half-life, title quality, children's-channel policy blocklist, dedupe against production history,
+  and a per-candidate source ledger. 21 tests; live run against arXiv and NASA produced ranked candidates
+  and recorded one dead feed without failing. Research step added to `produce.yml` as non-blocking.
+- [x] **T54. FINAL_LAUNCH documentation.** `FINAL_LAUNCH/BASELINE_AUDIT.md` and
+  `FINAL_LAUNCH/LAUNCH_READINESS.md` — verified baseline, gaps, and the exact owner action behind each.

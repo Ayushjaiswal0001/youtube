@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "note": "Permitted, public feeds. No scraping, no paywalled sources, no credentials. Edit the channel lists to steer discovery; a source with no channels serves every channel.",
+  "sources": [
+    {"id": "arxiv-ai", "title": "arXiv cs.AI", "url": "http://export.arxiv.org/rss/cs.AI", "channels": ["nexus-node"]},
+    {"id": "arxiv-lg", "title": "arXiv cs.LG", "url": "http://export.arxiv.org/rss/cs.LG", "channels": ["nexus-node", "academic-biohacker"]},
+    {"id": "arxiv-qbio", "title": "arXiv q-bio", "url": "http://export.arxiv.org/rss/q-bio", "channels": ["academic-biohacker"]},
+    {"id": "nasa-breaking", "title": "NASA breaking news", "url": "https://www.nasa.gov/rss/dyn/breaking_news.rss", "channels": ["nexus-node"]},
+    {"id": "nature-news", "title": "Nature news", "url": "https://www.nature.com/nature.rss", "channels": ["academic-biohacker"]},
+    {"id": "hn-frontpage", "title": "Hacker News front page", "url": "https://hnrss.org/frontpage", "channels": ["nexus-node"]}
+  ]
+}

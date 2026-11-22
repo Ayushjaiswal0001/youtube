@@ -394,6 +394,39 @@ def cmd_publish(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_research(args: argparse.Namespace) -> int:
+    """Discover candidate topics from the permitted feeds and write a research record."""
+
+    from . import research as research_engine
+    from .state import ChannelState
+
+    results = []
+    for spec in _specs(args.channel):
+        sources = research_engine.load_sources(Path(args.sources))
+        history = ChannelState(spec.slug).history()
+        titles = [str(item.get("title") or "") for item in history]
+        report = research_engine.discover(
+            spec, sources, now=None if not args.date else _research_now(args.date),
+            history_titles=titles, limit=args.limit)
+        path = research_engine.write_report(report, Path(args.out))
+        results.append({"channel": spec.slug, "path": str(path),
+                        "candidates": len(report.candidates),
+                        "rejected": len(report.rejected),
+                        "sources": report.sources,
+                        "errors": getattr(report, "errors", []),
+                        "digest": research_engine.digest(report),
+                        "top": [{"title": c.title, "score": c.score, "url": c.link}
+                                for c in report.candidates[: args.limit]]})
+    _print(results, args.json)
+    return 0
+
+
+def _research_now(value: str):
+    from datetime import datetime, timezone
+
+    return datetime.fromisoformat(value).replace(tzinfo=timezone.utc)
+
+
 def cmd_analytics(args: argparse.Namespace) -> int:
     results = [analytics_for(spec, limit=args.limit) for spec in _specs(args.channel)]
     _print(results if args.json else [json.dumps(item, ensure_ascii=False, indent=2) for item in results], args.json)
@@ -573,6 +606,16 @@ def build_parser() -> argparse.ArgumentParser:
     publish.add_argument("--allow-public", action="store_true")
     publish.add_argument("--json", action="store_true", help=argparse.SUPPRESS)
     publish.set_defaults(func=cmd_publish)
+
+    research = subparsers.add_parser("research",
+                                     help="discover topics from permitted feeds and record sources")
+    research.add_argument("--channel", required=True)
+    research.add_argument("--limit", type=int, default=10)
+    research.add_argument("--date", default="", help="evaluate freshness as of this ISO date")
+    research.add_argument("--sources", default="content/research/sources.json")
+    research.add_argument("--out", default="build/research")
+    research.add_argument("--json", action="store_true", help=argparse.SUPPRESS)
+    research.set_defaults(func=cmd_research)
 
     analytics = subparsers.add_parser("analytics")
     analytics.add_argument("--channel", required=True)
