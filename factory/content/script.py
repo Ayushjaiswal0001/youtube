@@ -215,8 +215,14 @@ def build_hindi_script(spec: ChannelSpec, plan: dict[str, Any]) -> Script:
     if not isinstance(scenes, list) or len(scenes) < 3:
         raise ValueError(f"Hindi plan {topic!r} needs at least three scenes")
     lines: list[ScriptLine] = []
-    for scene in scenes:
-        if not isinstance(scene, dict) or not scene.get("dialogue"):
+    for index, scene in enumerate(scenes, 1):
+        if not isinstance(scene, dict):
+            raise ValueError(f"Hindi plan {topic!r} scene {index} is not an object")
+        dialogue = scene.get("dialogue")
+        if dialogue is not None and not isinstance(dialogue, str):
+            # `str()` of a dict is a string, so the old check silently accepted nonsense text
+            raise ValueError(f"Hindi plan {topic!r} scene {index} has a non-string dialogue")
+        if not dialogue or not dialogue.strip():
             raise ValueError(f"Hindi plan {topic!r} has an invalid scene")
         lines.append(
             ScriptLine(

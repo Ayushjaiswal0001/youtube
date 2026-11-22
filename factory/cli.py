@@ -69,7 +69,11 @@ def _specs(value: str) -> list[ChannelSpec]:
 
 
 def _script_for(spec: ChannelSpec, plan: dict[str, Any]):
-    return build_hindi_script(spec, plan) if spec.is_hindi else build_english_script(spec, plan)
+    """Engine-aware: a landscape plan is not a portrait plan with different keys."""
+
+    from .orchestrator import build_script
+
+    return build_script(spec, plan)
 
 
 def _rendered_plan(spec: ChannelSpec, plan_id: str | None) -> dict[str, Any]:
@@ -333,8 +337,7 @@ def cmd_validate(args: argparse.Namespace) -> int:
             video = out_dir / "video.mp4"
             if not video.is_file():
                 continue
-            script = (build_hindi_script(spec, plan) if spec.is_hindi
-                      else build_english_script(spec, plan))
+            script = _script_for(spec, plan)
             qc = validate_episode(
                 spec, script, video,
                 thumbnail=out_dir / "thumbnail.jpg",

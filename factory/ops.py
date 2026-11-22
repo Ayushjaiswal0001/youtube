@@ -42,29 +42,35 @@ def cmd_gate(args: Any, *, specs: dict[str, ChannelSpec], print_fn,
              script_for) -> int:
     from .qa.publish_gate import evaluate_publish_gate
 
+    # Both composition profiles, the same way `orchestrator.episode_out_dir` and the render path decide them.
+    # Iterating only the channel's default format made a rendered landscape episode invisible to the gate:
+    # `gate --channel natkhat-toons` returned an empty report while its video, QC and manifest were on disk.
+    from .orchestrator import plan_specs
+
     results: List[dict[str, Any]] = []
-    for spec in specs.values():
-        if args.channel != "all" and spec.slug != args.channel:
+    for base_spec in specs.values():
+        if args.channel != "all" and base_spec.slug != args.channel:
             continue
-        for plan in load_plans_for(spec):
-            plan_id = plan_identifier(plan)
-            if args.plan_id and plan_id != args.plan_id:
-                continue
-            out_dir = episode_out_dir(spec, plan)
-            video = out_dir / "video.mp4"
-            if not video.is_file():
-                continue
-            script = script_for(spec, plan)
-            gate = evaluate_publish_gate(
-                spec, script, video, out_dir=out_dir,
-                thumbnail=out_dir / "thumbnail.jpg",
-                measure_decode=True, measure_loudness=True,
-            )
-            report = gate.to_dict()
-            report.update({"channel": spec.slug, "plan_id": plan_id, "video": str(video)})
-            (out_dir / "publish_gate.json").write_text(
-                json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
-            results.append(report)
+        for spec in plan_specs(base_spec):
+            for plan in load_plans_for(spec):
+                plan_id = plan_identifier(plan)
+                if args.plan_id and plan_id != args.plan_id:
+                    continue
+                out_dir = episode_out_dir(spec, plan)
+                video = out_dir / "video.mp4"
+                if not video.is_file():
+                    continue
+                script = script_for(spec, plan)
+                gate = evaluate_publish_gate(
+                    spec, script, video, out_dir=out_dir,
+                    thumbnail=out_dir / "thumbnail.jpg",
+                    measure_decode=True, measure_loudness=True,
+                )
+                report = gate.to_dict()
+                report.update({"channel": spec.slug, "plan_id": plan_id, "video": str(video)})
+                (out_dir / "publish_gate.json").write_text(
+                    json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+                results.append(report)
     if not results:
         print_fn([] if args.json else ["no rendered artifacts found"])
         return 1
