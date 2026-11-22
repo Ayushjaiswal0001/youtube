@@ -273,6 +273,16 @@ def _relevance(item: FeedItem, spec) -> tuple[float, List[str]]:
     return round(min(1.0, base + bonus), 4), reasons
 
 
+def _focus_hits(item: FeedItem, spec) -> List[str]:
+    """Channel focus terms present in the item. Empty list means the item is off-niche."""
+
+    terms = tuple(getattr(spec, "focus_terms", ()) or ())
+    if not terms:
+        return []
+    haystack = f"{item.title} {item.summary}".lower()
+    return [term for term in terms if re.search(r"\b" + re.escape(term), haystack)]
+
+
 def _title_quality(title: str) -> float:
     words = len(title.split())
     if not 4 <= words <= 16:
@@ -297,8 +307,14 @@ def score_item(item: FeedItem, spec, history_titles: Sequence[str], now: datetim
 
     # Weights are a stated editorial policy, not a measurement of audience demand.
     score = round(0.55 * relevance + 0.30 * freshness + 0.15 * quality, 4)
-    if risk or duplicate_of:
+    focus = _focus_hits(item, spec)
+    off_niche = bool(spec.focus_terms) and not focus
+    if risk or duplicate_of or off_niche:
         score = 0.0
+    if off_niche:
+        reasons.append("off-niche: none of this channel's focus terms appear in the headline or summary")
+    elif focus:
+        reasons.append(f"on-niche: {', '.join(focus[:3])}")
     if quality == 0.0:
         reasons.append("title length outside 4-16 words")
     return Candidate(title=item.title, link=item.link, source_id=item.source_id,

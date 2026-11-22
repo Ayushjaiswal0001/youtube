@@ -64,3 +64,17 @@ def test_a_pause_never_looks_like_success(tmp_path: Path) -> None:
     pause(root=tmp_path)
     with pytest.raises(ProductionPaused):
         ensure_allowed("nexus-node", environ={}, root=tmp_path)
+
+
+def test_a_paused_channel_cannot_reach_the_publish_shell(monkeypatch) -> None:
+    """`publish` must refuse before it looks at any artifact, exactly like `render`."""
+
+    from factory import cli
+
+    pause("nexus-node")
+    try:
+        code = cli.main(["publish", "--channel", "nexus-node", "--plan-id", "x", "--execute",
+                         "--confirm-channel", "nexus-node"])
+    finally:
+        resume("nexus-node")
+    assert code != 0

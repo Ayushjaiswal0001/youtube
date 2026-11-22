@@ -38,7 +38,7 @@ RSS = """<?xml version="1.0"?><rss version="2.0"><channel>
 </channel></rss>"""
 
 ATOM = """<?xml version="1.0"?><feed xmlns="http://www.w3.org/2005/Atom">
-<entry><title>Protein folding and cells</title><link href="https://example.org/protein"/>
+<entry><title>Retrieval practice improves memory retention</title><link href="https://example.org/protein"/>
 <published>2026-11-19T08:00:00Z</published><summary>Biology research</summary></entry></feed>"""
 
 NOW = datetime(2026, 11, 20, 12, tzinfo=timezone.utc)

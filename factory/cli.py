@@ -371,6 +371,12 @@ def cmd_qc(args: argparse.Namespace) -> int:
 def cmd_publish(args: argparse.Namespace) -> int:
     if args.plan_id and args.channel == "all":
         raise ValueError("--plan-id requires one --channel")
+    # Checked here as well as in `render`: a channel paused between render and upload must not publish, and
+    # an operator should never have to remember which verb they started. Nothing is read before this.
+    from .controls import ensure_allowed
+
+    for spec in _specs(args.channel):
+        ensure_allowed(spec.slug, action="publish")
     results = []
     for spec in _specs(args.channel):
         plan = _rendered_plan(spec, args.plan_id)

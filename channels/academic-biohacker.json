@@ -19,7 +19,37 @@
       "morning light circadian",
       "gut brain axis microbiome"
     ],
-    "publish_time_ist": "12:00"
+    "publish_time_ist": "12:00",
+    "focus_terms": [
+      "attention",
+      "brain",
+      "cognit",
+      "comprehension",
+      "concentration",
+      "dopamin",
+      "educat",
+      "exam",
+      "focus",
+      "forget",
+      "habit",
+      "hippocamp",
+      "learn",
+      "memor",
+      "metacognit",
+      "mnemonic",
+      "neuro",
+      "neuron",
+      "note-taking",
+      "pedagog",
+      "recall",
+      "retent",
+      "retriev",
+      "revis",
+      "sleep",
+      "spac",
+      "stud",
+      "test"
+    ]
   },
   "defaults": {
     "category_id": "27",
