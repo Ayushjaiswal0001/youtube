@@ -1,0 +1,96 @@
+{
+  "batch_id": "longform-academic-biohacker-01",
+  "created_at": "2026-11-23T03:00:00+00:00",
+  "format": "long",
+  "channels": {
+    "academic-biohacker": [
+      {
+        "id": "long-academic-study-protocol",
+        "format": "long",
+        "engine": "cards",
+        "slot": "am",
+        "title": "The Study Habits That Actually Survive Testing",
+        "topic": "evidence-based study methods: spacing, retrieval, interleaving and sleep",
+        "angle": "what controlled experiments support, what they do not, and how to build a week around it",
+        "hook": "Most study advice is folklore with a confident voice. A small number of techniques have survived controlled comparison, and almost all of them make studying feel harder rather than easier. This is what the evidence supports, and where it stops.",
+        "hook_headline": "Harder feels worse",
+        "hook_visual": "chart",
+        "beats": [
+          {
+            "text": "Start with the finding that keeps repeating. Retrieving information from memory changes memory more than rereading it. Answering a question, writing a summary from memory, or explaining a concept without notes produces better long term retention than spending the same time reading the same page again.",
+            "headline": "Retrieval beats rereading",
+            "visual": "flow"
+          },
+          {
+            "text": "This is usually called the testing effect, and the name is misleading. It is not about exams. It is about the act of pulling something out of memory, which strengthens the route back to it. The uncomfortable part is that rereading feels more productive while you do it, and produces less later.",
+            "headline": "The testing effect",
+            "visual": "nodes"
+          },
+          {
+            "text": "The second finding is spacing. The same total study time produces better retention when it is spread across days instead of concentrated in one session. The gap that helps depends on how long you need to remember something: short gaps for a test this week, longer gaps for material you need in a year.",
+            "headline": "Space it, do not cram it",
+            "visual": "bars"
+          },
+          {
+            "text": "Spacing works because each return to the material happens when some forgetting has already occurred, so the retrieval is effortful. That effort is the mechanism, not an obstacle to it. A session that feels smooth is often a session where very little is being reconstructed.",
+            "headline": "Forgetting does the work",
+            "visual": "scale"
+          },
+          {
+            "text": "Third, interleaving. Mixing problem types within a session, instead of finishing one type before starting the next, tends to improve later performance, especially when you have to choose which method applies. Blocked practice looks tidier and produces faster progress inside the session, which is exactly why it is popular.",
+            "headline": "Mix the problem types",
+            "visual": "grid"
+          },
+          {
+            "text": "Fourth, elaboration. Connecting new material to what you already know, or explaining it in your own words as if teaching it, tends to help, particularly when the explanation has to be specific. Vague summarising is not elaboration. Elaboration is answering why and how, in your own sentences, with examples you generate.",
+            "headline": "Explain it in your words",
+            "visual": "network"
+          },
+          {
+            "text": "Sleep is not a bonus feature. Memory consolidates across sleep, and short sleep degrades attention, which degrades encoding in the first place. A study plan that trades sleep for hours is usually trading a smaller number of efficient hours for a larger number of inefficient ones.",
+            "headline": "Sleep is part of the method",
+            "visual": "flow"
+          },
+          {
+            "text": "Now the part that is often oversold. Learning styles, meaning the claim that matching teaching to a preferred modality improves outcomes, have not held up when tested against the matching prediction. People have preferences; preferences are not evidence that matching them improves learning.",
+            "headline": "What does not hold up",
+            "visual": "shield"
+          },
+          {
+            "text": "Brain training games show a similar pattern. People improve at the game, and the improvement tends to stay near the game rather than transferring to unrelated memory or reasoning. Transfer is the hard test, and most of these claims have not passed it.",
+            "headline": "Transfer is the hard test",
+            "visual": "scale"
+          },
+          {
+            "text": "So what does a week look like? Short retrieval sessions most days, spaced by increasing gaps, with old material revisited while it is slightly uncomfortable. Mix problem types once the basics are in place. Write explanations from memory. Protect sleep. Keep the total time honest rather than heroic.",
+            "headline": "A week that works",
+            "visual": "grid"
+          },
+          {
+            "text": "One more caution about the evidence itself. Most of these results come from controlled experiments with short material and short retention intervals, often with university students. The direction of the effect is consistent. The exact size in your subject, at your level, over your timescale is not something a study can hand you.",
+            "headline": "Where the evidence stops",
+            "visual": "nodes"
+          }
+        ],
+        "chapters": [
+          { "line": 1, "title": "Retrieval, not rereading" },
+          { "line": 3, "title": "Spacing and interleaving" },
+          { "line": 6, "title": "Elaboration and sleep" },
+          { "line": 8, "title": "Claims that do not hold up" },
+          { "line": 10, "title": "Building a week" }
+        ],
+        "payoff": "The techniques that survive testing are the ones that make studying feel harder: recall instead of rereading, gaps instead of cramming, mixed problems instead of tidy blocks. The evidence is strongest for the direction of these effects, and weaker on exactly how large they will be for you.",
+        "payoff_headline": "Harder, and better supported",
+        "cta": "Follow for more evidence briefs, with the limits stated.",
+        "cta_headline": "Follow",
+        "tags": ["learning", "memory", "study", "cognitive-science", "evidence"],
+        "sources": [
+          "Roediger, H. L. & Karpicke, J. D. (2006). Test-enhanced learning: taking memory tests improves long-term retention. Psychological Science, 17(3), 249-255.",
+          "Cepeda, N. J., Pashler, H., Vul, E., Wixted, J. T. & Rohrer, D. (2006). Distributed practice in verbal recall tasks: a review and quantitative synthesis. Psychological Bulletin, 132(3), 354-380.",
+          "Dunlosky, J., Rawson, K. A., Marsh, E. J., Nathan, M. J. & Willingham, D. T. (2013). Improving students' learning with effective learning techniques. Psychological Science in the Public Interest, 14(1), 4-58."
+        ],
+        "claims_note": "No statistics are asserted in the narration. Claims about learning styles and brain training are stated as the published reviews state them: no reliable evidence of the predicted benefit, with transfer failures as the key test. The limitations paragraph is part of the script, not a disclaimer bolted on afterwards."
+      }
+    ]
+  }
+}
