@@ -166,6 +166,13 @@ class EpisodePipeline:
                                                  for v in merged["subjects"].values())
             merged["max_zoom_rate"] = max((d.get("max_zoom_rate", 0.0)
                                            for d in merged["scenes"]), default=0.0)
+            # Every per-scene report has measured this since the caption band existed; the episode merge simply
+            # never summed it, so the portrait Hindi framing.json had no collision count at all. The gate read
+            # the missing key as zero and passed the check vacuously - the "a gate that silently drops a case is
+            # worse than no gate" failure, in the one engine path that still had it.
+            merged["subtitle_collision_frames"] = sum(
+                int(scene.get("subtitle_collision_frames") or 0) for scene in merged["scenes"])
+            merged["frames_sampled"] = sum(int(scene.get("frames") or 0) for scene in merged["scenes"])
             with open(EPISODES_DIR / f"{story_id}_framing.json", "w", encoding="utf-8") as f:
                 json.dump(merged, f, ensure_ascii=False, indent=2)
             print(f"[Pipeline] Framing: {merged['cropped_required_frames']} required frames "

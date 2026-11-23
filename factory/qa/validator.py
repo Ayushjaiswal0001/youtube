@@ -395,11 +395,14 @@ def validate_episode(
             checks.append(_check("framing_continuity", zoom_rate <= FRAMING_MAX_ZOOM_RATE,
                                  f"peak zoom change {zoom_rate:.2f}/s "
                                  f"(limit {FRAMING_MAX_ZOOM_RATE:.2f})"))
-            collisions = int(framing.get("subtitle_collision_frames") or 0)
+            measured = framing.get("subtitle_collision_frames")
+            collisions = int(measured or 0)
             checks.append(_check(
-                "subtitle_collision", collisions == 0,
-                "no character behind the caption band" if collisions == 0
-                else f"a character overlaps the caption band on {collisions} frames",
+                "subtitle_collision",
+                measured is not None and collisions == 0,
+                "not measured: caption clearance unverified" if measured is None
+                else ("no character behind the caption band" if collisions == 0
+                      else f"a character overlaps the caption band on {collisions} frames"),
                 severity="error",
             ))
 
