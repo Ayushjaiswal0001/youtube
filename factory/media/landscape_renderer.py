@@ -45,6 +45,11 @@ HEIGHT = 1080
 FPS_TARGET = FPS
 
 MARGIN = 104
+# The frame pans by up to PAN_X[0] px, so text laid out at MARGIN leaves the safe area in the encoded frame -
+# measured as 499 "required subjects cropped" on the first panning academic render, which is the report doing
+# its job. The layout target is the margin plus the pan amplitude, and the report then measures the panned
+# frame against the real margin. Same rule as the Shorts renderer and its 6 % push-in.
+TEXT_MARGIN = MARGIN + 36
 TEXT_COL = 900          # width of the left editorial column
 PANEL_X = 1092          # left edge of the diagram plate
 PANEL_TOP = 188
@@ -301,6 +306,7 @@ def _body_block(
     top: int,
     bottom: int,
     alpha: float,
+    margin: float | None = None,
 ) -> tuple[float, float, float, float] | None:
     """Draw support copy that always fits above the caption band, and return the rectangle it painted.
 
@@ -317,18 +323,19 @@ def _body_block(
         lines = _wrap(draw, text, font, max_width)
         if len(lines) <= max_lines:
             break
+    margin = profile.margin if margin is None else margin
     fill = _rgba(c["text"], int(216 * alpha)) if spec.palette == "nexus" else _rgba(c["muted"], int(255 * alpha))
     y = top
-    right = float(profile.margin)
+    right = float(margin)
     painted = 0
     for line in lines[:max_lines]:
-        draw.text((profile.margin, y), line, font=font, fill=fill)
-        right = max(right, profile.margin + draw.textlength(line, font=font))
+        draw.text((margin, y), line, font=font, fill=fill)
+        right = max(right, margin + draw.textlength(line, font=font))
         y += line_height
         painted += 1
     if not painted:
         return None
-    return (float(profile.margin), float(top), float(right), float(y - line_height + font.size * 1.05))
+    return (float(margin), float(top), float(right), float(y - line_height + font.size * 1.05))
 
 
 def _caption_band(
@@ -494,30 +501,32 @@ def _draw_frame(
 
     enter = _ease_out(local / 0.42)
     offset = int((1 - enter) * 26)
-    max_width = TEXT_COL - 40
+    margin = float(TEXT_MARGIN)
+    max_width = TEXT_COL - 40 - (TEXT_MARGIN - MARGIN)
 
     kicker = f"CHAPTER {chapter_for_line.get(index, (0, ''))[0]}" if index in chapter_for_line else brand[1]
-    draw.text((profile.margin, PANEL_TOP + offset), kicker, font=_font(SMALL_FONT, 24), fill=c["accent"])
+    draw.text((margin, PANEL_TOP + offset), kicker, font=_font(SMALL_FONT, 24), fill=c["accent"])
 
     headline_font, headline_lines = _headline(draw, profile, spec, line.headline or line.caption or " ", max_width)
     y = PANEL_TOP + 52 + offset
-    headline_right = float(profile.margin)
+    headline_right = float(margin)
     headline_top = float(y)
     for text_line in headline_lines:
-        draw.text((profile.margin, y), text_line, font=headline_font, fill=_rgba(c["text"], int(255 * enter)))
-        headline_right = max(headline_right, profile.margin + draw.textlength(text_line, font=headline_font))
+        draw.text((margin, y), text_line, font=headline_font, fill=_rgba(c["text"], int(255 * enter)))
+        headline_right = max(headline_right, margin + draw.textlength(text_line, font=headline_font))
         y += int(headline_font.size * 1.14)
 
     rule_y = y + 18
-    draw.rounded_rectangle((profile.margin, rule_y, profile.margin + 120, rule_y + 6), radius=3, fill=_rgba(c["accent"], int(255 * enter)))
+    draw.rounded_rectangle((margin, rule_y, margin + 120, rule_y + 6), radius=3, fill=_rgba(c["accent"], int(255 * enter)))
 
-    body_rect = _body_block(draw, profile, spec, line.text, max_width, rule_y + 34, CAPTION_TOP - 34, enter)
+    body_rect = _body_block(draw, profile, spec, line.text, max_width, rule_y + 34, CAPTION_TOP - 34, enter,
+                            margin=margin)
 
     caption_rect = _caption_band(draw, profile, spec, _active_chunk(_chunks(line), t), t)
     _rail(draw, profile, spec, t / max(duration, 0.01), chapter_marks)
 
     if geometry is not None:
-        geometry["headline"] = (float(profile.margin), headline_top, float(headline_right),
+        geometry["headline"] = (float(margin), headline_top, float(headline_right),
                                 float(y - int(headline_font.size * 0.14)))
         geometry["body"] = body_rect
         geometry["caption"] = caption_rect

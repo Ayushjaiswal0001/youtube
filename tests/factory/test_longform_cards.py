@@ -208,3 +208,42 @@ def test_the_framing_report_measures_the_panned_frame(spec_long) -> None:
                 "chapter_card": False, "pan": (30, -12)}
     sample = R.measure_geometry(geometry, Image.new("RGB", (R.WIDTH, R.HEIGHT)))
     assert sample["headline"][:2] == [230.0, 248.0]
+
+
+@pytest.mark.parametrize("slug,plan_id", [("nexus-node", "long-nexus-power-grid"),
+                                           ("academic-biohacker", "long-academic-study-protocol")])
+def test_the_published_plans_stay_inside_the_safe_area_at_full_pan(slug, plan_id) -> None:
+    """The pan moves type toward the frame edge, so the layout is inset by the pan amplitude.
+
+    Without that inset the first panning render reported 499 "required subjects cropped" - the report was right,
+    the layout was wrong. This walks the real plans, at maximum pan in both directions.
+    """
+
+    import json
+    from dataclasses import replace
+
+    from factory.config import load_channel_specs
+    from factory.content.script import build_english_script
+
+    spec = replace(load_channel_specs()[slug], format="long")
+    plans = json.load(open(f"content/longform/{slug}.json", encoding="utf-8"))["channels"][slug]
+    plan = next(p for p in plans if p["id"] == plan_id)
+    script = build_english_script(spec, plan)
+
+    profile = R.get_profile(spec)
+    base = R._base(profile, spec)
+    mapping, marks, starts = R._chapter_map(script, script.lines)
+    picks = [0, len(script.lines) // 2, len(script.lines) - 1]
+    for index in picks:
+        line = script.lines[index]
+        geometry: dict = {}
+        frame = R._draw_frame(base, line, line.start + 0.8, 220.0, index, len(script.lines), spec,
+                              R.BRAND[slug], marks, mapping, starts, geometry=geometry)
+        for pan in ((0, 0), (R.PAN_X[0], R.PAN_Y[0]), (-R.PAN_X[0], -R.PAN_Y[0])):
+            probe = dict(geometry)
+            probe["pan"] = pan
+            sample = R.measure_geometry(probe, frame)
+            assert sample["headline_overflow"] == 0, (index, pan, sample)
+            assert sample["body_overflow"] == 0, (index, pan, sample)
+            assert sample["caption_overflow"] == 0, (index, pan, sample)
+            assert sample["collision"] is False
