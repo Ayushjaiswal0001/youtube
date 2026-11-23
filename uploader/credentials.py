@@ -291,5 +291,43 @@ class CredentialManager:
         credentials = self.get(slug)
         return credentials.client_id, credentials.client_secret
 
+    def client_pair_for_consent(self, slug: str) -> tuple[str, str]:
+        """The client pair, for the one operation that runs *before* a refresh token exists.
+
+        ``consent`` is what creates the first refresh token, so it cannot be gated on one being
+        present: ``get()`` requires a complete credential set and this used to make the first run
+        of ``consent`` impossible - "environment credentials ... are incomplete: refresh_token"
+        with only CLIENT_ID and CLIENT_SECRET set, and "no credentials available" with nothing.
+
+        The pair is read from the environment first (both values together), then from a stored
+        secret file, then from the legacy file. A refresh token is never consulted, and nothing
+        here is trusted for any purpose except starting a consent flow: the token that comes back
+        is still verified against the exact channel ID before it is stored.
+        """
+
+        prefix = "YT_" + slug.upper().replace("-", "_") + "_"
+        client_id = self.env.get(prefix + "CLIENT_ID")
+        client_secret = self.env.get(prefix + "CLIENT_SECRET")
+        if client_id and client_secret:
+            return client_id, client_secret
+        partial = [name for name, value in (("CLIENT_ID", client_id), ("CLIENT_SECRET", client_secret)) if value]
+        if partial:
+            missing = "CLIENT_SECRET" if partial == ["CLIENT_ID"] else "CLIENT_ID"
+            raise CredentialsError(
+                f"{prefix}{missing} is missing; set both {prefix}CLIENT_ID and "
+                f"{prefix}CLIENT_SECRET (or pass --client-json) to run consent for {slug}"
+            )
+        if self.secret_store.exists(slug):
+            stored = self.secret_store.load(slug)
+            return stored.client_id, stored.client_secret
+        legacy = self._legacy_credentials(slug)
+        if legacy:
+            return legacy.client_id, legacy.client_secret
+        raise CredentialsError(
+            f"no OAuth client configured for {slug}; set {prefix}CLIENT_ID and "
+            f"{prefix}CLIENT_SECRET, or pass --client-json with the downloaded Desktop client "
+            "JSON, to run consent"
+        )
+
     def public_sources(self, slugs: list[str]) -> dict[str, str]:
         return {slug: self.source(slug) for slug in slugs}

@@ -13,6 +13,7 @@ from tests.support import (
 )
 from uploader.errors import (
     ApiError,
+    UploaderError,
     DuplicateUploadError,
     IdentityError,
     SafetyError,
@@ -259,3 +260,61 @@ class RouterTests(unittest.TestCase):
                 )
             entries = Ledger(root / "state", "nexus-node").entries()
             self.assertEqual(entries[-1].status, "unknown")
+
+
+class RefreshFailureTests(unittest.TestCase):
+    """A refresh token that no longer works must fail loudly, before any media is touched.
+
+    The interesting property is ordering: `prepare()` refreshes and verifies identity before it
+    uploads, so a revoked or expired refresh token cannot produce a partial upload.
+    """
+
+    class RefusingHttp:
+        def __init__(self, payload: dict[str, Any]) -> None:
+            self.payload = payload
+            self.calls: list[dict[str, Any]] = []
+
+        def request_json(self, method, url, *, headers=None, data=None, timeout=None):
+            self.calls.append({"method": method, "url": url})
+            return self.payload
+
+    def _router(self, root: Path, payload: dict[str, Any]):
+        channel = make_channel()
+        http = self.RefusingHttp(payload)
+        router = ChannelRouter(
+            {channel.slug: channel},
+            FakeCredentials(),
+            root / "state",
+            http=http,
+            api_factory=lambda token: FakeApi(),
+        )
+        return router, http
+
+    def test_an_invalid_grant_is_reported_not_swallowed(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            router, http = self._router(Path(temporary), {
+                "error": "invalid_grant",
+                "error_description": "Token has been expired or revoked.",
+            })
+            with self.assertRaises(UploaderError) as caught:
+                router.verify_channel("nexus-node")
+            self.assertIn("invalid_grant", str(caught.exception))
+            self.assertEqual(len(http.calls), 1)  # refreshed once, then stopped
+
+
+class MaskingTests(unittest.TestCase):
+    def test_prepared_upload_does_not_carry_tokens_in_its_repr(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            video = make_video(root)
+            router, _, _ = RouterTests()._router(root)
+            prepared = router.prepare(
+                "nexus-node", video, {"title": "Test"}, validate_media=False
+            )
+            text = repr(prepared)
+            self.assertNotIn("access-token", text)
+            self.assertNotIn("refresh", text.lower())
+            # the public view is what gets logged or echoed
+            public = prepared.public_dict()
+            self.assertEqual(public["privacy_status"], "private")
+

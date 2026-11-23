@@ -83,6 +83,17 @@ def build_parser() -> argparse.ArgumentParser:
     consent.add_argument("--channel", required=True)
     consent.add_argument("--force", action="store_true")
     consent.add_argument("--no-open", action="store_true")
+    consent.add_argument(
+        "--client-json",
+        help="path to the downloaded Desktop OAuth client JSON; avoids putting the client "
+             "secret in the environment",
+    )
+    consent.add_argument(
+        "--check-only",
+        action="store_true",
+        help="validate the client configuration and exit without opening a browser or storing "
+             "anything",
+    )
     consent.add_argument("--timeout", type=float, default=300.0)
     consent.set_defaults(func=cmd_consent)
 
@@ -251,7 +262,39 @@ def cmd_consent(args: argparse.Namespace) -> int:
     if args.channel not in configs:
         raise UploaderError(f"unknown channel: {args.channel}")
     _setup(args, args.channel)
-    client_id, client_secret = router.credentials.client_pair(args.channel)
+    if args.client_json:
+        from .oauth import load_client_json
+
+        client_id, client_secret = load_client_json(args.client_json)
+    else:
+        client_id, client_secret = router.credentials.client_pair_for_consent(args.channel)
+    if args.check_only:
+        # Phase-3 validation without a consent run: the things that go wrong (a Web client, a
+        # truncated JSON, a service-account key) are all detectable before a browser opens. Only
+        # lengths and the client-ID domain are printed - never the secret.
+        report = {
+            "channel_slug": args.channel,
+            "expected_channel_id": configs[args.channel].expected_channel_id,
+            "client_id_length": len(client_id),
+            "client_secret_length": len(client_secret),
+            "client_id_domain": ".".join(client_id.split(".")[-3:]),
+            "redirect_uri_shape": "http://127.0.0.1:<port>/oauth2callback",
+            "scopes": ["https://www.googleapis.com/auth/youtube.upload",
+                       "https://www.googleapis.com/auth/youtube.readonly"],
+            "ok": True,
+        }
+        if args.json:
+            _print_json(report)
+        else:
+            print(f"channel        {report['channel_slug']}")
+            print(f"expected id    {report['expected_channel_id']}")
+            print(f"client id      {report['client_id_length']} chars, "
+                  f"domain {report['client_id_domain']}")
+            print(f"client secret  ({report['client_secret_length']} chars)")
+            print(f"redirect       {report['redirect_uri_shape']}")
+            print("client configuration OK; run without --check-only to start consent")
+        return 0
+
     result = run_consent(
         configs[args.channel],
         client_id,

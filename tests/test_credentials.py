@@ -136,3 +136,66 @@ class SecretStoreTests(unittest.TestCase):
             credentials = manager.get("natkhat-toons")
             self.assertEqual(credentials.source, "legacy_file")
             self.assertEqual(manager.source("natkhat-toons"), "legacy_file")
+
+
+class ConsentBootstrapTests(unittest.TestCase):
+    """`consent` creates the first refresh token, so it cannot require one.
+
+    `CredentialManager.get()` demands a complete credential set, which made the documented runbook
+    impossible: with only CLIENT_ID and CLIENT_SECRET present it raised "environment credentials
+    ... are incomplete: refresh_token", and with nothing set, "no credentials available".
+    """
+
+    def test_a_client_pair_in_the_environment_is_enough(self) -> None:
+        manager = CredentialManager(
+            "/nonexistent-secrets",
+            env={"YT_NEXUS_NODE_CLIENT_ID": "cid", "YT_NEXUS_NODE_CLIENT_SECRET": "secret"},
+        )
+        self.assertEqual(manager.client_pair_for_consent("nexus-node"), ("cid", "secret"))
+        # and the strict accessor still refuses, which is what keeps the upload path honest
+        with self.assertRaises(CredentialsError):
+            manager.client_pair("nexus-node")
+
+    def test_a_half_configured_pair_names_the_missing_value(self) -> None:
+        manager = CredentialManager(
+            "/nonexistent-secrets", env={"YT_NEXUS_NODE_CLIENT_ID": "cid"}
+        )
+        with self.assertRaises(CredentialsError) as caught:
+            manager.client_pair_for_consent("nexus-node")
+        self.assertIn("YT_NEXUS_NODE_CLIENT_SECRET", str(caught.exception))
+
+    def test_nothing_configured_explains_the_two_ways_to_start(self) -> None:
+        manager = CredentialManager("/nonexistent-secrets", env={})
+        with self.assertRaises(CredentialsError) as caught:
+            manager.client_pair_for_consent("nexus-node")
+        message = str(caught.exception)
+        self.assertIn("YT_NEXUS_NODE_CLIENT_ID", message)
+        self.assertIn("--client-json", message)
+
+    def test_a_stored_secret_file_supplies_the_pair_for_re_consent(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            store = SecretStore(temporary)
+            store.save("nexus-node", "cid-stored", "secret-stored", "refresh",
+                       scopes=["s"], channel_id="UCx9O8VivWkiEylDjs5_Zzag",
+                       channel_title="Nexus Node", handle="@nexusnode012", force=False)
+            manager = CredentialManager(temporary, env={})
+            self.assertEqual(
+                manager.client_pair_for_consent("nexus-node"),
+                ("cid-stored", "secret-stored"),
+            )
+
+    def test_the_environment_pair_wins_over_the_stored_file(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            store = SecretStore(temporary)
+            store.save("nexus-node", "cid-stored", "secret-stored", "refresh",
+                       scopes=["s"], channel_id="UCx9O8VivWkiEylDjs5_Zzag",
+                       channel_title="Nexus Node", handle="@nexusnode012", force=False)
+            manager = CredentialManager(
+                temporary,
+                env={"YT_NEXUS_NODE_CLIENT_ID": "cid-env",
+                     "YT_NEXUS_NODE_CLIENT_SECRET": "secret-env"},
+            )
+            self.assertEqual(
+                manager.client_pair_for_consent("nexus-node"), ("cid-env", "secret-env")
+            )
+

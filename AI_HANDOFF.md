@@ -609,3 +609,31 @@ Three things worth remembering from this wave:
 Publishing is audited but not executed: zero `YT_*` secrets, three schedules `disabled_manually`, notifications
 `delivered: False`. The owner runbook is `FINAL_LAUNCH/PUBLISHING_READINESS.md`; the recovery point is
 `FINAL_LAUNCH/EXECUTION_CHECKPOINT.md`.
+
+---
+
+## 2026-11-23 (later) — OAuth audit: Desktop client, consent bootstrap, and the real mine=true answer
+
+Answers that came from running the code rather than reading it:
+
+- The flow is a hand-written authorization-code + PKCE flow with a loopback `http.server` on `127.0.0.1:0`
+  (`OAuthCallbackServer`). No `google-auth-oauthlib`, no `InstalledAppFlow`, no `run_local_server`. The redirect
+  port is chosen at runtime and cannot be pinned, so the client **must be Desktop**: a Web client needs its
+  redirect URI registered in advance. `PUBLISHING_READINESS.md` had said "Web application" and was wrong; it is
+  corrected.
+- `consent` could not run at all before this fix: `client_pair()` routed through `get()`, which requires a
+  refresh token, so the first step of the runbook always failed. `client_pair_for_consent()` fixes the bootstrap;
+  `consent --client-json PATH` reads the downloaded Desktop JSON; `consent --check-only` validates the
+  configuration without opening a browser.
+- **`channels.list(mine=true)` returns exactly one channel per token** in this one-account-three-channels setup,
+  measured live against the three tokens minted 2026-11-20, each the expected id. Per-channel consent selects the
+  channel's own identity; the identity check needs no change and stays strict.
+- A multi-channel token is refused on purpose, and the refusal now names every channel it can see. Selecting the
+  expected id out of a list was considered and rejected: `videos.insert` has no target-channel parameter, so a
+  token that can see three channels cannot be proven to upload to the right one.
+- A revoked refresh token used to surface as "token endpoint did not return an access token"; Google's `error`
+  body is now surfaced (`invalid_grant ... a revoked or expired refresh token needs a new consent run`).
+- New read-only diagnostic: `python -m tools.check_oauth_identity --channel all [--client-json PATH]`. It reports
+  the channel count, ids and titles, the handle lookup, whether `verify_identity` passes, and whether the stored
+  token's client id matches the JSON — and no token, secret or refresh token.
+
