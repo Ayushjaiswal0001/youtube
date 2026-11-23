@@ -10,6 +10,7 @@ that centred the speaker and cropped his partner out.
 """
 
 import unittest
+from pathlib import Path
 
 import cairo
 
@@ -332,3 +333,31 @@ class TrackingTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def test_the_episode_merge_carries_the_caption_collision_count(tmp_path: Path) -> None:
+    """The portrait Hindi merge dropped a metric every per-scene report had measured.
+
+    With the key missing, the gate read `int(None or 0) == 0` and passed `caption_clearance` vacuously - the same
+    "a gate that silently drops a case" failure the frozen-frame tail had. This checks the merge arithmetic.
+    """
+
+    import json
+
+    work = tmp_path / "work"
+    work.mkdir()
+    for scene, collisions in ((1, 0), (2, 3)):
+        (work / f"scene_{scene:03d}_framing.json").write_text(json.dumps({
+            "scene": scene,
+            "frames": 100,
+            "cropped_required": 0,
+            "max_zoom_rate": 0.1,
+            "subtitle_collision_frames": collisions,
+            "subjects": {"chiku": {"cropped_frames": 0, "worst_overflow_px": 0.0}},
+            "escalated": False,
+        }), encoding="utf-8")
+
+    reports = sorted(work.glob("scene_*_framing.json"))
+    total = sum(int(json.loads(p.read_text(encoding="utf-8")).get("subtitle_collision_frames") or 0)
+                for p in reports)
+    assert total == 3

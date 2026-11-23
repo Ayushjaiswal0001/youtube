@@ -295,9 +295,15 @@ def evaluate_publish_gate(
     if framing:
         result.add("framing", int(framing.get("cropped_required_frames") or 0) == 0,
                    f"{framing.get('cropped_required_frames')} required subjects cropped")
-        result.add("caption_clearance",
-                   int(framing.get("subtitle_collision_frames") or 0) == 0,
-                   f"{framing.get('subtitle_collision_frames')} face/band collisions")
+        collisions = framing.get("subtitle_collision_frames")
+        if collisions is None:
+            # The portrait Hindi report omitted this key, and `int(None or 0) == 0` turned "not measured" into a
+            # pass. A missing measurement is a blocker, not a zero.
+            result.add("caption_clearance", False,
+                       "subtitle_collision_frames missing: caption clearance unverified")
+        else:
+            result.add("caption_clearance", int(collisions) == 0,
+                       f"{collisions} face/band collisions")
     else:
         result.add("framing", False, "framing.json missing: composition unverified")
 
