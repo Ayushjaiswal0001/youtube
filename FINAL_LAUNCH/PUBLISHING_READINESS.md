@@ -47,6 +47,27 @@ Both are covered by tests that exercise the real path (`tests/factory/test_publi
 `tests/test_metadata.py`, `tests/factory/test_audio.py` — the audio test drives a hot tone through `make_bed` +
 `mix_narration` and measures the encoded file).
 
+## What one Google account owning three channels actually does (measured 2026-11-23)
+
+`channels.list(mine=true)` returns **exactly one** channel per token, and it is the expected one, provided the
+consent run selects that channel's own identity in the account picker. Measured with the three tokens minted on
+2026-11-20:
+
+```
+academic-biohacker  mine=true returned 1   UCr8jSmLa_o2BwNh8HuyZHAQ  'Academic Biohacker'   VERIFIED
+natkhat-toons       mine=true returned 1   UC4OCY0qDwQqFnSCZw12sKxA  'Natkhat Toons'        VERIFIED
+nexus-node          mine=true returned 1   UCx9O8VivWkiEylDjs5_Zzag  'Nexus Node'           VERIFIED
+```
+
+So the arrangement needs no change to the identity check: a token per channel is genuinely channel-bound, and
+`verify_identity`'s "exactly one channel" rule holds for all three. A token that *does* return several channels is
+refused, because `videos.insert` has no "publish to channel X" parameter - an upload goes to whichever channel the
+token belongs to, so "the expected channel is in the list" is not the same claim as "an upload would land there".
+
+Where credentials live: `consent` writes to `~/.faceless-shorts/secrets/youtube/<slug>.json` (the CLI's
+`DEFAULT_SECRETS_ROOT`), which is outside the repository. `.secrets/` and `secrets/` are also ignored, and
+`tools/secret_scan` fails CI on a Google client JSON, so a credential file cannot reach `main` by accident.
+
 ## What is missing (owner actions, in order)
 
 **1. Create one Google Cloud OAuth client of type Desktop** (not Web) with the YouTube Data API v3 enabled, and

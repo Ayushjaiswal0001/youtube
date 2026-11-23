@@ -21,6 +21,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from uploader.cli import DEFAULT_SECRETS_ROOT
 from uploader.config import load_channel_configs
 from uploader.credentials import CredentialManager
 from uploader.errors import UploaderError
@@ -37,7 +38,9 @@ def _summarise(items: list[dict[str, Any]]) -> list[dict[str, str]]:
     return out
 
 
-def inspect_channel(slug: str, router: ChannelRouter) -> dict[str, Any]:
+def inspect_channel(
+    slug: str, router: ChannelRouter, client_id: str | None = None
+) -> dict[str, Any]:
     """Everything the token sees, and whether the exact-channel check passes."""
 
     channel = router.channel(slug)
@@ -54,6 +57,16 @@ def inspect_channel(slug: str, router: ChannelRouter) -> dict[str, Any]:
         "verified": False,
         "error": None,
     }
+    if client_id is not None:
+        # Whether the stored refresh token was minted by the client named in --client-json. This is
+        # the one thing that silently ruins a correctly-copied secret set: a token from one client
+        # and a pair from another. Only the comparison is reported, never either value.
+        try:
+            stored_id, _ = router.credentials.client_pair_for_consent(slug)
+            report["client_id_matches"] = stored_id == client_id
+        except UploaderError as exc:
+            report["client_id_matches"] = None
+            report["client_id_note"] = str(exc)
     if report["credential_source"] == "missing":
         report["error"] = (
             "no credentials for this channel; run `python -m uploader.cli consent "
@@ -84,6 +97,12 @@ def render(report: dict[str, Any]) -> str:
     lines = [f"{report['channel_slug']}", f"  expected id   {report['expected_channel_id']}"]
     lines.append(f"  expected name {report['expected_title']!r}  handle {report['expected_handle']!r}")
     lines.append(f"  credentials   {report['credential_source']}")
+    if report.get("client_id_matches") is not None:
+        lines.append(
+            "  client        "
+            + ("matches --client-json" if report["client_id_matches"]
+               else "DIFFERS from --client-json; these tokens were minted by another client")
+        )
     if not report["authorized"]:
         lines.append(f"  NOT AUTHORIZED: {report['error']}")
         return "\n".join(lines)
@@ -104,8 +123,16 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--channel", default="all", help="channel slug, or 'all'")
     parser.add_argument("--channels-dir", default="channels")
-    parser.add_argument("--secrets-root", default=".secrets/youtube")
+    parser.add_argument(
+        "--secrets-root",
+        default=str(DEFAULT_SECRETS_ROOT),
+        help="where consent stores credentials (defaults to the CLI's own root, not the repo)",
+    )
     parser.add_argument("--json", action="store_true")
+    parser.add_argument(
+        "--client-json",
+        help="compare each stored credential's client ID against this Desktop client JSON",
+    )
     args = parser.parse_args(argv)
 
     configs = load_channel_configs(Path(args.channels_dir))
@@ -119,7 +146,12 @@ def main(argv: list[str] | None = None) -> int:
         CredentialManager(args.secrets_root),
         Path(".state/youtube"),
     )
-    reports = [inspect_channel(slug, router) for slug in slugs]
+    client_id = None
+    if args.client_json:
+        from uploader.oauth import load_client_json
+
+        client_id, _ = load_client_json(args.client_json)
+    reports = [inspect_channel(slug, router, client_id) for slug in slugs]
     if args.json:
         print(json.dumps(reports, indent=2))
     else:
