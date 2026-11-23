@@ -583,3 +583,29 @@ is rewritten, and an older batch can be **deleted** from the working tree. Two f
 
 Before any commit, run `git status --porcelain content/` and restore it. Never assume a local plan run left the
 repository unchanged.
+
+---
+
+## 2026-11-23 — six-row cloud matrix, and the two defects that wave exposed
+
+`main` is `218a6d5`. Six production rows dispatched from it, all green:
+`45196207861` (natkhat short), `45196341328` (nexus short), `45196366254` (academic short),
+`45196390881` (natkhat 16:9), `45196415411` (nexus long), `45196440363` (academic long).
+Four artifacts downloaded and re-hashed locally; the two long-form downloads failed on GitHub's egress limit and
+are evidenced from the run logs only. Full detail: `FINAL_LAUNCH/FINAL_ACCEPTANCE_MATRIX.md`.
+
+Three things worth remembering from this wave:
+
+1. **`int(None or 0) == 0` is how a gate lies.** The portrait Hindi episode merge never summed
+   `subtitle_collision_frames`, so `caption_clearance` passed on a measurement that had not been made. With the
+   merge fixed and the gate failing closed, the same episode reported 803 of 961 frames of chin-behind-caption.
+   The composition, not the check, was wrong: pair shots centred the cast at 0.7125 of frame height (1368 px) and
+   the caption capsule starts at 1358. Target is now 0.55, with `PORTRAIT_CAPTION_BAND_TOP` and a geometry test.
+2. **Enforcement that lives only in `validate()` is enforcement that does not run.** `force_made_for_kids` was
+   checked there and the upload path never calls it. It is now checked where the request is built.
+3. **Sample peak is not true peak.** `alimiter=0.82` plus AAC inter-sample overshoot put an episode at −0.96 dBTP
+   against a −1.0 gate. The limiter is 0.74; the gate is unchanged.
+
+Publishing is audited but not executed: zero `YT_*` secrets, three schedules `disabled_manually`, notifications
+`delivered: False`. The owner runbook is `FINAL_LAUNCH/PUBLISHING_READINESS.md`; the recovery point is
+`FINAL_LAUNCH/EXECUTION_CHECKPOINT.md`.
