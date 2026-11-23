@@ -406,6 +406,33 @@ def _chapter_card(img: Image.Image, spec: ChannelSpec, number: int, title: str, 
 # ------------------------------------------------------------------- frame drawing
 
 
+def _draw_motion_ring(draw: ImageDraw.ImageDraw, profile: Profile, spec: ChannelSpec, t: float) -> None:
+    """Two counter-rotating dashed rings and orbiting dots, centred on the diagram plate.
+
+    Drawn into the motif layer, so the plate clip keeps it inside the panel and it can never reach the type or
+    the caption band. Counter-rotation is deliberate: a single ring moved the frame by about half a grey level
+    per second on a flat card, which is inside `freezedetect`'s tolerance; two rings plus six orbiting dots
+    churn enough pixels to be unambiguous motion at any duration.
+    """
+
+    c = spec.colors
+    cx = (PANEL_X + profile.width - profile.margin) / 2
+    cy = (PANEL_TOP + PANEL_BOTTOM) / 2
+    faint = _mix(c["bg"], c["muted"], 0.55)
+    for radius, rate, colour in ((250, 0.42, faint), (206, -0.67, _rgba(c["accent2"], 200))):
+        phase = math.degrees(t * rate)
+        for index in range(18):
+            start = phase + index * 20.0
+            draw.arc((cx - radius, cy - radius, cx + radius, cy + radius), start, start + 11.0,
+                     fill=colour, width=3)
+    for index in range(6):
+        angle = t * 0.8 + index * (math.pi / 3)
+        x = cx + math.cos(angle) * 271
+        y = cy + math.sin(angle) * 271
+        draw.ellipse((x - 4, y - 4, x + 4, y + 4),
+                     fill=_rgba(c["accent"] if index % 2 == 0 else c["accent2"], 235))
+
+
 def _draw_frame(
     base: Image.Image,
     line: ScriptLine,
@@ -440,6 +467,12 @@ def _draw_frame(
     # patterns (grid/chip) bleed past the panel edge into the frame.
     motif_layer = Image.new("RGBA", frame.size, (0, 0, 0, 0))
     _motif(ImageDraw.Draw(motif_layer), profile, spec, line.visual or "network", t, local)
+    # Continuous content motion, inside the plate. Several motif kinds (shield, lock, scale) finish their intro
+    # animation and then hold, and the caption only changes when a chunk changes, so a long line with a static
+    # motif measured as a 5.4 s freeze at 164.5 s in the first local long-form render - a real stall on screen,
+    # not a measurement artefact. A camera push-in cannot help: it reaches its 6 % cap at 20 s and then the
+    # picture is still again. This ring rotates for the whole episode and its pixels are the motion.
+    _draw_motion_ring(ImageDraw.Draw(motif_layer), profile, spec, t)
     mask = Image.new("L", frame.size, 0)
     ImageDraw.Draw(mask).rounded_rectangle(
         (PANEL_X, PANEL_TOP, profile.width - profile.margin, PANEL_BOTTOM), radius=24, fill=255
