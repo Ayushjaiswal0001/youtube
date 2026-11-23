@@ -84,3 +84,29 @@ class LoudnessTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def test_a_hot_mix_leaves_true_peak_headroom_for_the_encoder(tmp_path: Path) -> None:
+    """The limiter target has to survive AAC inter-sample overshoot, not just sample peak.
+
+    Cloud run 45137023125 encoded the academic long-form episode to -0.96 dBTP and failed `audio_loudness`
+    (limit -1.0), with the limiter at 0.82 - about -1.7 dBFS of sample peak, which the encoder pushed back over
+    the line. This drives a deliberately hot tone through the real mix path and measures the encoded file.
+    """
+
+    import subprocess
+
+    from factory.config import load_channel_specs
+    from factory.media.music import make_bed, mix_narration
+    from studio.audio.loudness import measure, within_tolerance
+
+    spec = load_channel_specs()["academic-biohacker"]
+    subprocess.run(["ffmpeg", "-y", "-f", "lavfi", "-i", "sine=frequency=220:duration=6",
+                    "-af", "volume=9dB", "-ar", "44100", "-ac", "2", str(tmp_path / "hot.wav")],
+                   check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    make_bed(6.0, spec.palette, [1.5, 4.0], tmp_path / "bed.wav")
+    mix_narration(tmp_path / "hot.wav", tmp_path / "bed.wav", tmp_path / "mixed.m4a", 6.0)
+    measurement = measure(tmp_path / "mixed.m4a")
+    ok, detail = within_tolerance(measurement)
+    assert ok, detail
+    assert measurement["true_peak_dbtp"] <= -1.0

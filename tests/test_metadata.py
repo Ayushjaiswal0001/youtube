@@ -66,11 +66,13 @@ class MetadataTests(unittest.TestCase):
             request = UploadRequest.from_data(channel, video, {"title": "Kids"})
             request.validate()
             self.assertTrue(request.made_for_kids)
-            request = UploadRequest.from_data(
-                channel, video, {"title": "Kids", "madeForKids": False}
-            )
+            # The guarantee is unchanged and now sits earlier: the request cannot even be constructed with
+            # madeForKids=False on a channel that forces it, because nothing in the upload path calls
+            # validate() - only these tests did.
             with self.assertRaises(ValidationError):
-                request.validate()
+                UploadRequest.from_data(
+                    channel, video, {"title": "Kids", "madeForKids": False}
+                )
 
     def test_rejects_non_mp4_and_empty_video(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

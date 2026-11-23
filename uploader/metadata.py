@@ -80,6 +80,13 @@ class UploadRequest:
             made_for_kids = made_value
         else:
             raise ValidationError("madeForKids must be true or false")
+        # Enforced here, at construction, not only in `validate()`. `validate()` is called by tests and by nobody
+        # else, so a metadata file with `madeForKids: false` on a channel that declares `force_made_for_kids`
+        # used to build a perfectly valid upload request and set `selfDeclaredMadeForKids: false` on it. The
+        # default happened to be True, which is a one-field accident, not an enforcement - and this is the
+        # declaration that decides whether a children's channel is treated as made for kids.
+        if channel.force_made_for_kids and made_for_kids is not True:
+            raise ValidationError("madeForKids must be true for this channel")
         notify_value = data.get(
             "notifySubscribers",
             data.get("notify_subscribers", _SENTINEL),
