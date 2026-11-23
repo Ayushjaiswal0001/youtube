@@ -83,6 +83,11 @@ def build_parser() -> argparse.ArgumentParser:
     consent.add_argument("--channel", required=True)
     consent.add_argument("--force", action="store_true")
     consent.add_argument("--no-open", action="store_true")
+    consent.add_argument(
+        "--client-json",
+        help="path to the downloaded Desktop OAuth client JSON; avoids putting the client "
+             "secret in the environment",
+    )
     consent.add_argument("--timeout", type=float, default=300.0)
     consent.set_defaults(func=cmd_consent)
 
@@ -251,7 +256,12 @@ def cmd_consent(args: argparse.Namespace) -> int:
     if args.channel not in configs:
         raise UploaderError(f"unknown channel: {args.channel}")
     _setup(args, args.channel)
-    client_id, client_secret = router.credentials.client_pair(args.channel)
+    if args.client_json:
+        from .oauth import load_client_json
+
+        client_id, client_secret = load_client_json(args.client_json)
+    else:
+        client_id, client_secret = router.credentials.client_pair_for_consent(args.channel)
     result = run_consent(
         configs[args.channel],
         client_id,

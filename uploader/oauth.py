@@ -43,6 +43,61 @@ class TokenResponse:
         return tuple(part for part in self.scope.split() if part)
 
 
+CLIENT_JSON_KINDS = ("installed", "web")
+
+
+def load_client_json(path: Any) -> tuple[str, str]:
+    """Read a downloaded Google OAuth client JSON and return ``(client_id, client_secret)``.
+
+    Only a Desktop ("installed") client can drive this flow: the redirect is
+    ``http://127.0.0.1:<port>/oauth2callback`` and the port is chosen at runtime, so it cannot be
+    pre-registered - which is precisely what a Web application client requires. Refusing a Web
+    client here is friendlier than letting Google return ``redirect_uri_mismatch`` after the user
+    has already picked an account.
+
+    Neither value is ever printed or included in an exception message.
+    """
+
+    import json
+    from pathlib import Path as _Path
+
+    file_path = _Path(path)
+    if not file_path.is_file():
+        raise OAuthError(f"OAuth client JSON not found: {file_path}")
+    try:
+        payload = json.loads(file_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise OAuthError("OAuth client JSON could not be read as JSON") from exc
+    if not isinstance(payload, dict):
+        raise OAuthError("OAuth client JSON must be a JSON object")
+    kinds = [kind for kind in CLIENT_JSON_KINDS if kind in payload]
+    if not kinds:
+        raise OAuthError(
+            "OAuth client JSON has neither an 'installed' nor a 'web' section; "
+            "download it from the Google Cloud console with 'Download JSON'"
+        )
+    kind = kinds[0]
+    if kind != "installed":
+        raise OAuthError(
+            "this is a Web application OAuth client; the uploader completes the flow on a "
+            "loopback redirect whose port is chosen at runtime, which a Web client cannot "
+            "pre-register. Use the Desktop application client"
+        )
+    section = payload.get("installed")
+    if not isinstance(section, dict):
+        raise OAuthError("OAuth client JSON 'installed' section is malformed")
+    client_id = str(section.get("client_id") or "").strip()
+    client_secret = str(section.get("client_secret") or "").strip()
+    if not client_id or not client_secret:
+        raise OAuthError(
+            "OAuth client JSON is missing client_id or client_secret; the Desktop client type "
+            "always includes both"
+        )
+    if not client_id.endswith(".apps.googleusercontent.com"):
+        raise OAuthError("OAuth client JSON client_id is not a Google client ID")
+    return client_id, client_secret
+
+
 def generate_code_verifier() -> str:
     return secrets.token_urlsafe(64)
 
@@ -82,6 +137,22 @@ class OAuthClient:
     def _token_from_payload(
         self, payload: dict[str, Any], require_refresh_token: bool
     ) -> TokenResponse:
+        # The token endpoint reports failures as a 200 with an `error` body. Without this the caller
+        # saw "token endpoint did not return an access token" for a revoked refresh token, which
+        # names neither the cause nor the remedy. Only the error code and description are carried -
+        # they are Google's text, never the request - so nothing secret reaches a log.
+        error = payload.get("error")
+        if error:
+            description = str(payload.get("error_description") or "").strip()
+            raise OAuthError(
+                f"token endpoint refused the request: {error}"
+                + (f" ({description})" if description else "")
+                + (
+                    "; a revoked or expired refresh token needs a new consent run"
+                    if str(error) in ("invalid_grant", "invalid_client")
+                    else ""
+                )
+            )
         access_token = payload.get("access_token")
         refresh_token = payload.get("refresh_token")
         if not access_token:

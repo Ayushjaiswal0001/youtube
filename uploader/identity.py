@@ -38,11 +38,29 @@ def _snippet(item: dict[str, Any]) -> dict[str, Any]:
     return snippet if isinstance(snippet, dict) else {}
 
 
+def _describe(items: list[dict[str, Any]]) -> str:
+    return ", ".join(
+        f"{item.get('id') or '<missing>'} ({_snippet(item).get('title') or '?'})"
+        for item in items
+    )
+
+
 def verify_identity(api: Any, channel: ChannelConfig) -> IdentityEvidence:
     mine = api.channels_mine("snippet,contentDetails")
     if len(mine) != 1:
+        # A token bound to one channel is the whole premise of channel routing: `videos.insert` has
+        # no "upload to channel X" parameter, so it publishes to whatever channel the token belongs
+        # to. If `mine=true` returns several, the token is not bound to one channel and this check
+        # cannot prove where an upload would land. Refusing is the only honest answer - matching one
+        # of several IDs would say "the expected channel is in the list", which is not the same
+        # claim. The remedy is a token per channel (choose the channel's own identity in the account
+        # picker), and the message names what the token currently sees so that is actionable.
+        seen = f"; returned: {_describe(mine)}" if mine else ""
         raise IdentityError(
-            f"channels.list(mine=true) returned {len(mine)} channels; expected exactly 1"
+            f"channels.list(mine=true) returned {len(mine)} channels; expected exactly 1 "
+            f"({channel.slug} = {channel.expected_channel_id}). A token must be bound to a single "
+            f"channel; re-run consent and choose {channel.display_name!r} itself in the account "
+            f"picker rather than the Google Account that owns it{seen}"
         )
     mine_item = mine[0]
     mine_id = str(mine_item.get("id") or "")

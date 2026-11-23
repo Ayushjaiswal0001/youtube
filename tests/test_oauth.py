@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import json
+import tempfile
 import unittest
 import urllib.parse
+from pathlib import Path
 
-from uploader.errors import ScopeError
+from uploader.errors import OAuthError, ScopeError
 from uploader.oauth import (
     READONLY_SCOPE,
     UPLOAD_SCOPE,
@@ -12,6 +14,7 @@ from uploader.oauth import (
     TokenResponse,
     code_challenge_for,
     generate_code_verifier,
+    load_client_json,
 )
 
 
@@ -96,3 +99,91 @@ class OAuthTests(unittest.TestCase):
         client = OAuthClient("client-id", "client-secret", http=http)
         with self.assertRaises(Exception):
             client.exchange_code("auth-code", "http://localhost/callback", "verifier")
+
+
+class ClientJsonTests(unittest.TestCase):
+    """Reading the downloaded Desktop client JSON, which is how the secret stays out of the shell.
+
+    This flow's redirect is `http://127.0.0.1:<port>/oauth2callback` with the port chosen at
+    runtime, so it cannot be pre-registered; a Web client is therefore refused up front rather than
+    failing at Google with `redirect_uri_mismatch` after the user has picked an account.
+    """
+
+    def _write(self, directory: str, payload: dict) -> str:
+        path = Path(directory) / "client.json"
+        path.write_text(json.dumps(payload), encoding="utf-8")
+        return str(path)
+
+    def test_a_desktop_client_json_is_accepted(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            path = self._write(temporary, {
+                "installed": {
+                    "client_id": "123-abc.apps.googleusercontent.com",
+                    "client_secret": "s3cret-value",
+                    "redirect_uris": ["http://localhost"],
+                    "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+                }
+            })
+            client_id, client_secret = load_client_json(path)
+            self.assertEqual(client_id, "123-abc.apps.googleusercontent.com")
+            self.assertEqual(client_secret, "s3cret-value")
+
+    def test_a_web_client_json_is_refused_with_the_reason(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            path = self._write(temporary, {
+                "web": {
+                    "client_id": "123-abc.apps.googleusercontent.com",
+                    "client_secret": "s3cret-value",
+                }
+            })
+            with self.assertRaises(OAuthError) as caught:
+                load_client_json(path)
+            message = str(caught.exception)
+            self.assertIn("Web application", message)
+            self.assertIn("Desktop", message)
+            self.assertNotIn("s3cret-value", message)
+
+    def test_a_client_json_without_a_section_explains_what_is_wrong(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            path = self._write(temporary, {"type": "service_account"})
+            with self.assertRaises(OAuthError) as caught:
+                load_client_json(path)
+            self.assertIn("installed", str(caught.exception))
+
+    def test_an_incomplete_installed_section_is_refused(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            path = self._write(temporary, {"installed": {"client_id": "123.apps.googleusercontent.com"}})
+            with self.assertRaises(OAuthError) as caught:
+                load_client_json(path)
+            self.assertIn("client_secret", str(caught.exception))
+
+    def test_a_missing_file_is_refused(self) -> None:
+        with self.assertRaises(OAuthError):
+            load_client_json("/nonexistent/client.json")
+
+
+class TokenEndpointErrorTests(unittest.TestCase):
+    """Google returns failures as a 200 with an `error` body; the message must name the cause."""
+
+    class ErrorHttp:
+        def __init__(self, payload: dict) -> None:
+            self.payload = payload
+
+        def request_json(self, method, url, *, headers=None, data=None, timeout=None):
+            return self.payload
+
+    def test_a_revoked_refresh_token_is_named_and_points_at_consent(self) -> None:
+        client = OAuthClient(
+            "cid.apps.googleusercontent.com",
+            "s3cret",
+            http=self.ErrorHttp({"error": "invalid_grant",
+                                 "error_description": "Token has been expired or revoked."}),
+        )
+        with self.assertRaises(OAuthError) as caught:
+            client.refresh("1//revoked")
+        message = str(caught.exception)
+        self.assertIn("invalid_grant", message)
+        self.assertIn("consent", message)
+        self.assertNotIn("s3cret", message)
+        self.assertNotIn("1//revoked", message)
+
