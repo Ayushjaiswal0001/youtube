@@ -78,3 +78,137 @@ def test_a_paused_channel_cannot_reach_the_publish_shell(monkeypatch) -> None:
     finally:
         resume("nexus-node")
     assert code != 0
+
+
+# ------------------------------------------------------------------ the guard has to be in the choke point
+
+def test_resume_is_stopped_by_the_pause_and_says_so(monkeypatch, tmp_path: Path, capsys) -> None:
+    """`resume` is the verb the workflow calls to render, and it was not guarded.
+
+    With `FACTORY_PAUSED=1` it started TTS and created a build directory: the emergency stop stopped the local
+    `render` verb and nothing else. A guard living in individual CLI verbs is a guard someone routes around.
+    """
+
+    from factory import cli
+    import factory.orchestrator as orchestrator
+
+    monkeypatch.setattr(orchestrator, "BUILD_ROOT", tmp_path / "build")
+    monkeypatch.setenv("FACTORY_PAUSED", "1")
+    code = cli.main(["resume", "--channel", "nexus-node", "--plan-id", "nexus-data-wall"])
+    assert code != 0
+    assert "paused" in capsys.readouterr().err.lower()
+    assert not (tmp_path / "build" / "nexus-node").exists()
+
+
+def test_the_orchestrator_refuses_to_render_while_paused(monkeypatch, tmp_path: Path) -> None:
+    """Every producing path goes through `render_episode`, so the guard belongs there, not in the callers."""
+
+    import factory.orchestrator as orchestrator
+    from factory.config import load_channel_specs
+
+    monkeypatch.setattr(orchestrator, "BUILD_ROOT", tmp_path / "build")
+    spec = load_channel_specs()["nexus-node"]
+    monkeypatch.setenv("FACTORY_PAUSED_CHANNELS", "nexus-node")
+    with pytest.raises(ProductionPaused):
+        orchestrator.render_episode(spec, {"id": "nexus-data-wall", "format": "shorts", "scenes": []})
+    assert not (tmp_path / "build").exists()
+
+
+def test_the_orchestrator_asks_about_the_channel_it_is_about_to_render(monkeypatch) -> None:
+    """The guard must name the episode's own channel, not "all", or a narrow pause becomes a wide one."""
+
+    import factory.controls as controls
+    import factory.orchestrator as orchestrator
+    from factory.config import load_channel_specs
+
+    asked: list[tuple] = []
+
+    def record(channel=None, **kwargs):
+        asked.append((channel, kwargs.get("action")))
+
+    def boom(spec, plan_id):
+        raise RuntimeError("stop after the guard")
+
+    monkeypatch.setattr(controls, "ensure_allowed", record)
+    monkeypatch.setattr(orchestrator, "find_plan", boom)
+    spec = load_channel_specs()["nexus-node"]
+    with pytest.raises(RuntimeError):
+        orchestrator.render_episode(spec, None, plan_id="nexus-data-wall")
+    assert asked == [("nexus-node", "render")]
+
+
+# ------------------------------------------------------------------ a re-run of a finished episode
+
+def test_a_rerun_rewinds_a_finished_journal_instead_of_crashing(monkeypatch, tmp_path: Path) -> None:
+    """`pipeline_state` is cached across workflow runs, `build/` is not.
+
+    Cloud run 45073494545 restored a journal that said READY_TO_PUBLISH, had no artefact, and died with
+    `READY_TO_PUBLISH -> QUEUED is not a legal transition` before rendering a single frame.
+    """
+
+    import factory.orchestrator as orchestrator
+    from factory import reliability
+    from factory.config import load_channel_specs
+
+    monkeypatch.setattr(orchestrator, "BUILD_ROOT", tmp_path / "build")
+    monkeypatch.setattr(reliability, "STATE_ROOT", tmp_path / "state")
+    monkeypatch.setattr(orchestrator, "STATE_ROOT", tmp_path / "state", raising=False)
+    monkeypatch.delenv("FACTORY_PAUSED", raising=False)
+    monkeypatch.delenv("FACTORY_PAUSED_CHANNELS", raising=False)
+
+    spec = load_channel_specs()["nexus-node"]
+    plan = {"id": "nexus-data-wall", "format": "shorts",
+            "scenes": [{"n": 1, "text": "One sentence here."}]}
+    job_id = reliability.job_id_for(spec.slug, "nexus-data-wall")
+    journal = reliability.JobJournal(job_id)
+    for state in ("QUEUED", "PREFLIGHT", "GENERATING", "RENDERING", "VALIDATING",
+                  "PACKAGING", "READY_TO_PUBLISH"):
+        journal.transition(state)
+
+    seen: list[str] = []
+    monkeypatch.setattr(orchestrator, "find_plan", lambda spec, plan_id: plan)
+    monkeypatch.setattr(orchestrator, "_render_tracked",
+                        lambda *a, **k: seen.append("rendered") or {"ok": True})
+    monkeypatch.setattr(orchestrator, "JobLock", _NoLock)
+
+    assert orchestrator.render_episode(spec, plan) == {"ok": True}
+    assert seen == ["rendered"]
+    states = [record["state"] for record in journal.records()]
+    assert states[-1] == "QUEUED" and "RECOVERABLE" in states[-2:]
+
+
+def test_a_published_episode_is_not_reproduced_without_force(monkeypatch, tmp_path: Path) -> None:
+    import factory.orchestrator as orchestrator
+    from factory import reliability
+    from factory.config import load_channel_specs
+
+    monkeypatch.setattr(orchestrator, "BUILD_ROOT", tmp_path / "build")
+    monkeypatch.setattr(reliability, "STATE_ROOT", tmp_path / "state")
+    monkeypatch.setattr(orchestrator, "STATE_ROOT", tmp_path / "state", raising=False)
+    spec = load_channel_specs()["nexus-node"]
+    plan = {"id": "nexus-data-wall", "format": "shorts", "scenes": [{"n": 1, "text": "x"}]}
+    journal = reliability.JobJournal(reliability.job_id_for(spec.slug, "nexus-data-wall"))
+    for state in ("QUEUED", "PREFLIGHT", "GENERATING", "RENDERING", "VALIDATING",
+                  "PACKAGING", "READY_TO_PUBLISH", "PUBLISHING", "PUBLISHED"):
+        journal.transition(state)
+    monkeypatch.setattr(orchestrator, "find_plan", lambda spec, plan_id: plan)
+    monkeypatch.setattr(orchestrator, "_render_tracked", lambda *a, **k: {"ok": True})
+    monkeypatch.setattr(orchestrator, "JobLock", _NoLock)
+
+    with pytest.raises(ValueError) as caught:
+        orchestrator.render_episode(spec, plan)
+    assert "--force" in str(caught.value)
+
+
+class _NoLock:
+    def __init__(self, *args, **kwargs):
+        pass
+
+    def acquire(self):
+        return True
+
+    def read(self):
+        return None
+
+    def release(self):
+        return None

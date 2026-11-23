@@ -48,11 +48,20 @@ def cmd_gate(args: Any, *, specs: dict[str, ChannelSpec], print_fn,
     from .orchestrator import plan_specs
 
     results: List[dict[str, Any]] = []
+    skipped: List[str] = []
     for base_spec in specs.values():
         if args.channel != "all" and base_spec.slug != args.channel:
             continue
         for spec in plan_specs(base_spec):
-            for plan in load_plans_for(spec):
+            try:
+                plans = load_plans_for(spec)
+            except ValueError:
+                # Nexus Node and Academic Biohacker have no long-form plan yet. That is a coverage gap for the
+                # operator to see, not a reason for `gate` to fail on a channel whose Short is finished: the
+                # first cloud run of this loop died here with "no long plans for channel 'academic-biohacker'".
+                skipped.append(f"{spec.slug}/{spec.format}")
+                continue
+            for plan in plans:
                 plan_id = plan_identifier(plan)
                 if args.plan_id and plan_id != args.plan_id:
                     continue
@@ -72,13 +81,18 @@ def cmd_gate(args: Any, *, specs: dict[str, ChannelSpec], print_fn,
                     json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
                 results.append(report)
     if not results:
+        if args.plan_id:
+            raise ValueError(
+                f"plan {args.plan_id!r} has no rendered artifact to gate for channel {args.channel!r}"
+            )
         print_fn([] if args.json else ["no rendered artifacts found"])
         return 1
     print_fn(results if args.json else [
         f"{r['channel']:18} {r['plan_id']:30} gate={'PASS' if r['ok'] else 'BLOCKED'} "
         f"{r['passed']}/{r['total']}"
         + ("" if r["ok"] else f" blockers={r['blockers']}")
-        for r in results])
+        for r in results]
+        + ([f"no plans to gate for: {', '.join(sorted(skipped))}"] if skipped else []))
     return 0 if all(r["ok"] for r in results) else 2
 
 

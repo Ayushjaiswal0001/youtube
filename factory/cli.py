@@ -235,6 +235,41 @@ def cmd_status(args: argparse.Namespace) -> int:
     return 0
 
 
+def _iter_requested_plans(args: argparse.Namespace):
+    """Walk the plans this verb should touch, and fail loudly when the requested one is not there.
+
+    Two cloud acceptance runs printed an empty report and exited 0 because `--plan-id nexus-power-grid`
+    matched nothing: the plan existed only in the local build that named it, never in `content/`. `validate`
+    then returned `[]`, the workflow's QC step crashed with `IndexError: list index out of range`, and the
+    run failed three steps away from the cause. A requested plan that cannot be resolved is an error, not an
+    empty result, and the error says which plans exist.
+    """
+
+    requested = str(getattr(args, "plan_id", "") or "")
+    seen: list[str] = []
+    matched = False
+    for spec in _specs(args.channel):
+        if getattr(args, "format", None):
+            spec = replace(spec, format=args.format)
+        try:
+            plans = load_plans_for(spec)
+        except ValueError:
+            # a channel with no plans for this composition profile is not an error here
+            continue
+        for plan in plans:
+            plan_id = plan_identifier(plan)
+            seen.append(plan_id)
+            if requested and plan_id != requested:
+                continue
+            matched = matched or bool(requested)
+            yield spec, plan
+    if requested and not matched:
+        raise ValueError(
+            f"plan {requested!r} is not in this repository; known plans: "
+            + (", ".join(sorted(set(seen))) or "none")
+        )
+
+
 def cmd_resume(args: argparse.Namespace) -> int:
     """Continue a production without redoing work that is still valid.
 
@@ -243,14 +278,12 @@ def cmd_resume(args: argparse.Namespace) -> int:
     QC is left untouched unless `--force` is given.
     """
 
+    from .controls import ensure_allowed
+
     results: list[dict[str, Any]] = []
-    for spec in _specs(args.channel):
-        if getattr(args, "format", None):
-            spec = replace(spec, format=args.format)
-        for plan in load_plans_for(spec):
+    for spec, plan in _iter_requested_plans(args):
+            ensure_allowed(spec.slug, action="render")
             plan_id = plan_identifier(plan)
-            if args.plan_id and plan_id != args.plan_id:
-                continue
             out_dir = episode_out_dir(spec, plan)
             qc = read_json(out_dir / "qc.json", {})
             if (out_dir / "video.mp4").is_file() and qc.get("ok") and not args.force:
@@ -278,13 +311,8 @@ def cmd_manifest(args: argparse.Namespace) -> int:
     from .manifesting import rebuild, verify
 
     results: list[dict[str, Any]] = []
-    for spec in _specs(args.channel):
-        if getattr(args, "format", None):
-            spec = replace(spec, format=args.format)
-        for plan in load_plans_for(spec):
+    for spec, plan in _iter_requested_plans(args):
             plan_id = plan_identifier(plan)
-            if args.plan_id and plan_id != args.plan_id:
-                continue
             out_dir = episode_out_dir(spec, plan)
             if not (out_dir / "video.mp4").is_file():
                 continue
@@ -326,13 +354,8 @@ def cmd_validate(args: argparse.Namespace) -> int:
     """Validate existing artifacts without producing anything new."""
 
     results: list[dict[str, Any]] = []
-    for spec in _specs(args.channel):
-        if getattr(args, "format", None):
-            spec = replace(spec, format=args.format)
-        for plan in load_plans_for(spec):
+    for spec, plan in _iter_requested_plans(args):
             plan_id = plan_identifier(plan)
-            if args.plan_id and plan_id != args.plan_id:
-                continue
             out_dir = episode_out_dir(spec, plan)
             video = out_dir / "video.mp4"
             if not video.is_file():
