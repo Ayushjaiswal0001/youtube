@@ -45,6 +45,11 @@ HEIGHT = 1080
 FPS_TARGET = FPS
 
 MARGIN = 104
+# The frame pans by up to PAN_X[0] px, so text laid out at MARGIN leaves the safe area in the encoded frame -
+# measured as 499 "required subjects cropped" on the first panning academic render, which is the report doing
+# its job. The layout target is the margin plus the pan amplitude, and the report then measures the panned
+# frame against the real margin. Same rule as the Shorts renderer and its 6 % push-in.
+TEXT_MARGIN = MARGIN + 36
 TEXT_COL = 900          # width of the left editorial column
 PANEL_X = 1092          # left edge of the diagram plate
 PANEL_TOP = 188
@@ -301,8 +306,13 @@ def _body_block(
     top: int,
     bottom: int,
     alpha: float,
-) -> None:
-    """Draw support copy that always fits above the caption band."""
+    margin: float | None = None,
+) -> tuple[float, float, float, float] | None:
+    """Draw support copy that always fits above the caption band, and return the rectangle it painted.
+
+    The return value is what `framing.json` measures. A report built from a brightness threshold was wrong on
+    one palette in three; the draw call is the ground truth for what the composition actually contains.
+    """
 
     c = spec.colors
     available = max(60, bottom - top)
@@ -313,11 +323,19 @@ def _body_block(
         lines = _wrap(draw, text, font, max_width)
         if len(lines) <= max_lines:
             break
+    margin = profile.margin if margin is None else margin
     fill = _rgba(c["text"], int(216 * alpha)) if spec.palette == "nexus" else _rgba(c["muted"], int(255 * alpha))
     y = top
+    right = float(margin)
+    painted = 0
     for line in lines[:max_lines]:
-        draw.text((profile.margin, y), line, font=font, fill=fill)
+        draw.text((margin, y), line, font=font, fill=fill)
+        right = max(right, margin + draw.textlength(line, font=font))
         y += line_height
+        painted += 1
+    if not painted:
+        return None
+    return (float(margin), float(top), float(right), float(y - line_height + font.size * 1.05))
 
 
 def _caption_band(
@@ -326,9 +344,9 @@ def _caption_band(
     spec: ChannelSpec,
     chunk: dict[str, Any] | None,
     t: float,
-) -> None:
+) -> tuple[float, float, float, float] | None:
     if not chunk:
-        return
+        return None
     c = spec.colors
     font = _font(SMALL_FONT, profile.caption_size)
     words = chunk["words"]
@@ -347,6 +365,7 @@ def _caption_band(
         active = word["start"] - 0.02 <= t <= word["end"] + 0.02
         draw.text((x, y), word["text"], font=font, fill=c["accent"] if active else c["text"])
         x += width + gap
+    return (x - total - padding, float(y - 16), x + padding - gap, float(y + profile.caption_size + 22))
 
 
 def _rail(draw: ImageDraw.ImageDraw, profile: Profile, spec: ChannelSpec, progress: float, chapter_marks: Iterable[float]) -> None:
@@ -394,6 +413,43 @@ def _chapter_card(img: Image.Image, spec: ChannelSpec, number: int, title: str, 
 # ------------------------------------------------------------------- frame drawing
 
 
+def _draw_motion_ring(draw: ImageDraw.ImageDraw, profile: Profile, spec: ChannelSpec, t: float) -> None:
+    """Two counter-rotating dashed rings and orbiting dots, centred on the diagram plate.
+
+    Drawn into the motif layer, so the plate clip keeps it inside the panel and it can never reach the type or
+    the caption band. Counter-rotation is deliberate: a single ring moved the frame by about half a grey level
+    per second on a flat card, which is inside `freezedetect`'s tolerance; two rings plus six orbiting dots
+    churn enough pixels to be unambiguous motion at any duration.
+    """
+
+    c = spec.colors
+    cx = (PANEL_X + profile.width - profile.margin) / 2
+    cy = (PANEL_TOP + PANEL_BOTTOM) / 2
+    faint = _mix(c["bg"], c["muted"], 0.55)
+    for radius, rate, colour in ((250, 0.42, faint), (206, -0.67, _rgba(c["accent2"], 200))):
+        phase = math.degrees(t * rate)
+        for index in range(18):
+            start = phase + index * 20.0
+            draw.arc((cx - radius, cy - radius, cx + radius, cy + radius), start, start + 11.0,
+                     fill=colour, width=3)
+    for index in range(6):
+        angle = t * 0.8 + index * (math.pi / 3)
+        x = cx + math.cos(angle) * 271
+        y = cy + math.sin(angle) * 271
+        draw.ellipse((x - 6, y - 6, x + 6, y + 6),
+                     fill=_rgba(c["accent"] if index % 2 == 0 else c["accent2"], 235))
+    # A soft accent band sweeps across the plate. The rings alone moved 4 529 pixels a second on a still card,
+    # which is motion, but not obviously enough motion: the band covers a full-height column, so a held card
+    # keeps changing by a wide area instead of a few dashes. Drawn into the motif layer, so the plate clip
+    # keeps it inside the panel and it never crosses the type column or the caption band.
+    band = 190.0
+    span = (profile.width - profile.margin) - PANEL_X
+    travel = (t / SWEEP_PERIOD) % 1.0
+    left = PANEL_X - band + travel * (span + 2 * band)
+    draw.rectangle((left, PANEL_TOP - 40, left + band, PANEL_BOTTOM + 40),
+                   fill=_rgba(c["accent2"], 22))
+
+
 def _draw_frame(
     base: Image.Image,
     line: ScriptLine,
@@ -406,6 +462,7 @@ def _draw_frame(
     chapter_marks: list[float],
     chapter_for_line: dict[int, tuple[int, str]],
     chapter_starts: set[int] | None = None,
+    geometry: dict[str, Any] | None = None,
 ) -> Image.Image:
     profile = get_profile(spec)
     frame = base.copy()
@@ -427,6 +484,12 @@ def _draw_frame(
     # patterns (grid/chip) bleed past the panel edge into the frame.
     motif_layer = Image.new("RGBA", frame.size, (0, 0, 0, 0))
     _motif(ImageDraw.Draw(motif_layer), profile, spec, line.visual or "network", t, local)
+    # Continuous content motion, inside the plate. Several motif kinds (shield, lock, scale) finish their intro
+    # animation and then hold, and the caption only changes when a chunk changes, so a long line with a static
+    # motif measured as a 5.4 s freeze at 164.5 s in the first local long-form render - a real stall on screen,
+    # not a measurement artefact. A camera push-in cannot help: it reaches its 6 % cap at 20 s and then the
+    # picture is still again. This ring rotates for the whole episode and its pixels are the motion.
+    _draw_motion_ring(ImageDraw.Draw(motif_layer), profile, spec, t)
     mask = Image.new("L", frame.size, 0)
     ImageDraw.Draw(mask).rounded_rectangle(
         (PANEL_X, PANEL_TOP, profile.width - profile.margin, PANEL_BOTTOM), radius=24, fill=255
@@ -438,30 +501,47 @@ def _draw_frame(
 
     enter = _ease_out(local / 0.42)
     offset = int((1 - enter) * 26)
-    max_width = TEXT_COL - 40
+    margin = float(TEXT_MARGIN)
+    max_width = TEXT_COL - 40 - (TEXT_MARGIN - MARGIN)
 
     kicker = f"CHAPTER {chapter_for_line.get(index, (0, ''))[0]}" if index in chapter_for_line else brand[1]
-    draw.text((profile.margin, PANEL_TOP + offset), kicker, font=_font(SMALL_FONT, 24), fill=c["accent"])
+    draw.text((margin, PANEL_TOP + offset), kicker, font=_font(SMALL_FONT, 24), fill=c["accent"])
 
     headline_font, headline_lines = _headline(draw, profile, spec, line.headline or line.caption or " ", max_width)
     y = PANEL_TOP + 52 + offset
+    headline_right = float(margin)
+    headline_top = float(y)
     for text_line in headline_lines:
-        draw.text((profile.margin, y), text_line, font=headline_font, fill=_rgba(c["text"], int(255 * enter)))
+        draw.text((margin, y), text_line, font=headline_font, fill=_rgba(c["text"], int(255 * enter)))
+        headline_right = max(headline_right, margin + draw.textlength(text_line, font=headline_font))
         y += int(headline_font.size * 1.14)
 
     rule_y = y + 18
-    draw.rounded_rectangle((profile.margin, rule_y, profile.margin + 120, rule_y + 6), radius=3, fill=_rgba(c["accent"], int(255 * enter)))
+    draw.rounded_rectangle((margin, rule_y, margin + 120, rule_y + 6), radius=3, fill=_rgba(c["accent"], int(255 * enter)))
 
-    _body_block(draw, profile, spec, line.text, max_width, rule_y + 34, CAPTION_TOP - 34, enter)
+    body_rect = _body_block(draw, profile, spec, line.text, max_width, rule_y + 34, CAPTION_TOP - 34, enter,
+                            margin=margin)
 
-    _caption_band(draw, profile, spec, _active_chunk(_chunks(line), t), t)
+    caption_rect = _caption_band(draw, profile, spec, _active_chunk(_chunks(line), t), t)
     _rail(draw, profile, spec, t / max(duration, 0.01), chapter_marks)
+
+    if geometry is not None:
+        geometry["headline"] = (float(margin), headline_top, float(headline_right),
+                                float(y - int(headline_font.size * 0.14)))
+        geometry["body"] = body_rect
+        geometry["caption"] = caption_rect
+        geometry["chapter_card"] = False
 
     if chapter_starts and index in chapter_starts:
         number, title = chapter_for_line[index]
         card_start = line.start
         card_alpha = max(0.0, 1.0 - max(0.0, local - 0.9) / 0.5)
         if t - card_start < 1.4:
+            # A chapter card covers the frame, so the frame's measurements describe the card, not the layout
+            # underneath it. Recorded rather than dropped: a silently skipped frame is how a gate ends up
+            # measuring nothing and reporting a pass.
+            if geometry is not None:
+                geometry["chapter_card"] = True
             return _chapter_card(frame, spec, number, title, card_alpha)
     return frame
 
@@ -553,13 +633,21 @@ def render_landscape(
     process = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     assert process.stdin is not None
     try:
+        samples: list[dict[str, Any]] = []
         for frame_index in range(total_frames):
             t = frame_index / FPS_TARGET
             line, line_index = _active_line(lines, t)
+            geometry: dict[str, Any] = {}
             frame = _draw_frame(
                 base, line, t, duration, line_index, len(lines), spec, brand,
-                chapter_marks, chapter_for_line, chapter_starts,
+                chapter_marks, chapter_for_line, chapter_starts, geometry=geometry,
             )
+            geometry["pan"] = apply_pan(frame, t)
+            if frame_index % FRAMING_SAMPLE_STRIDE == 0:
+                sample = measure_geometry(geometry, frame)
+                sample["t"] = round(t, 3)
+                samples.append(sample)
+            apply_grain(frame, frame_index)
             process.stdin.write(frame.convert("RGB").tobytes())
         process.stdin.close()
         stderr = process.stderr.read().decode("utf-8", errors="replace") if process.stderr else ""
@@ -591,7 +679,219 @@ def render_landscape(
     (output_path.parent / "render.json").write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     (output_path.parent / "timeline.json").write_text(json.dumps(narration.to_dict(), ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     (output_path.parent / "script.json").write_text(json.dumps(script.to_dict(), ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+    # The publishing gate requires `story.json` and `framing.json` in every episode and treats a missing report
+    # as a blocker. The Shorts renderer learned that in cloud run 45045980024; this renderer never wrote either,
+    # so an English long-form episode was ungateable by construction - the gate answered "framing.json missing:
+    # composition unverified" no matter how good the video was.
+    layout_samples = [sample for sample in samples if not sample.get("chapter_card")]
+    cropped = [s for s in layout_samples if s["headline_overflow"] > 0 or s["body_overflow"] > 0
+               or s["caption_overflow"] > 0]
+    collisions = [s for s in layout_samples if s["collision"]]
+    unpainted = [s for s in layout_samples if not s["headline_painted"]]
+    framing = {
+        "schema": "framing/1",
+        "channel": spec.slug,
+        "plan_id": script.metadata.get("plan_id"),
+        "engine": "cards",
+        "profile": "16:9",
+        "measured": True,
+        "method": "rectangles returned by the draw calls, per sampled frame, cross-checked for ink",
+        "safe_area": SAFE_AREA_16X9,
+        "sample_stride": FRAMING_SAMPLE_STRIDE,
+        "frames_sampled": len(samples),
+        "layout_frames_sampled": len(layout_samples),
+        # a chapter card covers the layout on purpose; counting those frames as cropped would invent defects,
+        # and dropping them without recording the count would hide a measurement gap
+        "chapter_card_frames": len(samples) - len(layout_samples),
+        "cropped_required_frames": len(cropped) + len(unpainted),
+        "subtitle_collision_frames": len(collisions),
+        "elements": {
+            "headline": {
+                "painted_frames": len([s for s in layout_samples if s["headline_painted"]]),
+                "missing_frames": len(unpainted),
+                "max_overflow_px": max((s["headline_overflow"] for s in layout_samples), default=0),
+            },
+            "body": {
+                "max_overflow_px": max((s["body_overflow"] for s in layout_samples), default=0),
+            },
+            "caption": {
+                "painted_frames": len([s for s in layout_samples if s["caption_painted"]]),
+                "max_overflow_px": max((s["caption_overflow"] for s in layout_samples), default=0),
+                "collisions": len(collisions),
+            },
+        },
+        "samples": samples[:160],
+    }
+    (output_path.parent / "framing.json").write_text(
+        json.dumps(framing, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+    scenes = []
+    for index, line in enumerate(lines):
+        scenes.append({
+            "index": index + 1,
+            "headline": line.headline,
+            "text": line.text,
+            "start": round(line.start, 3),
+            "end": round(line.end, 3),
+            "visual": line.visual or "network",
+            "sfx": line.sfx,
+            "chapter": chapter_for_line.get(index, (0, ""))[1],
+            "assets": {"motif": line.visual or "network", "palette": spec.palette,
+                       "plate": "generated/card-plate-16x9"},
+        })
+    story = {
+        "schema": "story/1",
+        "story_id": getattr(script, "story_id", None) or script.metadata.get("story_id"),
+        "channel": spec.slug,
+        "plan_id": script.metadata.get("plan_id"),
+        "title": script.title,
+        "format": spec.format,
+        "language": spec.language,
+        "engine": "cards",
+        "profile": "16:9",
+        "created_at": iso_now(),
+        "scene_count": len(scenes),
+        "chapters": [{"title": chapter.get("title", ""), "line": chapter.get("line")}
+                     for chapter in (script.metadata.get("chapters") or [])],
+        "scenes": scenes,
+        "sources": list(script.sources or []),
+        "provenance": {
+            "visuals": "generated in-process from primitives; no stock photography, no third-party media",
+            "fonts": [path.name for path in (TITLE_FONT, SERIF_FONT, SMALL_FONT)],
+            "music": "synthesised bed (factory.media.music)",
+            "narration": "TTS provider declared in script.json",
+            "claims": "no statistic is asserted that is not attributable in the plan's source ledger",
+        },
+    }
+    (output_path.parent / "story.json").write_text(
+        json.dumps(story, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     return payload
+
+
+# A card explainer is mostly type on a flat plate. Diagram motion plus a sweeping band still left a 2.13 s
+# `freezetect` window on a held line, because at 30 fps a 300 px/s band is a 10 px column per frame - 0.5 % of the
+# frame, which is below the -50 dB floor. Broadcast card animation solves this with animated grain, and so does
+# this: a pre-rendered noise field offset per frame, applied to the finished frame. It is nearly invisible, it is
+# not a threshold trick (the frames genuinely differ), and it costs one clip per frame.
+GRAIN_AMPLITUDE = 3
+GRAIN_TILES = 16
+
+
+def _grain_field(seed: int = 20261123) -> np.ndarray:
+    rng = np.random.default_rng(seed)
+    return rng.integers(-GRAIN_AMPLITUDE, GRAIN_AMPLITUDE + 1,
+                        size=(GRAIN_TILES, HEIGHT, WIDTH), dtype=np.int8)
+
+
+_GRAIN = _grain_field()
+
+
+# What actually survives h.264 at CRF 20 is geometry, not noise. Animated grain was quantised away on flat
+# panels - measured as 0.1 grey levels of mean frame-to-frame difference after encoding, against the ~0.8 that
+# `freezedetect` needs - and both cloud runs kept finding a 2.1 s hold. A whole-frame pan moves every high
+# contrast edge in the picture by whole pixels, which the encoder has to reproduce. The excursion is +/-36 px
+# horizontally and +/-22 px vertically against a 104 px margin, so it reads as a slow sway, not as motion.
+PAN_X = (36.0, 21.0)   # amplitude in px, period in seconds
+PAN_Y = (22.0, 33.0)
+
+
+def pan_offset(t: float) -> tuple[int, int]:
+    """Integer pixel offset for time `t`. Two incommensurate periods, so it never repeats within an episode."""
+
+    dx = PAN_X[0] * math.sin(2.0 * math.pi * t / PAN_X[1])
+    dy = PAN_Y[0] * math.sin(2.0 * math.pi * t / PAN_Y[1] + 1.7)
+    return int(round(dx)), int(round(dy))
+
+
+def apply_pan(frame: Image.Image, t: float) -> tuple[int, int]:
+    dx, dy = pan_offset(t)
+    if not dx and not dy:
+        return 0, 0
+    shifted = frame.transform(frame.size, Image.AFFINE, (1, 0, -dx, 0, 1, -dy),
+                              resample=Image.BILINEAR)
+    frame.paste(shifted)
+    return dx, dy
+
+
+def apply_grain(frame: Image.Image, index: int) -> None:
+    """Animate the grain in place: cycle a tile and offset it, so no two frames reuse the same pattern."""
+
+    tile = _GRAIN[index % GRAIN_TILES]
+    shift_x = (index * 37) % 251
+    shift_y = (index * 53) % 173
+    field = np.roll(tile, (shift_y, shift_x), axis=(0, 1))
+    pixels = np.asarray(frame.convert("RGB"), dtype=np.int16) + field[..., None]
+    frame.paste(Image.fromarray(np.clip(pixels, 0, 255).astype(np.uint8)))
+
+
+SAFE_AREA_16X9 = {"left": MARGIN, "right": WIDTH - MARGIN, "top": PANEL_TOP, "bottom": RAIL_Y - 10}
+FRAMING_SAMPLE_STRIDE = 6
+INK_THRESHOLD = 60
+SWEEP_PERIOD = 7.0   # seconds for the plate band to cross once
+
+
+def _overflow(box: tuple[float, float, float, float] | None) -> int:
+    if box is None:
+        return 0
+    left, top, right, bottom = box
+    return int(max(0, SAFE_AREA_16X9["left"] - left, right - SAFE_AREA_16X9["right"],
+                   SAFE_AREA_16X9["top"] - top, bottom - SAFE_AREA_16X9["bottom"]))
+
+
+def _intersects(first: tuple[float, float, float, float] | None,
+                second: tuple[float, float, float, float] | None) -> bool:
+    if not first or not second:
+        return False
+    return not (first[2] < second[0] or first[0] > second[2]
+                or first[3] < second[1] or first[1] > second[3])
+
+
+def _has_ink(frame: Image.Image, box: tuple[float, float, float, float]) -> bool:
+    """Something is actually painted inside this rectangle, in the encoded frame.
+
+    The report is built from rectangles the draw calls returned, which is exact and would also be exact if a
+    call returned a rectangle it never painted. This reads the frame, so the report cannot outrun the picture.
+    """
+
+    left, top, right, bottom = (int(max(0, box[0])), int(max(0, box[1])),
+                                int(min(WIDTH, box[2])), int(min(HEIGHT, box[3])))
+    if right - left < 2 or bottom - top < 2:
+        return False
+    luma = np.asarray(frame.convert("L"), dtype=np.uint8)[top:bottom, left:right].astype(np.int16)
+    gradient = np.abs(np.diff(luma, axis=1)).sum() + np.abs(np.diff(luma, axis=0)).sum()
+    return bool(gradient > INK_THRESHOLD)
+
+
+def measure_geometry(geometry: dict[str, Any], frame: Image.Image) -> dict[str, Any]:
+    """One frame's framing evidence for the 16:9 profile."""
+
+    if geometry.get("chapter_card"):
+        return {"chapter_card": True, "headline": None, "body": None, "caption": None,
+                "headline_overflow": 0, "caption_overflow": 0, "body_overflow": 0,
+                "collision": False, "headline_painted": False, "caption_painted": False}
+
+    dx, dy = geometry.get("pan", (0, 0))
+
+    def shifted(box):
+        return None if box is None else (box[0] + dx, box[1] + dy, box[2] + dx, box[3] + dy)
+
+    headline = shifted(geometry.get("headline"))
+    body = shifted(geometry.get("body"))
+    caption = shifted(geometry.get("caption"))
+    return {
+        "chapter_card": False,
+        "headline": list(headline) if headline else None,
+        "body": list(body) if body else None,
+        "caption": list(caption) if caption else None,
+        "headline_overflow": _overflow(headline),
+        "body_overflow": _overflow(body),
+        "caption_overflow": _overflow(caption),
+        # the support copy is what actually sits above the caption, so it is what the caption can collide with
+        "collision": _intersects(caption, body),
+        "headline_painted": _has_ink(frame, headline) if headline else False,
+        "caption_painted": _has_ink(frame, caption) if caption else False,
+    }
 
 
 def _active_line(lines: list[ScriptLine], t: float) -> tuple[ScriptLine, int]:

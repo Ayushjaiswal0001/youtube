@@ -1,76 +1,95 @@
 {
-  "batch_id": "longform-nexus-node-01",
-  "created_at": "2026-11-20T00:00:00+00:00",
+  "batch_id": "longform-nexus-node-02",
+  "created_at": "2026-11-23T03:00:00+00:00",
   "format": "long",
   "channels": {
     "nexus-node": [
       {
         "id": "long-nexus-power-grid",
         "format": "long",
+        "engine": "cards",
         "slot": "pm",
         "title": "The Real Limit on AI Is Not Chips",
         "topic": "data centre energy demand and AI scaling",
-        "angle": "why electricity, land and cooling now decide how fast AI can grow",
-        "hook": "For three years the story of AI was a shortage of chips. The next shortage is harder to ship: electricity, land, and the equipment that connects a building to a grid.",
+        "angle": "why electricity, land, cooling and grid queues now decide how fast AI can grow",
+        "hook": "For three years the story of AI was a shortage of chips. The next shortage is harder to ship: electricity, land, and the equipment that connects a building to a grid. Here is how the constraint actually works, in the order it bites.",
         "hook_headline": "The next bottleneck",
-        "hook_visual": "grid",
+        "hook_visual": "flow",
         "beats": [
           {
-            "text": "A modern AI data centre is a factory that converts electricity into predictions. Every training run and every answer you read is billed in watts before it is billed in dollars.",
+            "text": "A modern AI data centre is a factory that converts electricity into predictions. Every training run and every answer you read is billed in watts before it is billed in dollars. That single sentence explains most of the surprises in this industry: the cost curve people watch is the chip, but the curve that decides the schedule is power.",
             "headline": "Electricity in, answers out",
             "visual": "flow"
           },
           {
-            "text": "Accelerators get the attention because they are visible and expensive, but a rack of them is useless without power distribution, cooling, and a grid connection sized for the load.",
+            "text": "Accelerators get the attention because they are visible, expensive and improving quickly. But a rack of them is useless without power distribution, cooling and a grid connection sized for the load. Ordering the servers is the fast part of the project. Everything that turns a building into a working facility takes longer.",
             "headline": "The rack is the easy part",
             "visual": "chip"
           },
           {
-            "text": "Grid interconnection is where timelines stretch. New connections and upgraded substations routinely take years, longer than it takes to order and install servers.",
-            "headline": "Years, not weeks",
-            "visual": "clock"
+            "text": "Grid interconnection is where timelines stretch. A large new load needs a study, an agreement, and often an upgraded substation or a new transmission line, and those upgrades are built by other people with their own queues. Projects in the United States regularly wait years for a connection, which is longer than it takes to order and install the machines.",
+            "headline": "The queue you cannot see",
+            "visual": "nodes"
           },
           {
-            "text": "Cooling is the second constraint. Dense racks produce heat that air alone struggles to remove, which pushes operators toward liquid cooling, tighter rack design and colder locations where the air itself does some of the work.",
+            "text": "Behind the queue sits equipment. Transformers, switchgear and high voltage cable are specialist products with limited production lines and long lead times. A facility can be finished, staffed and empty while it waits for a piece of hardware that is not exciting enough to be in the news and is not optional.",
+            "headline": "Hardware with a backlog",
+            "visual": "grid"
+          },
+          {
+            "text": "Cooling is the second constraint. Dense racks produce heat that air alone struggles to remove, which pushes operators toward liquid cooling, tighter rack design, and buildings laid out around heat removal rather than around floor space. Cooling is not a detail added at the end: it shapes the architecture, the power budget and the site.",
             "headline": "Heat is the tax",
-            "visual": "thermo"
-          },
-          {
-            "text": "That is why new capacity clusters near cheap power, near fibre, and near water, and why some projects are built with their own generation on site.",
-            "headline": "Geography becomes strategy",
-            "visual": "map"
-          },
-          {
-            "text": "Efficiency is the counterweight. Better chips, better batching, better scheduling and cheaper inference can deliver more useful work per watt, and that quietly decides which operators can afford to scale while the grid catches up.",
-            "headline": "Efficiency is leverage",
             "visual": "bars"
           },
           {
-            "text": "There is also a public cost. Large loads affect local grids, water use and electricity prices, which is why data centre approvals are now a political question, not only an engineering one.",
+            "text": "Then come water and land. Evaporative cooling consumes water, which matters in dry regions and in places where the local supply is already contested. Land is not scarce in the abstract, but land near cheap power, near fibre routes and near a workforce is, and that combination is what actually gets bought.",
+            "headline": "Cooling, water, and place",
+            "visual": "scale"
+          },
+          {
+            "text": "This is why geography becomes strategy. New capacity clusters where power is cheap, where the grid has headroom and where permits move. Some projects bring their own generation on site, not because it is cheaper per kilowatt hour, but because it removes a dependency that would otherwise decide the opening date.",
+            "headline": "Geography is the strategy",
+            "visual": "network"
+          },
+          {
+            "text": "Efficiency is the counterweight, and it is easy to underestimate. Better chips, better batching, better scheduling and cheaper inference all deliver more useful work per watt. Efficiency does not remove the constraint, but it decides which operators can keep scaling while the grid catches up, and which ones have to wait.",
+            "headline": "Efficiency is leverage",
+            "visual": "chart"
+          },
+          {
+            "text": "There is also a public cost. Large loads affect local grids, water use and electricity prices, and residents notice construction long before they notice the service. Data centre approvals have become a political question, which means the schedule now depends on local consent as much as on engineering.",
             "headline": "The local bill",
             "visual": "scale"
           },
           {
-            "text": "Put together, the constraint is not one number. It is a chain of dependencies: power contracts, transformers, cooling plant, water rights, local permits and skilled construction labour, each with its own queue and its own delay. A single missing link can hold up a building that is otherwise finished.",
-            "headline": "A chain of delays",
+            "text": "So the constraint is not one number. It is a chain of dependencies: power contracts, transformers, cooling plant, water rights, permits and skilled construction labour, each with its own queue and its own delay. A single missing link holds up a building that is otherwise complete, and the whole chain moves at the speed of its slowest part.",
+            "headline": "A chain, not a chip",
             "visual": "nodes"
+          },
+          {
+            "text": "That is what to watch if you want to know how fast AI can grow. Watch interconnection queues, transformer lead times, cooling retrofits and local approvals. Watch how much useful work a watt produces. Those signals are less photogenic than a new accelerator, and they are the ones that set the date.",
+            "headline": "What actually sets the date",
+            "visual": "flow"
           }
         ],
         "chapters": [
           { "line": 1, "title": "Watts are the real currency" },
-          { "line": 3, "title": "The grid decides the timeline" },
-          { "line": 5, "title": "Efficiency and geography" },
-          { "line": 7, "title": "The chain, not the chip" }
+          { "line": 3, "title": "The queue nobody can see" },
+          { "line": 5, "title": "Cooling, water and place" },
+          { "line": 8, "title": "Efficiency and the local bill" },
+          { "line": 10, "title": "The chain, not the chip" }
         ],
-        "payoff": "Watch power purchase agreements, interconnection queues and cooling retrofits, not only benchmark charts. Those three numbers predict the next leap in AI capacity more reliably than a leaderboard does.",
-        "payoff_headline": "Follow the watts",
-        "cta": "Follow Nexus Node for more on the systems behind the headlines.",
+        "payoff": "The bottleneck is a queue, not a component. Power contracts, transformers, cooling and permits each have their own timeline, and the slowest one decides when a data centre exists. Chips are the part of this story that ships on time.",
+        "payoff_headline": "A queue, not a component",
+        "cta": "Follow for more on how AI actually gets built.",
         "cta_headline": "Follow",
-        "tags": ["ai", "energy", "infrastructure", "explainer"],
+        "tags": ["ai", "energy", "infrastructure", "data-centres", "grid"],
         "sources": [
           "https://www.iea.org/reports/energy-and-ai",
-          "https://eta.lbl.gov/publications/2024-united-states-data-center-energy"
-        ]
+          "https://eta.lbl.gov/publications/2024-united-states-data-center-energy",
+          "https://emp.lbl.gov/queues"
+        ],
+        "claims_note": "Qualitative claims only: no statistic is asserted in the narration that is not attributable to the source ledger above. Figures change quarterly and are deliberately left out rather than approximated."
       }
     ]
   }
