@@ -153,5 +153,7 @@ def within_tolerance(measured: Mapping[str, float],
     if not low <= integrated <= high:
         return False, f"{integrated:.1f} LUFS outside {low}..{high}"
     if true_peak is not None and true_peak > max_true_peak:
-        return False, f"true peak {true_peak:.1f} dBTP above {max_true_peak}"
-    return True, f"{integrated:.1f} LUFS, {true_peak if true_peak is not None else float('nan'):.1f} dBTP"
+        # Two decimals: at one decimal a measured -0.96 dBTP printed as "-1.0 dBTP above -1.0", which reads like
+        # a threshold bug in the report rather than the measurement it was.
+        return False, f"true peak {true_peak:.2f} dBTP above {max_true_peak}"
+    return True, f"{integrated:.1f} LUFS, {true_peak if true_peak is not None else float('nan'):.2f} dBTP"

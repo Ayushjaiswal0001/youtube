@@ -13,10 +13,13 @@ tests in `test_publish_gate.py`, and it is enforced - not bypassable - for a rea
 from __future__ import annotations
 
 import os
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
 from unittest import mock
+
+import pytest
 
 from factory.config import load_channel_specs
 from factory.content.script import build_english_script, load_plans_for
@@ -200,3 +203,30 @@ class StudioPathBindingTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def test_a_kids_channel_cannot_be_built_as_not_for_kids(tmp_path: Path) -> None:
+    """`force_made_for_kids` was checked only in `validate()`, which nothing but tests call.
+
+    A metadata file with `madeForKids: false` on Natkhat Toons produced a valid upload request carrying
+    `selfDeclaredMadeForKids: false`. The default being true is an accident of one config field, not an
+    enforcement, and this is the declaration that decides whether a children's channel is treated as made for
+    kids. The check now happens at construction, which is the only path an upload takes.
+    """
+
+    from uploader.config import load_channel_configs
+    from uploader.errors import ValidationError
+    from uploader.metadata import UploadRequest
+
+    video = tmp_path / "kids.mp4"
+    subprocess.run(["ffmpeg", "-y", "-f", "lavfi", "-i", "testsrc=size=256x256:rate=10:duration=1",
+                    "-c:v", "libx264", "-pix_fmt", "yuv420p", str(video)],
+                   check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    configs = load_channel_configs(Path("channels"))
+    with pytest.raises(ValidationError):
+        UploadRequest.from_data(configs["natkhat-toons"], video,
+                               {"title": "haveli", "madeForKids": False, "video_sha256": "y"})
+    request = UploadRequest.from_data(configs["natkhat-toons"], video,
+                                      {"title": "haveli", "video_sha256": "z"})
+    assert request.made_for_kids is True
+    assert request.to_api_body()["status"]["selfDeclaredMadeForKids"] is True
