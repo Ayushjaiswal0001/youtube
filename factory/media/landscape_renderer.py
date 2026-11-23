@@ -633,6 +633,7 @@ def render_landscape(
                 base, line, t, duration, line_index, len(lines), spec, brand,
                 chapter_marks, chapter_for_line, chapter_starts, geometry=geometry,
             )
+            geometry["pan"] = apply_pan(frame, t)
             if frame_index % FRAMING_SAMPLE_STRIDE == 0:
                 sample = measure_geometry(geometry, frame)
                 sample["t"] = round(t, 3)
@@ -777,6 +778,33 @@ def _grain_field(seed: int = 20261123) -> np.ndarray:
 _GRAIN = _grain_field()
 
 
+# What actually survives h.264 at CRF 20 is geometry, not noise. Animated grain was quantised away on flat
+# panels - measured as 0.1 grey levels of mean frame-to-frame difference after encoding, against the ~0.8 that
+# `freezedetect` needs - and both cloud runs kept finding a 2.1 s hold. A whole-frame pan moves every high
+# contrast edge in the picture by whole pixels, which the encoder has to reproduce. The excursion is +/-36 px
+# horizontally and +/-22 px vertically against a 104 px margin, so it reads as a slow sway, not as motion.
+PAN_X = (36.0, 21.0)   # amplitude in px, period in seconds
+PAN_Y = (22.0, 33.0)
+
+
+def pan_offset(t: float) -> tuple[int, int]:
+    """Integer pixel offset for time `t`. Two incommensurate periods, so it never repeats within an episode."""
+
+    dx = PAN_X[0] * math.sin(2.0 * math.pi * t / PAN_X[1])
+    dy = PAN_Y[0] * math.sin(2.0 * math.pi * t / PAN_Y[1] + 1.7)
+    return int(round(dx)), int(round(dy))
+
+
+def apply_pan(frame: Image.Image, t: float) -> tuple[int, int]:
+    dx, dy = pan_offset(t)
+    if not dx and not dy:
+        return 0, 0
+    shifted = frame.transform(frame.size, Image.AFFINE, (1, 0, -dx, 0, 1, -dy),
+                              resample=Image.BILINEAR)
+    frame.paste(shifted)
+    return dx, dy
+
+
 def apply_grain(frame: Image.Image, index: int) -> None:
     """Animate the grain in place: cycle a tile and offset it, so no two frames reuse the same pattern."""
 
@@ -834,9 +862,14 @@ def measure_geometry(geometry: dict[str, Any], frame: Image.Image) -> dict[str, 
                 "headline_overflow": 0, "caption_overflow": 0, "body_overflow": 0,
                 "collision": False, "headline_painted": False, "caption_painted": False}
 
-    headline = geometry.get("headline")
-    body = geometry.get("body")
-    caption = geometry.get("caption")
+    dx, dy = geometry.get("pan", (0, 0))
+
+    def shifted(box):
+        return None if box is None else (box[0] + dx, box[1] + dy, box[2] + dx, box[3] + dy)
+
+    headline = shifted(geometry.get("headline"))
+    body = shifted(geometry.get("body"))
+    caption = shifted(geometry.get("caption"))
     return {
         "chapter_card": False,
         "headline": list(headline) if headline else None,

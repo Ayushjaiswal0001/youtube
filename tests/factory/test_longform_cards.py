@@ -188,3 +188,23 @@ def test_a_held_line_does_not_freeze_once_encoded(spec_long, tmp_path: Path) -> 
     out = tmp_path / "held.mp4"
     R.render_landscape(script, _narration(silence, 8.2, [line]), spec_long, out)
     assert not _freeze_events(out), _freeze_events(out)
+
+
+def test_the_pan_stays_inside_the_layout_margins() -> None:
+    offsets = [R.pan_offset(t / 10.0) for t in range(0, 3000)]
+    assert max(abs(dx) for dx, _ in offsets) <= R.PAN_X[0]
+    assert max(abs(dy) for _, dy in offsets) <= R.PAN_Y[0]
+    # the excursion has to stay well inside the 104 px margin or the pan would clip the composition
+    assert R.PAN_X[0] + R.PAN_Y[0] < R.MARGIN - 20
+    # and it has to actually move: a pan that rounds to zero changes nothing
+    assert len({px for px, _ in offsets}) > 20
+
+
+def test_the_framing_report_measures_the_panned_frame(spec_long) -> None:
+    """The report must describe the picture that was encoded, not the composition before the pan."""
+
+    line = _line("Support copy that sits between the rule and the caption band.", "Headline here", 0.0, 6.0)
+    geometry = {"headline": (200.0, 260.0, 900.0, 340.0), "body": None, "caption": None,
+                "chapter_card": False, "pan": (30, -12)}
+    sample = R.measure_geometry(geometry, Image.new("RGB", (R.WIDTH, R.HEIGHT)))
+    assert sample["headline"][:2] == [230.0, 248.0]
