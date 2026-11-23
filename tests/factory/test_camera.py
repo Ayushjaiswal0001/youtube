@@ -159,3 +159,35 @@ class VignetteTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def test_the_pair_target_keeps_the_shortest_chin_above_the_caption_band() -> None:
+    """A pair shot used to centre the cast at 0.7125 of the frame, inside the caption band.
+
+    Nothing measured it until the portrait framing merge started carrying `subtitle_collision_frames`, and then
+    the number was 803 of 961 frames - the shorter character's chin behind the caption capsule on every frame of
+    every wide and two-shot scene. This is the geometry that keeps it clear: the pair centre, projected at the
+    widest portrait zoom, must leave the worst chin above the band.
+    """
+
+    from studio.animation.camera import PAIR_TARGET_RATIO_VERTICAL, PORTRAIT_CAPTION_BAND_TOP
+    from studio.animation.silhouette import subject_from_rig
+    from studio.animation.stage import PORTRAIT
+    from studio.characters.chiku import ChikuRig
+    from studio.characters.gappu import GappuRig
+
+    height = PORTRAIT.height
+    rigs = [ChikuRig(**PORTRAIT.anchor("chiku")), GappuRig(**PORTRAIT.anchor("gappu"))]
+    boxes = [subject_from_rig(rig, "idle", None, pad=0.0, reach=0.0).bounds(0.0) for rig in rigs]
+    pair_top = min(box[1] for box in boxes)
+    pair_bottom = max(box[3] for box in boxes)
+    centre_world = (pair_top + pair_bottom) / 2.0
+
+    worst = 0.0
+    for zoom in PORTRAIT.shot_zoom.values():
+        for box in boxes:
+            chin = box[1] + (box[3] - box[1]) * 0.38
+            worst = max(worst, PAIR_TARGET_RATIO_VERTICAL * height + zoom * (chin - centre_world))
+
+    assert worst <= PORTRAIT_CAPTION_BAND_TOP - 8, (
+        f"worst chin lands at {worst:.0f}, the caption band starts at {PORTRAIT_CAPTION_BAND_TOP}")

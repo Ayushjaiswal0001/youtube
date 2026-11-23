@@ -96,12 +96,20 @@ SUBJECT_X = _SubjectX()
 # below), not geometry, so it stays a constant.
 FACE_Y = 1180.0
 
-# Where a pair shot puts the cast's vertical centre, as a fraction of frame height. The vertical
-# value is the ratio the pre-T39 pair shots produced at zoom 1.12, so the wide shot keeps its
-# composition exactly; at zoom 1.0 the same rule lifts the pair by 44 px, which is the one part of
-# this change that restyles existing shots (measured, not assumed). The landscape value pulls the
-# cast up, because a 16:9 frame has no room to waste under it.
-PAIR_TARGET_RATIO_VERTICAL = 0.7125
+# The caption band the portrait renderer paints, measured from the rendered overlay rather than typed: the
+# caption block sits `bottom: 360px` in a 1920-tall frame and the longest line it accepts reaches up to 1358.
+# It is the one piece of the frame that is guaranteed to be opaque over the cast, so the composition has to
+# clear it.
+PORTRAIT_CAPTION_BAND_TOP = 1358.0
+
+# Where a pair shot puts the cast's vertical centre, as a fraction of frame height. The vertical value was
+# 0.7125 - the ratio the pre-T39 pair shots produced at zoom 1.12 - which put the shorter character's chin
+# *inside* the caption band on every frame of every wide and two-shot scene. The caption clearance check only
+# started measuring this path after the framing merge was fixed, and it measured 803 of 961 frames. The value
+# is now the middle of the space above the band: the cast's centre at 0.55 keeps the shortest chin at ~1310 at
+# the widest zoom (1.12), 48 px clear, and it happens to match the landscape ratio because both frames are
+# telling the same story - the band is at the bottom, so the cast is not.
+PAIR_TARGET_RATIO_VERTICAL = 0.55
 PAIR_TARGET_RATIO_LANDSCAPE = 0.55
 
 
