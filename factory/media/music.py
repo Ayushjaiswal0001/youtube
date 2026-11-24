@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import logging
 import math
 import wave
 from pathlib import Path
 from typing import Iterable
 
 import numpy as np
+
+LOGGER = logging.getLogger(__name__)
 
 SAMPLE_RATE = 44100
 
@@ -190,14 +193,32 @@ def mix_narration(
     # -1.0 dBTP after encoding, which straddles the gate. 0.74 gives about 2.6 dB of sample headroom and keeps
     # the encoded true peak below -1.0 dBTP. The gate is unchanged: this makes the audio quieter at the peak,
     # not the check weaker, and the integrated loudness target (-14 LUFS) is untouched.
-    chain += ",alimiter=limit=0.74:attack=5:release=50:level=disabled"
-    run(
-        [
-            "ffmpeg", "-y", "-i", str(raw_path), "-af", chain,
-            "-ac", "2", "-ar", "44100", "-c:a", "aac", "-b:a", "192k",
-            "-movflags", "+faststart", str(output_path),
-        ],
-        timeout=300,
-    )
+    # The limiter constant is a starting point, not a guarantee. `alimiter` caps *sample* peak and the
+    # AAC encoder adds inter-sample overshoot on the way out, so the encoded true peak depends on the
+    # material: `nexus-small-models` encoded to -2.33 dBTP at 0.74 while `nexus-robot-video` encoded to
+    # -0.46 dBTP, which is above the -1.0 dBTP gate and blocked the episode. Measuring the file that was
+    # actually written and tightening only when the gate would fail closes that gap; the gate itself is
+    # unchanged, and the -14 LUFS integrated target is applied before the limiter so it is untouched.
+    limit = 0.74
+    for attempt in range(3):
+        run(
+            [
+                "ffmpeg", "-y", "-i", str(raw_path),
+                "-af", f"{chain},alimiter=limit={limit:.4f}:attack=5:release=50:level=disabled",
+                "-ac", "2", "-ar", "44100", "-c:a", "aac", "-b:a", "192k",
+                "-movflags", "+faststart", str(output_path),
+            ],
+            timeout=300,
+        )
+        # A failed measurement returns None; treat it as "nothing to compare against" rather than
+        # crashing the mix, which would fail an episode for a reason the episode does not have.
+        encoded = measure_loudness(output_path) or {}
+        peak = encoded.get("true_peak_dbtp")
+        if peak is None or peak <= -1.0:
+            break
+        # Tighten by the overshoot plus 0.3 dB of margin, and never below -6 dBFS.
+        limit = max(0.50, limit * 10 ** (-(peak + 1.0 + 0.3) / 20))
+        LOGGER.warning("mix_narration: encoded true peak %.2f dBTP is above -1.0; re-encoding at "
+                       "limiter %.3f (attempt %d)", peak, limit, attempt + 1)
     raw_path.unlink(missing_ok=True)
     return output_path
