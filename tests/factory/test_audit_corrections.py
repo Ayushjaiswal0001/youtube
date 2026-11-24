@@ -189,7 +189,8 @@ class TestH3SingleEntity:
     def test_a_no_entity_sentence_following_a_pipeline_scene_does_not_crash(self) -> None:
         """The exact reachable path: the diversity ladder used to step from pipeline to topology."""
 
-        previous = spec_for(concept="Video", narration="Video pretraining lets a model watch.",
+        previous = spec_for(concept="Video",
+                            narration="Video pretraining lets a model watch ordinary footage first.",
                             objective="", colors=COLORS)
         assert previous.variant == "pipeline"
         following = spec_for(concept="That is the whole point",
@@ -222,7 +223,9 @@ class TestH4SemanticCorrectness:
                         on_screen="WATCH AND LEARN")
         assert "study" not in spec.entities
         assert "video" in spec.entities
-        assert spec.variant == "pipeline"
+        # v1.1: the sentence states no order ("Now" is not a sequence cue), so panels is the honest
+        # composition. The semantic claim this test protects - VIDEO, never STUDY - is unchanged.
+        assert spec.variant == "panels"
         labels = [LEXICON[entity][0] for entity in spec.entities]
         assert "study" not in labels and "video" in labels
 

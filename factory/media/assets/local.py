@@ -8,17 +8,21 @@ only route by which a real photograph or a supplied illustration can enter a ren
 from __future__ import annotations
 
 import json
+import os
 from dataclasses import dataclass
 from pathlib import Path
 
 from PIL import Image
 
+from ...config import REPO_ROOT
 from .base import AssetCandidate
 from .cache import sha256_file
-from .metadata import AssetRecord
+from .metadata import ALLOWED_LICENSES, AssetRecord, attribution_line
 from .validators import validate_image
 
-LIBRARY_ROOT = Path("assets") / "library"
+# Anchored to the repository, not the working directory: a library that moves with `cd` is not a
+# library. FACTORY_ASSET_LIBRARY overrides it for tests.
+LIBRARY_ROOT = Path(os.environ.get("FACTORY_ASSET_LIBRARY") or (REPO_ROOT / "assets" / "library"))
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp"}
 
 
@@ -33,8 +37,12 @@ class LocalAssetLibrary:
     """Index of everything in the library, keyed for query matching."""
 
     def __init__(self, root: str | Path | None = None) -> None:
-        self.root = Path(root) if root else LIBRARY_ROOT
+        configured = os.environ.get("FACTORY_ASSET_LIBRARY")
+        self.root = Path(root) if root else Path(configured or LIBRARY_ROOT)
         self._entries: list[LibraryEntry] | None = None
+        # Why a file present on disk was refused. Silence here makes an unusable library look
+        # identical to an empty one.
+        self.rejected: list[str] = []
 
     def root_for(self, channel: str) -> Path:
         return self.root / channel
@@ -53,6 +61,9 @@ class LocalAssetLibrary:
             for path in sorted(channel_dir.iterdir()):
                 if path.suffix.lower() not in IMAGE_SUFFIXES:
                     continue
+                if not self._confined(path, channel_dir):
+                    self.rejected.append(f"{path.name}: outside the library root")
+                    continue
                 record = self._record_for(path, channel_dir.name)
                 if record is None:
                     continue
@@ -67,6 +78,15 @@ class LocalAssetLibrary:
                 entries.append(LibraryEntry(path=path, record=record, keywords=frozenset(words)))
         return entries
 
+    def _confined(self, path: Path, channel_dir: Path) -> bool:
+        """A library file must live inside its channel directory."""
+
+        try:
+            path.resolve().relative_to(channel_dir.resolve())
+        except ValueError:
+            return False
+        return True
+
     def _record_for(self, path: Path, channel: str) -> AssetRecord | None:
         sidecar = path.with_suffix(".json")
         data: dict = {}
@@ -75,18 +95,23 @@ class LocalAssetLibrary:
                 data = json.loads(sidecar.read_text(encoding="utf-8"))
             except (OSError, json.JSONDecodeError):
                 data = {}
+        license_id = str(data.get("license") or "owner-supplied")
+        if license_id not in ALLOWED_LICENSES:
+            self.rejected.append(f"{path.name}: licence {license_id!r} is not on the allow-list")
+            return None
         checked = validate_image(path)
         if not checked.ok:
+            self.rejected.append(f"{path.name}: {checked.reason}")
             return None
         try:
             with Image.open(path) as image:
                 width, height = image.size
         except Exception:
             return None
-        return AssetRecord(
+        record = AssetRecord(
             asset_id=data.get("asset_id") or f"local-{path.stem}",
             source="local",
-            license=str(data.get("license") or "owner-supplied"),
+            license=license_id,
             file_hash_sha256=sha256_file(path),
             local_path=str(path),
             width=width,
@@ -98,8 +123,15 @@ class LocalAssetLibrary:
             duration_s=data.get("duration_s"),
             generated=False,
             kind="image",
-            notes=data.get("notes"),
+            notes=data.get("notes") or ("supplied by the channel owner"
+                                         if license_id == "owner-supplied"
+                                         else "imported from the local library"),
         )
+        if record.needs_attribution and not record.attribution_text:
+            # A licence that requires credit cannot ship without it; derive the standard line so the
+            # record is usable, and let validate_record reject it if even that is impossible.
+            record.attribution_text = attribution_line(record)
+        return record
 
     def search(self, channel: str, query: str, *, limit: int = 3) -> list[AssetCandidate]:
         """Rank library entries by how many query words they match, best first."""

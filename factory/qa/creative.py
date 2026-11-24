@@ -16,16 +16,32 @@ The checks are deliberately conservative about what they can know. Nothing here 
 
 Thresholds live in ``content/creative_qc.json`` when present, with the same values as defaults here,
 so a channel can tune pacing without a code change - and the file cannot silently disable a check.
+
+Version 1.1 adds five checks: ``figure_is_stated`` (a plate may only show digits the narration
+speaks, in figures or in words), ``dataviz_delivered`` (a dataviz scene that drew a diagram says so),
+``visual_diversity_pixels`` (distinct plates measured by fingerprint, not by asset id),
+``provenance_recorded`` and ``attribution_present``.
 """
 
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from ..media.assets.metadata import REQUIRES_ATTRIBUTION
+
 CONFIG_PATH = Path("content") / "creative_qc.json"
+
+
+def default_config_path() -> Path:
+    """The threshold file, resolved from the repository rather than from the working directory."""
+
+    from ..media.assets.paths import thresholds_path as _thresholds_path
+
+    return _thresholds_path()
 
 # Words that carry no subject matter. Used only by the "does the plate title belong to this sentence"
 # check, which is a warning: it must not reject a legitimate paraphrase.
@@ -65,7 +81,28 @@ DEFAULTS: dict[str, Any] = {
     "max_caption_collision_frames": 0,
     "require_visual_every_scene": True,
     "min_scenes_per_10s": 1.5,
+    "min_distinct_pixel_ratio": 0.5,      # distinct plate fingerprints / scenes
+    "max_fingerprint_distance": 6,        # Hamming distance that still counts as "the same picture"
 }
+
+
+_NUMBER_WORDS = {
+    "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8,
+    "nine": 9, "ten": 10, "eleven": 11, "twelve": 12, "thirteen": 13, "fourteen": 14,
+    "fifteen": 15, "sixteen": 16, "seventeen": 17, "eighteen": 18, "nineteen": 19, "twenty": 20,
+}
+
+
+_FINGERPRINT = re.compile(r"^[0-9a-f]{16}$")
+
+
+def _hamming(first: str, second: str) -> int:
+    """Bit distance between two hex fingerprints, used to cluster near-identical plates."""
+
+    try:
+        return bin(int(first[:16], 16) ^ int(second[:16], 16)).count("1")
+    except (TypeError, ValueError):
+        return 64
 
 
 @dataclass
@@ -278,6 +315,109 @@ def evaluate(
             f"{agreement.get('checked')} scenes checked; cards whose headline line differs from the "
             f"scene's line: {agreement.get('mismatches') or 'none'}", severity="warn",
         ))
+
+    # -- 4b. stated figures and provenance (v1.1) ----------------------------
+    #
+    # A chart is the most authoritative object on a card, so a number that the narration never says is
+    # the worst thing this engine could put on screen. `figure_is_stated` compares every digit the
+    # plate shows with the digits the sentence speaks.
+    unsupported: list[str] = []
+    unrecorded: list[str] = []
+    for scene in scenes:
+        resolution = scene.get("resolution") or {}
+        if resolution.get("asset_id") and resolution.get("visible_text") is None:
+            # A plate exists but nothing recorded what it shows. That is not "no numbers on screen",
+            # it is a check that could not run, and reporting it as a pass would be a false claim.
+            unrecorded.append(scene["scene_id"])
+            continue
+        shown = " ".join(str(value) for value in (resolution.get("visible_text") or []))
+        shown += " " + str(resolution.get("spec_title") or "")
+        spoken = str(scene.get("narration_text") or "")
+        spoken_digits = {token.replace(",", "") for token in re.findall(r"\d[\d,]*", spoken)}
+        # "Two years later" states the number 2; a digit-only comparison would call the plate's
+        # "STEP 2" an invention. Number words count as stating the number.
+        spoken_digits |= {str(_NUMBER_WORDS[word]) for word in re.findall(r"[a-z]+", spoken.lower())
+                          if word in _NUMBER_WORDS}
+        for token in re.findall(r"\d[\d,]*", shown):
+            digits = token.replace(",", "")
+            if digits not in spoken_digits:
+                unsupported.append(f"{scene['scene_id']}:{token}")
+    if unrecorded:
+        report.checks.append(Check(
+            "figure_is_stated", False,
+            f"cannot verify the numbers on {unrecorded}: the plate exists but no visible_text was "
+            f"recorded, so this check did not run",
+        ))
+    else:
+        report.checks.append(Check(
+            "figure_is_stated", not unsupported,
+            f"numbers shown on a plate that the narration does not state: {unsupported}"
+            if unsupported else "every number on screen is stated in the narration",
+        ))
+
+    undelivered = [scene["scene_id"] for scene in scenes
+                   if scene.get("visual_category") == "dataviz"
+                   and (scene.get("coverage_category") or scene.get("resolution", {}).get("category"))
+                   != "dataviz"]
+    report.checks.append(Check(
+        "dataviz_delivered", not undelivered,
+        f"dataviz scenes rendered as a non-chart visual: {undelivered} "
+        f"(correct when the sentence states no comparable figure)"
+        if undelivered else "every dataviz scene rendered a chart",
+        severity="warn",
+    ))
+
+    fingerprints = [str((scene.get("resolution") or {}).get("plate_fingerprint") or "")
+                    for scene in scenes]
+    # A malformed fingerprint would otherwise count as a distinct picture and inflate the ratio, so a
+    # value that is not 16 hex characters counts as unmeasured, exactly like a missing one.
+    measured = [value for value in fingerprints if _FINGERPRINT.match(value or "")]
+    if len(measured) != len(scenes) or not measured:
+        report.checks.append(Check(
+            "visual_diversity_pixels", False,
+            f"{len(measured)} of {len(scenes)} plates carry a fingerprint: pixel diversity unmeasured "
+            f"(the renderer writes these; a hand-made scenes.json does not)", severity="warn",
+        ))
+    else:
+        clusters: list[list[str]] = []
+        for fingerprint in measured:
+            for cluster in clusters:
+                if _hamming(fingerprint, cluster[0]) <= int(limits["max_fingerprint_distance"]):
+                    cluster.append(fingerprint)
+                    break
+            else:
+                clusters.append([fingerprint])
+        ratio = len(clusters) / len(measured)
+        report.checks.append(Check(
+            "visual_diversity_pixels", ratio >= float(limits["min_distinct_pixel_ratio"]),
+            f"{len(clusters)} distinct pictures over {len(measured)} plates ({ratio:.2f}, minimum "
+            f"{limits['min_distinct_pixel_ratio']})",
+        ))
+
+    missing_provenance = []
+    unattributed = []
+    for scene in scenes:
+        resolution = scene.get("resolution") or {}
+        for key, value in (("asset_id", scene.get("asset_id")),
+                           ("asset_source", scene.get("asset_source")),
+                           ("license", scene.get("license")),
+                           ("entities", resolution.get("entities"))):
+            if value in (None, ""):
+                missing_provenance.append(f"{scene['scene_id']}:{key}")
+        licence = scene.get("license")
+        if licence in REQUIRES_ATTRIBUTION and not (scene.get("attribution_text")
+                                                    or resolution.get("attribution")):
+            unattributed.append(f"{scene['scene_id']}:{licence}")
+    report.checks.append(Check(
+        "provenance_recorded", not missing_provenance,
+        f"scenes missing provenance: {missing_provenance}" if missing_provenance
+        else "every scene records asset id, source, licence and entities",
+    ))
+    report.checks.append(Check(
+        "attribution_present", not unattributed,
+        f"scenes whose licence requires attribution and none was recorded: {unattributed}"
+        if unattributed else "attribution recorded wherever the licence requires it",
+    ))
 
     # -- 5. legibility ------------------------------------------------------
     long_titles = [scene["scene_id"] for scene in scenes
