@@ -115,6 +115,10 @@ class ChannelSpec:
     tags: tuple[str, ...] = field(default_factory=tuple)
     description_footer: str = ""
     made_for_kids: bool | None = False
+    # How this channel is allowed to be visualised. Empty means the legacy renderer: one visual per
+    # narration line. ``scene_planning`` opts a channel into the scene planner, and ``categories``
+    # bounds the visual jobs it may plan (a channel with no imagery supplied can never claim a photo).
+    visual_policy: dict = field(default_factory=dict)
 
     @property
     def is_hindi(self) -> bool:
@@ -206,6 +210,7 @@ def load_channel_specs(channels_dir: Path | str | None = None) -> dict[str, Chan
             tags=tuple(tags),
             description_footer=str(defaults.get("description_footer", "")),
             made_for_kids=defaults.get("made_for_kids", False),
+            visual_policy=dict(factory.get("visual_policy") or {}),
         )
         specs[slug] = spec
     if not specs:

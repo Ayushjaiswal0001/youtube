@@ -237,9 +237,20 @@ def test_the_camera_push_in_is_accounted_for_in_the_layout() -> None:
 
 
 def test_the_measured_frame_is_what_gets_encoded() -> None:
-    """`compose_frame` is shared by the encoder and the measurement, so this stays true by construction."""
+    """`compose_frame` is shared by the encoder and the measurement, so this stays true by construction.
+
+    Asserted on the call rather than on one formatted line: the invariant is "the object that is encoded
+    is the object that was measured, and it received the same geometry out-parameter". A literal string
+    match broke when the call gained a dispatcher argument, which is a change to formatting, not to the
+    property being protected.
+    """
 
     source = Path(er.__file__).read_text(encoding="utf-8")
-    assert "frame = compose_frame(base, lines, t, duration, spec, brand, geometry=geometry)" in source
+    calls = [line.strip() for line in source.splitlines()
+             if line.strip().startswith("frame = compose_frame(")]
+    assert calls, "the encode loop no longer calls compose_frame"
+    joined = source[source.index(calls[0]):source.index("sample = measure_geometry(geometry, frame)")]
+    assert "geometry=geometry" in joined, "the encoded frame is not the measured frame"
+    assert "dispatcher=dispatcher" in joined, "the scene plan is not reaching the encoder"
     assert "sample = measure_geometry(geometry, frame)" in source
     assert '"framing.json"' in source and '"story.json"' in source

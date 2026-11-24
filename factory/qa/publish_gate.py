@@ -340,7 +340,28 @@ def evaluate_publish_gate(
     result.add("metadata_family_safe", (not spec.made_for_kids)
                or str(script.title).strip() != "", "madeForKids channels need a clean title")
 
-    # 20. manifest
+    # 20. creative quality - only for a video rendered with a scene plan
+    #
+    # A channel that has not adopted the visual engine has no scenes.json and is unaffected: this is an
+    # additional requirement, not a changed one. But when the render *does* claim a scene plan, the
+    # absence of a creative verdict is a blocker, because that is exactly the state in which a video
+    # ships as a wall of type with nothing in the pipeline complaining.
+    scenes = _read_json(out / "scenes.json")
+    if scenes is not None:
+        creative = _read_json(out / "creative.json")
+        if creative is None:
+            result.add("creative_quality", False,
+                       "scenes.json present but creative.json missing: creative quality unverified")
+        else:
+            metrics = creative.get("metrics") or {}
+            detail = (f"{metrics.get('scenes')} scenes, "
+                      f"{metrics.get('distinct_assets')} distinct visuals, "
+                      f"compositions={','.join(metrics.get('compositions') or []) or 'none'}")
+            failures = creative.get("failures") or []
+            result.add("creative_quality", bool(creative.get("ok")) and not failures,
+                       detail + (f"; failed: {failures}" if failures else ""))
+
+    # 21. manifest
     from ..manifesting import verify as verify_manifest
 
     problems = verify_manifest(out)

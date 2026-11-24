@@ -517,22 +517,30 @@ def _draw_caption(
     return tuple(round(value, 2) for value in capsule)
 
 
-def _draw_scene(
-    frame: Image.Image,
+# The visual plate. The legacy card reserved 720x550 for a drawn motif; a diagram with labels needs
+# real estate, so the plate now spans 912 px - the safe width divided by the maximum camera push-in -
+# and stops above the caption band. Everything else about the card (brand row, headline, captions,
+# progress) is byte-for-byte the same code, because typography and safe areas were already right.
+VISUAL_PLATE = {"left": 84, "top": 716, "right": 996, "bottom": 1330}
+VISUAL_PLATE_SIZE = (VISUAL_PLATE["right"] - VISUAL_PLATE["left"],
+                     VISUAL_PLATE["bottom"] - VISUAL_PLATE["top"])
+VISUAL_ENTER_S = 0.30        # rise + fade at the start of a scene
+VISUAL_PUSH_IN = 0.055       # how much the plate grows across one scene
+VISUAL_PAN_PX = 14           # lateral drift at the end of a scene
+
+
+def _draw_chrome(
+    draw: ImageDraw.ImageDraw,
     line: ScriptLine,
-    t: float,
-    duration: float,
+    brand: tuple[str, str, str],
+    c: dict[str, str],
     index: int,
     total: int,
-    spec: ChannelSpec,
-    brand: tuple[str, str, str],
-) -> None:
-    c = spec.colors
-    draw = ImageDraw.Draw(frame)
+) -> dict[str, Any]:
+    """Brand row, counter and headline. Shared by both card renderers so they cannot drift apart."""
+
     accent = c["accent"]
     muted = c["muted"]
-    local = max(0.0, t - line.start)
-
     small = _font(SMALL_FONT, 28)
     serif = _font(SERIF_FONT, 30)
     kicker_y = 138
@@ -558,7 +566,51 @@ def _draw_scene(
     draw.rounded_rectangle((WIDTH / 2 - 60, y + 15, WIDTH / 2 + 60, y + 21), radius=3, fill=accent)
     headline_rect = (min(r[0] for r in drawn), min(r[1] for r in drawn),
                      max(r[2] for r in drawn), max(r[3] for r in drawn)) if drawn else None
+    return {"headline": headline_rect}
 
+
+def _draw_footer(draw: ImageDraw.ImageDraw, t: float, duration: float,
+                 c: dict[str, str], brand: tuple[str, str, str]) -> None:
+    handle = brand[2]
+    hfont = _font(SMALL_FONT, 24)
+    draw.text((70, 1772), handle, font=hfont, fill=c["muted"])
+    progress = min(1.0, max(0.0, t / max(0.001, duration)))
+    draw.rounded_rectangle((70, 1820, WIDTH - 70, 1828), radius=4, fill=_mix(c["bg"], c["muted"], 0.25))
+    draw.rounded_rectangle((70, 1820, 70 + (WIDTH - 140) * progress, 1828), radius=4, fill=c["accent"])
+
+
+def _draw_entrance(draw: ImageDraw.ImageDraw, local: float, c: dict[str, str]) -> None:
+    if local >= 0.34:
+        return
+    alpha = 1.0 - local / 0.34
+    # The entrance wipe sweeps down to the caption band and stops there. It used to run to the bottom of
+    # the card, crossing the caption for the first frames of every line: measured as 6 collisions of 180
+    # sampled frames on academic-cool-to-sleep, where the light palette makes the bar an obvious edge.
+    y_line = int((CAPTION_BAND[0] - 24) * min(1.0, local / 0.34))
+    draw.rectangle((0, max(0, y_line - 8), WIDTH, y_line + 8), fill=_mix(c["bg"], c["accent"], 0.45 * alpha))
+    radius = 80 * (1 + local)
+    draw.ellipse(
+        (WIDTH / 2 - radius, 980 - radius, WIDTH / 2 + radius, 980 + radius),
+        outline=_mix(c["bg"], c["accent2"], max(0.0, min(1.0, alpha))),
+        width=3,
+    )
+
+
+def _draw_scene(
+    frame: Image.Image,
+    line: ScriptLine,
+    t: float,
+    duration: float,
+    index: int,
+    total: int,
+    spec: ChannelSpec,
+    brand: tuple[str, str, str],
+) -> None:
+    c = spec.colors
+    draw = ImageDraw.Draw(frame)
+    local = max(0.0, t - line.start)
+
+    drawn = _draw_chrome(draw, line, brand, c, index, total)
     _draw_motif(draw, line.visual or "network", t, c, 1.0 if local > 0 else 0.0)
     if local > 0.0:
         # After the motif: the motif plate is opaque, so a ring drawn first is painted over. It was, and the
@@ -566,30 +618,208 @@ def _draw_scene(
         # obvious. The overlay is thin and stays inside the empty band around the motif.
         _draw_motion_ring(draw, t, c)
 
-    caption_rect = _draw_caption(draw, line, t, c)
+    drawn["caption"] = _draw_caption(draw, line, t, c)
+    _draw_footer(draw, t, duration, c, brand)
+    _draw_entrance(draw, local, c)
+    return drawn
 
-    handle = brand[2]
-    hfont = _font(SMALL_FONT, 24)
-    draw.text((70, 1772), handle, font=hfont, fill=muted)
-    progress = min(1.0, max(0.0, t / max(0.001, duration)))
-    draw.rounded_rectangle((70, 1820, WIDTH - 70, 1828), radius=4, fill=_mix(c["bg"], c["muted"], 0.25))
-    draw.rounded_rectangle((70, 1820, 70 + (WIDTH - 140) * progress, 1828), radius=4, fill=accent)
 
-    if local < 0.34:
-        alpha = 1.0 - local / 0.34
-        # The entrance wipe sweeps down to the caption band and stops there. It used to run to the bottom of
-        # the card, crossing the caption for the first frames of every line: measured as 6 collisions of 180
-        # sampled frames on academic-cool-to-sleep, where the light palette makes the bar an obvious edge.
-        y_line = int((CAPTION_BAND[0] - 24) * min(1.0, local / 0.34))
-        draw.rectangle((0, max(0, y_line - 8), WIDTH, y_line + 8), fill=_mix(c["bg"], accent, 0.45 * alpha))
-        radius = 80 * (1 + local)
-        draw.ellipse(
-            (WIDTH / 2 - radius, 980 - radius, WIDTH / 2 + radius, 980 + radius),
-            outline=_mix(c["bg"], c["accent2"], max(0.0, min(1.0, alpha))),
-            width=3,
+def _plate_image(image: "Image.Image", local: float, span: float) -> "Image.Image":
+    """Push in slowly and drift sideways, cropped from supersampled source pixels.
+
+    The plate is a still picture, and a held still measures as a freeze. Growing it by 5.5 % across a
+    scene moves the edges by tens of pixels - well above the encoder's noise floor - while staying
+    inside the plate's own margin, so nothing is cropped away from the composition.
+    """
+
+    progress = min(1.0, max(0.0, local / max(0.001, span)))
+    zoom = 1.0 + VISUAL_PUSH_IN * progress
+    width, height = image.size
+    scaled_w, scaled_h = int(width * zoom), int(height * zoom)
+    scaled = image.resize((scaled_w, scaled_h), Image.BILINEAR)
+    offset_x = int((scaled_w - width) / 2 + VISUAL_PAN_PX * (progress - 0.5) * 0.5)
+    offset_y = int((scaled_h - height) / 2)
+    return scaled.crop((offset_x, offset_y, offset_x + width, offset_y + height))
+
+
+def _paste_visual(
+    frame: "Image.Image",
+    image: "Image.Image",
+    local: float,
+    span: float,
+    c: dict[str, str],
+) -> tuple[float, float, float, float]:
+    """Composite the scene's visual into the plate, with an entrance rise and fade.
+
+    Returns the rectangle the plate occupies, which the framing report measures against the safe area.
+    """
+
+    left, top = VISUAL_PLATE["left"], VISUAL_PLATE["top"]
+    width, height = VISUAL_PLATE_SIZE
+    plate = _plate_image(image, local, span).resize((width, height), Image.BILINEAR)
+
+    if local < VISUAL_ENTER_S:
+        alpha = local / VISUAL_ENTER_S
+        rise = int(16 * (1.0 - alpha))
+        backdrop = Image.new("RGB", (width, height), _rgb(_mix(c["bg"], c["panel"], 0.6)))
+        plate = Image.blend(backdrop, plate, max(0.0, min(1.0, alpha)) ** 0.7)
+        top = top + rise
+
+    frame.paste(plate, (left, top))
+    if local < VISUAL_ENTER_S:
+        # A short accent rule marks the cut, so a scene change reads as a deliberate transition.
+        draw = ImageDraw.Draw(frame)
+        draw.rectangle((left, top - 3, left + int(width * min(1.0, local / VISUAL_ENTER_S)), top),
+                       fill=c["accent"])
+    return (float(left), float(top), float(left + width), float(top + height))
+
+
+def _draw_scene_planned(
+    frame: Image.Image,
+    line: ScriptLine,
+    image: "Image.Image | None",
+    local: float,
+    span: float,
+    t: float,
+    duration: float,
+    index: int,
+    total: int,
+    spec: ChannelSpec,
+    brand: tuple[str, str, str],
+) -> dict[str, Any]:
+    """The planned card: same chrome and captions, the visual plate where the motif used to be."""
+
+    c = spec.colors
+    draw = ImageDraw.Draw(frame)
+    drawn = _draw_chrome(draw, line, brand, c, index, total)
+    if image is not None:
+        drawn["visual"] = _paste_visual(frame, image, local, span, c)
+    else:
+        # No visual resolved: draw nothing rather than a placeholder that pretends to be one. The
+        # creative report counts it as uncovered.
+        drawn["visual"] = None
+    drawn["caption"] = _draw_caption(draw, line, t, c)
+    _draw_footer(draw, t, duration, c, brand)
+    _draw_entrance(draw, local, c)
+    return drawn
+
+
+class VisualDispatcher:
+    """Scene plan -> resolved visuals, held for the length of one render.
+
+    Built once per video: planning and drawing nine diagrams costs a couple of seconds, and doing it
+    per frame would dominate the encode. It is the only object the frame loop needs, and it reports
+    what each scene actually got so the report can distinguish a diagram from a placeholder.
+    """
+
+    def __init__(self, plans: Any, resolutions: list[Any], spec: ChannelSpec,
+                 lines: list[ScriptLine] | None = None) -> None:
+        self.plans = plans
+        self.spec = spec
+        self.lines = list(lines or [])
+        self.resolutions = {resolution.scene_id: resolution for resolution in resolutions}
+
+    @classmethod
+    def build(
+        cls,
+        script: Script,
+        spec: ChannelSpec,
+        lines: list[ScriptLine],
+        *,
+        cache_root: Path | str | None = None,
+    ) -> "VisualDispatcher":
+        from dataclasses import replace as _replace
+
+        from ..content.scene_plan import plan_scenes
+        from .assets.resolver import AssetResolver
+
+        policy = getattr(spec, "visual_policy", None) or {}
+        # Plan against the *timed* lines. `script.json` carries the prose with zeroed timings, and
+        # planning on it produced a zero-length narration and an empty plan that looked successful.
+        plans = plan_scenes(
+            spec, _replace(script, lines=list(lines)),
+            min_scene_ms=int(policy.get("min_scene_ms") or 2000),
+            max_scene_ms=int(policy.get("max_scene_ms") or 8000),
         )
+        resolver = AssetResolver(cache_root=cache_root) if cache_root else AssetResolver()
+        resolutions = []
+        images: dict[str, Any] = {}
+        previous_variant: tuple[str, ...] = ()
+        for scene in plans.scenes:
+            resolution = resolver.resolve(scene, channel=spec.slug, colors=spec.colors,
+                                          avoid=previous_variant)
+            previous_variant = ((resolution.variant,) if resolution.variant
+                                and resolution.variant != "cta" else ())
+            resolution.scene_id = scene.scene_id
+            scene.coverage_category = resolution.category  # what was drawn, not what was planned
+            scene.asset_id = resolution.asset_id
+            scene.asset_source = resolution.kind
+            scene.license = resolution.record.license if resolution.record else None
+            scene.attribution_text = resolution.record.attribution_text if resolution.record else None
+            resolutions.append(resolution)
+            images[scene.scene_id] = resolution.image()
+        dispatcher = cls(plans, resolutions, spec, lines=lines)
+        dispatcher.images = images
+        return dispatcher
 
-    return {"headline": headline_rect, "caption": caption_rect}
+    # -- lookup ---------------------------------------------------------------
+    def at(self, t: float) -> Any:
+        return self.plans.at(t) or self.plans.scenes[0]
+
+    def image_for(self, scene: Any) -> Any:
+        return getattr(self, "images", {}).get(getattr(scene, "scene_id", ""))
+
+    def coverage(self) -> dict[str, Any]:
+        counts: dict[str, int] = {}
+        for scene in self.plans.scenes:
+            key = scene.coverage_category or "unresolved"
+            counts[key] = counts.get(key, 0) + 1
+        return {
+            "scenes": len(self.plans.scenes),
+            "by_category": counts,
+            "styles": sorted({scene.asset_id for scene in self.plans.scenes if scene.asset_id}),
+        }
+
+    def line_agreement(self) -> dict[str, Any] | None:
+        """Which line the headline comes from, at each scene's midpoint, versus the scene's own line.
+
+        This is the evidence for the defect that shipped: during an inter-line pause the card used to
+        show the *last* line's headline and counter while the plate showed the current scene. Measured
+        with the same function the renderer uses, so it cannot drift from the drawing.
+        """
+
+        if not self.lines:
+            return None
+        mismatches: list[str] = []
+        for scene in self.plans.scenes:
+            derived = scene.derived_from or {}
+            expected = {str(index) for index in (derived.get("lines") or [derived.get("line_index")])}
+            moment = (scene.start_ms + scene.end_ms) / 2000.0
+            _, index = _active_line(self.lines, moment)
+            if expected and str(index) not in expected:
+                mismatches.append(scene.scene_id)
+        return {"checked": len(self.plans.scenes), "mismatches": mismatches,
+                "method": "active-line index at each scene midpoint, from the renderer's own function"}
+
+    def report(self) -> dict[str, Any]:
+        from ..content.scene_plan import scene_plan_problems
+
+        return {
+            "schema": "scene-plan/1",
+            "channel": self.spec.slug,
+            "narration_ms": self.plans.narration_ms,
+            "allowed_scene_count": list(self.plans.allowed_scene_count),
+            "min_scene_ms": self.plans.min_scene_ms,
+            "max_scene_ms": self.plans.max_scene_ms,
+            "problems": scene_plan_problems(self.plans),
+            "coverage": self.coverage(),
+            "decisions": self.plans.decisions,
+            "line_agreement": self.line_agreement(),
+            "scenes": [dict(scene.to_dict(),
+                            resolution=self.resolutions.get(scene.scene_id).to_dict()
+                            if self.resolutions.get(scene.scene_id) else None)
+                       for scene in self.plans.scenes],
+        }
 
 
 # The card is a composition, not a photograph: the motif for several kinds (chip, robot, shield,
@@ -723,14 +953,23 @@ def measure_geometry(geometry: dict[str, Any], frame: "Image.Image") -> dict[str
     if headline and caption:
         collision = not (caption[2] < headline[0] or caption[0] > headline[2]
                          or caption[3] < headline[1] or caption[1] > headline[3])
+    visual = geometry.get("visual")
+    visual_caption_collision = False
+    if visual and caption:
+        visual_caption_collision = not (caption[2] < visual[0] or caption[0] > visual[2]
+                                        or caption[3] < visual[1] or caption[1] > visual[3])
     return {
         "headline": list(headline) if headline else None,
         "caption": list(caption) if caption else None,
+        "visual": list(visual) if visual else None,
         "headline_overflow": _overflow(headline),
         "caption_overflow": _overflow(caption),
+        "visual_overflow": _overflow(visual),
         "collision": collision,
+        "visual_caption_collision": visual_caption_collision,
         "headline_painted": _has_ink(frame, headline) if headline else False,
         "caption_painted": _has_ink(frame, caption) if caption else False,
+        "visual_painted": _has_ink(frame, visual) if visual else False,
     }
 
 
@@ -742,6 +981,7 @@ def compose_frame(
     spec: ChannelSpec,
     brand: tuple[str, str, str],
     geometry: dict[str, Any] | None = None,
+    dispatcher: "VisualDispatcher | None" = None,
 ) -> "Image.Image":
     """One finished frame. The encode loop and the tests call this, so they measure the same pixels.
 
@@ -752,7 +992,15 @@ def compose_frame(
 
     line, line_index = _active_line(lines, t)
     frame = base.convert("RGB")
-    drawn = _draw_scene(frame, line, t, duration, line_index, len(lines), spec, brand)
+    if dispatcher is None:
+        drawn = _draw_scene(frame, line, t, duration, line_index, len(lines), spec, brand)
+    else:
+        scene = dispatcher.at(t)
+        drawn = _draw_scene_planned(
+            frame, line, dispatcher.image_for(scene),
+            max(0.0, t - scene.start_ms / 1000.0), scene.duration_ms / 1000.0,
+            t, duration, line_index, len(lines), spec, brand,
+        )
     apply_camera_drift(frame, t)
     apply_light_sweep(frame, t, spec.colors["accent"])
     if geometry is not None:
@@ -813,6 +1061,15 @@ def apply_light_sweep(frame: "Image.Image", t: float, accent: str) -> None:
 _SWEEP_CACHE: dict[int, "np.ndarray"] = {}
 
 def _active_line(lines: list[ScriptLine], t: float) -> tuple[ScriptLine, int]:
+    """The line being spoken, or the last one that was.
+
+    A timeline has real silences between lines (the TTS pause, ~180 ms here). Returning the *final*
+    line for those gaps made the card flash the last headline and "07 / 07" mid-video - measured on the
+    encoded baseline as six windows of 180 ms, about 2.8 % of the runtime, with the plate and caption
+    still showing the current scene. A gap belongs to the line that just finished; only after the last
+    line ends does the last line remain correct.
+    """
+
     if not lines:
         raise ValueError("timeline is empty")
     if t <= lines[0].start:
@@ -820,7 +1077,11 @@ def _active_line(lines: list[ScriptLine], t: float) -> tuple[ScriptLine, int]:
     for index, line in enumerate(lines):
         if line.start <= t < line.end:
             return line, index
-    return lines[-1], len(lines) - 1
+    previous = 0
+    for index, line in enumerate(lines):
+        if line.start <= t:
+            previous = index
+    return lines[previous], previous
 
 
 def render_english(
@@ -850,6 +1111,32 @@ def render_english(
 
     brand = BRAND.get(spec.slug, (spec.display_name.upper(), "BRIEF", spec.handle))
     base = _base_image(spec)
+
+    # Scene planning is opt-in per channel. A channel that has not been validated for the new visual
+    # layer renders exactly as it did before, which is what "compatibility, not deployment" means.
+    policy = getattr(spec, "visual_policy", None) or {}
+    dispatcher: VisualDispatcher | None = None
+    if policy.get("scene_planning"):
+        from dataclasses import replace as _replace
+
+        plan_script = _replace(script, lines=lines)
+        dispatcher = VisualDispatcher.build(
+            plan_script, spec, lines, cache_root=policy.get("cache_root") or None)
+        # Audio-visual sync is a property, not an intention: the plan must span exactly the narration it
+        # was planned from (the plan's clock starts at the first spoken word, not at zero), and no scene
+        # may run past the video. Measured as a span, because comparing an absolute end time against a
+        # duration shifted by the opening pause and failed a plan that was in fact exact to the millisecond.
+        scenes = dispatcher.plans.scenes
+        span_ms = scenes[-1].end_ms - scenes[0].start_ms
+        first_ms = scenes[0].start_ms
+        drift = [scene.scene_id for scene in scenes
+                 if scene.end_ms > int(round(duration * 1000)) + 40
+                 or scene.start_ms < -1
+                 or scene.duration_ms <= 0]
+        if abs(span_ms - dispatcher.plans.narration_ms) > 40 or first_ms < 0:
+            drift.append(f"plan spans {span_ms} ms, narration is {dispatcher.plans.narration_ms} ms")
+        if drift:
+            raise RuntimeError(f"scene plan is not synchronised with the narration: {drift}")
     total_frames = max(1, int(math.ceil(duration * FPS)))
     command = [
         "ffmpeg",
@@ -890,7 +1177,8 @@ def render_english(
         for frame_index in range(total_frames):
             t = frame_index / FPS
             geometry: dict[str, Any] = {}
-            frame = compose_frame(base, lines, t, duration, spec, brand, geometry=geometry)
+            frame = compose_frame(base, lines, t, duration, spec, brand,
+                                 geometry=geometry, dispatcher=dispatcher)
             if frame_index % FRAMING_SAMPLE_STRIDE == 0:
                 sample = measure_geometry(geometry, frame)
                 sample["t"] = round(t, 3)
@@ -916,12 +1204,26 @@ def render_english(
         ],
         "rendered_at": iso_now(),
     }
+    if dispatcher is not None:
+        plan_report = dispatcher.report()
+        plan_report["plan_id"] = script.metadata.get("plan_id")
+        (output_path.parent / "scenes.json").write_text(
+            json.dumps(plan_report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        payload["scene_plan"] = {
+            "scenes": plan_report["scenes"] and len(plan_report["scenes"]),
+            "allowed_scene_count": plan_report["allowed_scene_count"],
+            "coverage": plan_report["coverage"],
+            "problems": plan_report["problems"],
+            "report": "scenes.json",
+        }
     (output_path.parent / "render.json").write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     (output_path.parent / "timeline.json").write_text(json.dumps(narration.to_dict(), ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     (output_path.parent / "script.json").write_text(json.dumps(script.to_dict(), ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
     headline_bad = [s for s in samples if s["headline_overflow"] > 0]
-    caption_bad = [s for s in samples if s["caption_overflow"] > 0 or s["collision"]]
+    caption_bad = [s for s in samples
+                   if s["caption_overflow"] > 0 or s["collision"]
+                   or s.get("visual_caption_collision")]
     missing_headline = [s for s in samples if s["headline"] is None]
     framing = {
         "schema": "framing/1",
@@ -951,22 +1253,61 @@ def render_english(
         },
         "samples": samples[:120],
     }
+    if dispatcher is not None:
+        # A legacy card has no plate. Reporting a zero-valued element for it reads as "measured and
+        # passed" for something that does not exist, so the element is present only when it was drawn.
+        framing["elements"]["visual"] = {
+            "band": [VISUAL_PLATE["left"], VISUAL_PLATE["top"],
+                     VISUAL_PLATE["right"], VISUAL_PLATE["bottom"]],
+            "painted_frames": len([s for s in samples if s.get("visual_painted")]),
+            "measured_frames": len([s for s in samples if s.get("visual")]),
+            "max_overflow_px": max((s.get("visual_overflow") or 0 for s in samples), default=0),
+            "caption_collisions": len([s for s in samples if s.get("visual_caption_collision")]),
+        }
     (output_path.parent / "framing.json").write_text(
         json.dumps(framing, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
     scenes = []
-    for index, line in enumerate(lines):
-        scenes.append({
-            "index": index + 1,
-            "headline": line.headline,
-            "text": line.text,
-            "start": round(line.start, 3),
-            "end": round(line.end, 3),
-            "visual": line.visual or "network",
-            "sfx": line.sfx,
-            "assets": {"motif": line.visual or "network", "palette": spec.palette,
-                       "base": "generated/card-plate"},
-        })
+    if dispatcher is not None:
+        # The scene plan is the story: what is on screen, when, and where the picture came from.
+        for scene in dispatcher.plans.scenes:
+            resolution = dispatcher.resolutions.get(scene.scene_id)
+            scenes.append({
+                "index": int(scene.scene_id.lstrip("s") or 0),
+                "scene_id": scene.scene_id,
+                "headline": scene.main_concept,
+                "text": scene.narration_text,
+                "start": round(scene.start_ms / 1000.0, 3),
+                "end": round(scene.end_ms / 1000.0, 3),
+                "visual": resolution.variant if resolution else None,
+                "category_planned": scene.visual_category,
+                "category_rendered": scene.coverage_category,
+                "asset_id": scene.asset_id,
+                "asset_source": scene.asset_source,
+                "license": scene.license,
+                "attribution": scene.attribution_text,
+                "motion": resolution.motion if resolution else None,
+                "derived_from": scene.derived_from,
+                "assets": {
+                    "path": resolution.path if resolution else None,
+                    "palette": spec.palette,
+                    "base": "generated/diagram" if resolution and resolution.kind == "generated"
+                            else (resolution.kind if resolution else "none"),
+                },
+            })
+    else:
+        for index, line in enumerate(lines):
+            scenes.append({
+                "index": index + 1,
+                "headline": line.headline,
+                "text": line.text,
+                "start": round(line.start, 3),
+                "end": round(line.end, 3),
+                "visual": line.visual or "network",
+                "sfx": line.sfx,
+                "assets": {"motif": line.visual or "network", "palette": spec.palette,
+                           "base": "generated/card-plate"},
+            })
     story = {
         "schema": "story/1",
         "story_id": getattr(script, "story_id", None) or script.metadata.get("story_id"),
@@ -980,7 +1321,9 @@ def render_english(
         "scene_count": len(scenes),
         "scenes": scenes,
         "provenance": {
-            "visuals": "generated in-process from primitives; no stock photography, no third-party media",
+            "visuals": ("scene-planned diagrams generated in-process; no stock photography, no "
+                        "third-party media" if dispatcher is not None
+                        else "generated in-process from primitives; no stock photography, no third-party media"),
             "fonts": [p.name for p in (TITLE_FONT, SERIF_FONT, SMALL_FONT)],
             "music": "synthesised bed (factory.media.music)",
             "narration": "TTS provider declared in script.json",
@@ -988,4 +1331,22 @@ def render_english(
     }
     (output_path.parent / "story.json").write_text(
         json.dumps(story, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+    if dispatcher is not None:
+        from ..qa.creative import evaluate, load_thresholds
+
+        creative = evaluate(
+            channel=spec.slug,
+            scene_plan=json.loads((output_path.parent / "scenes.json").read_text(encoding="utf-8")),
+            framing=framing,
+            thresholds=load_thresholds((policy or {}).get("creative_thresholds") or None),
+        )
+        creative.write(output_path.parent / "creative.json")
+        payload["creative"] = {
+            "ok": creative.ok,
+            "failures": creative.failures,
+            "warnings": creative.warnings,
+            "metrics": creative.metrics,
+            "report": "creative.json",
+        }
     return payload
