@@ -49,7 +49,16 @@
       "spac",
       "stud",
       "test"
-    ]
+    ],
+    "visual_policy": {
+      "scene_planning": true,
+      "categories": [
+        "diagram",
+        "dataviz"
+      ],
+      "min_scene_ms": 2000,
+      "max_scene_ms": 8000
+    }
   },
   "defaults": {
     "category_id": "27",

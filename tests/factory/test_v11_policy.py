@@ -25,10 +25,23 @@ class TestParsing:
         assert policy.warnings == ()
 
     def test_a_channel_without_a_policy_gets_an_inert_one(self) -> None:
-        for slug in ("academic-biohacker", "natkhat-toons"):
-            policy = load_channel_specs()[slug].visual_policy
-            assert policy.scene_planning is False
-            assert policy.categories == ()
+        # Natkhat Toons keeps the inert policy: its visual path is the character renderer, not this
+        # engine, and adding a policy there would be a visual decision the owner has not made.
+        policy = load_channel_specs()["natkhat-toons"].visual_policy
+        assert policy.scene_planning is False
+        assert policy.categories == ()
+
+    def test_the_academic_policy_is_active_after_integration(self) -> None:
+        """Academic Biohacker was compatibility-only in v1.1; the completion work integrated it.
+
+        This test states the current wiring, so a future edit that silently disables planning on the
+        channel fails here instead of shipping statement plates from the shortsfactory path.
+        """
+
+        policy = load_channel_specs()["academic-biohacker"].visual_policy
+        assert policy.scene_planning is True
+        assert policy.categories == ("diagram", "dataviz")
+        assert policy.warnings == ()
 
     def test_a_single_string_category_is_one_category_not_characters(self) -> None:
         """v1.0: set("diagram") == {'d','i','a','g','r','m'} and the planner picked kinetic_type."""
