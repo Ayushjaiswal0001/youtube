@@ -248,3 +248,6 @@ pipeline_state/jobs/
 pipeline_state/locks/
 state/
 .state/
+
+# Visual engine content-addressed asset cache (regenerated on demand, never committed)
+x100_asset_cache/

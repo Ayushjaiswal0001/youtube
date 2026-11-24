@@ -341,10 +341,16 @@ def _render_tracked(
         "qc_report": out_dir / "qc.json",
         "timeline": out_dir / "timeline.json",
     }
-    for optional in ("framing.json", "shot_plan.json", "story.json", "script.json",
-                     "continuity.json", "audio.json", "video.json"):
-        if (out_dir / optional).is_file():
-            artifacts[optional.replace(".json", "")] = out_dir / optional
+    # Explicit name/file pairs. The old loop derived the artifact name by stripping ".json", which turned
+    # video.json into "video" and would have shadowed the video.mp4 entry; the canonical names are not all
+    # derivable from the filenames (video_probe, scene_plan, creative_qc), so they are written out.
+    for name, filename in (("framing", "framing.json"), ("shot_plan", "shot_plan.json"),
+                           ("story", "story.json"), ("script", "script.json"),
+                           ("continuity", "continuity.json"), ("audio", "audio.json"),
+                           ("video_probe", "video.json"),
+                           ("scene_plan", "scenes.json"), ("creative_qc", "creative.json")):
+        if (out_dir / filename).is_file():
+            artifacts[name] = out_dir / filename
     manifest = production_manifest(
         channel=spec.slug,
         plan_id=selected_id,

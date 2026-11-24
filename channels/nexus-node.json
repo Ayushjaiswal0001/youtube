@@ -47,7 +47,17 @@
       "security",
       "software",
       "train"
-    ]
+    ],
+    "visual_policy": {
+      "scene_planning": true,
+      "categories": [
+        "diagram",
+        "dataviz",
+        "motion_graphics"
+      ],
+      "min_scene_ms": 2000,
+      "max_scene_ms": 8000
+    }
   },
   "defaults": {
     "category_id": "27",

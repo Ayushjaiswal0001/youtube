@@ -1,0 +1,13 @@
+{
+  "_comment": "Creative QC thresholds. Values here override factory/qa/creative.py defaults; a key that is not listed in the defaults is ignored, so this file cannot disable a check.",
+  "min_scene_ms": 2000,
+  "max_scene_ms": 8000,
+  "min_distinct_assets_ratio": 0.6,
+  "min_distinct_variants": 2,
+  "max_consecutive_same_variant": 2,
+  "max_title_chars": 30,
+  "max_on_screen_words": 8,
+  "max_caption_collision_frames": 0,
+  "require_visual_every_scene": true,
+  "min_scenes_per_10s": 1.5
+}

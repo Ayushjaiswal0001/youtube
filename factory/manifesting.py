@@ -34,6 +34,8 @@ CANONICAL: Tuple[Tuple[str, str], ...] = (
     ("continuity", "continuity.json"),
     ("audio", "audio.json"),
     ("video_probe", "video.json"),
+    ("scene_plan", "scenes.json"),
+    ("creative_qc", "creative.json"),
 )
 
 REQUIRED = ("video", "thumbnail", "captions", "qc_report")
