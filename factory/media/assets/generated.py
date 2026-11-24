@@ -344,54 +344,46 @@ def spec_for(*, concept: str, narration: str, objective: str,
     stageable = [entity for entity in entities if entity not in ATTRIBUTE_ENTITIES]
     attributes = [entity for entity in entities if entity in ATTRIBUTE_ENTITIES]
 
-    # Two identical compositions back to back read as a rendering bug. When the previous scene used
-    # the same one, step down a fixed ladder to the next composition that still explains the sentence -
-    # skipping alternatives that need two subjects when only one is available, and alternatives the
-    # honesty rules below would reject anyway. Without that second filter the ladder picked `pipeline`
-    # for an unordered sentence, the sequence check collapsed it back to the composition it was trying
-    # to avoid, and a run of three identical plates was reported as a rendering bug it was not.
-    if chosen in avoid:
-        for alternative in _LADDER.get(chosen, ()):
-            if alternative in avoid:
-                continue
-            if alternative in NEEDS_TWO and len(stageable) < 2:
-                continue
-            if (alternative in {"comparison", "gap", "topology", "panels"}
-                    and attributes and sentence_pair is None):
-                continue
-            if alternative in {"pipeline", "timeline"} and not has_sequence_cue(narration):
-                continue
-            if (alternative in {"components", "layers", "topology"}
-                    and not _narration_cued(alternative, narration)):
-                continue
-            chosen = alternative
-            break
-
-    # A property is not a stage, and one thing cannot be compared with itself. Fall back to the
-    # simplest composition that is still true: a single pictured subject, plus its stated properties.
-    if chosen in NEEDS_TWO and len(stageable) < 2:
-        chosen = "statement" if attributes else "pipeline"
-    elif chosen == "pipeline" and len(stageable) < 2 and attributes:
-        chosen = "statement"
     # A stated property (cost, time) with no comparison in the sentence is a statement about its
     # subject, not a contest between two things. `pipeline` is deliberately absent: it drops the
     # property from its stages (`_draw_pipeline` keeps only drawable stages), so it can show the order
     # the sentence states instead of collapsing to a statement and losing it.
     comparative = sentence_pair is not None
-    if attributes and not comparative and chosen in {"comparison", "gap", "topology", "panels"}:
-        chosen = "statement"
-    # Comparison or co-mention? A sentence that never compares anything gets panels, so the plate
-    # cannot claim a contest the narration does not make.
-    if chosen == "comparison" and not comparative and len(stageable) >= 2:
-        chosen = "panels"
-    # Some drawers draw a specific object - a robot-arm cutaway, a layered stack, a switching grid, a
-    # time axis - and an arrow chain asserts an order. A headline can summarise a sentence loosely
-    # enough to name a cue the sentence never states ("A light sensor" is not a hardware breakdown), so
-    # these require the cue in the narration itself.
-    if chosen in {"pipeline", "timeline"} and not has_sequence_cue(narration):
-        chosen = "panels" if len(stageable) >= 2 else "statement"
-    elif chosen in {"components", "layers", "topology"} and not _narration_cued(chosen, narration):
-        chosen = "panels" if len(stageable) >= 2 else "statement"
+
+    def settle(candidate: str) -> str:
+        """The composition a candidate becomes once every honesty rule has had its say.
+
+        These rules are applied to any candidate, including the ones the ladder proposes, so the
+        ladder can never step onto a composition a later rule would move back to its predecessor.
+        """
+
+        nonlocal note
+        result = candidate
+        # A property is not a stage, and one thing cannot be compared with itself. Fall back to the
+        # simplest composition that is still true: a single pictured subject, plus its properties.
+        if result in NEEDS_TWO and len(stageable) < 2:
+            result = "statement" if attributes else "pipeline"
+        elif result == "pipeline" and len(stageable) < 2 and attributes:
+            result = "statement"
+        if attributes and not comparative and result in {"comparison", "gap", "topology", "panels"}:
+            result = "statement"
+        # Comparison or co-mention? A sentence that never compares anything gets panels, so the plate
+        # cannot claim a contest the narration does not make.
+        if result == "comparison" and not comparative and len(stageable) >= 2:
+            result = "panels"
+        # Some drawers draw a specific object - a robot-arm cutaway, a layered stack, a switching grid,
+        # a time axis - and an arrow chain asserts an order. A headline can summarise a sentence
+        # loosely enough to name a cue the sentence never states ("A light sensor" is not a hardware
+        # breakdown), so these require the cue in the narration itself.
+        if result in {"pipeline", "timeline"} and not has_sequence_cue(narration):
+            result = "panels" if len(stageable) >= 2 else "statement"
+        elif result in {"components", "layers", "topology"} and not _narration_cued(result, narration):
+            result = "panels" if len(stageable) >= 2 else "statement"
+        # A closing card is not a claim about the episode, so it does not need a subject.
+        if not entities and result != "cta":
+            result = "statement"
+            note = note or "no subject named in the sentence: statement plate, no invented subject"
+        return result
 
     # A stated figure earns a chart. A vague quantifier, a mixed-unit sentence, a single count, a
     # percentage of change, or a scene the plan did not ask to be a chart does not: those would need a
@@ -403,14 +395,24 @@ def spec_for(*, concept: str, narration: str, objective: str,
         charted = None
     if charted:
         chosen = charted
-    elif chosen in {"bars", "ratio"}:
-        # A variant forced by a caller still has to be true: a filled track for a percentage of change
-        # would assert a whole the sentence never names.
-        if chosen == "ratio" and not share_framed(narration):
+    else:
+        chosen = settle(chosen)
+        if chosen in {"bars", "ratio"} and chosen == "ratio" and not share_framed(narration):
+            # A variant forced by a caller still has to be true: a filled track for a percentage of a
+            # change would assert a whole the sentence never names.
             chosen = "statement"
-            note = note or (f"a ratio was requested for a share of a change, not of a whole: "
-                            f"the plate states the figure as text instead")
-    elif category == "dataviz" and not note:
+            note = note or ("a ratio was requested for a share of a change, not of a whole: "
+                            "the plate states the figure as text instead")
+        # Two identical compositions back to back read as a rendering bug. Step down the ladder to a
+        # composition that still explains the sentence *and* survives the rules above.
+        if chosen in avoid and chosen != "cta":
+            for alternative in _LADDER.get(chosen, ()):
+                settled = settle(alternative)
+                if settled == chosen or settled in avoid:
+                    continue
+                chosen = settled
+                break
+    if not charted and category == "dataviz" and not note:
         numeric = [figure for figure in figures if figure[1] is not None]
         if not figures:
             note = "no stated figure: a chart would need a number the narration does not say"
@@ -423,7 +425,7 @@ def spec_for(*, concept: str, narration: str, objective: str,
         else:
             note = (f"stated figures {[figure[0] for figure in figures]} cannot share one scale: "
                     f"no chart drawn")
-    elif figures and category and category != "dataviz" and chart_kind(
+    elif not charted and figures and category and category != "dataviz" and chart_kind(
             figures, narration=narration, category=""):
         # The sentence states a chartable figure but the plan asked for another kind of visual.
         note = (f"planned as {category!r}: the stated figure {figures[0][0]!r} stays as text rather "
@@ -434,17 +436,11 @@ def spec_for(*, concept: str, narration: str, objective: str,
         colors.get("accent", "#4FD1E8"), colors.get("accent2", "#FFB84D"),
         colors.get("text", "#F5F9FF"),
     )
-    title = short_title(on_screen or concept)
     if chosen == "comparison":
         # Draw exactly the pair the sentence contrasts, in the order it says them, so a plate cannot
         # pair two nouns that merely appear in the same sentence.
-        if sentence_pair is not None:
-            entities = [sentence_pair[0], sentence_pair[1]]
-        else:
-            chosen = "panels" if len(stageable) >= 2 else "statement"
-    if not entities and not charted:
-        chosen = "statement"
-        note = note or "no subject named in the sentence: statement plate, no invented subject"
+        entities = [sentence_pair[0], sentence_pair[1]]
+    title = short_title(on_screen or concept)
     return DiagramSpec(variant=chosen, title=title,
                        entities=tuple(entities), emphasis=entities[0] if entities else "idea",
                        palette=palette, figures=tuple(figures),
