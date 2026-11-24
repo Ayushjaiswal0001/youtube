@@ -228,3 +228,23 @@ renderer, `studio/`.
 | Provider-backed stock imagery | violates ₹0 and offline determinism | owner decision, not an engineering one |
 | Splitting `generated.py` into a package | mechanical, but touching 863 lines for tidiness is the kind of churn that hides real diffs | when it crosses ~1,000 lines *or* when a second channel needs its own pictograms |
 | Crossfade transitions | touches the encode loop and the frame budget | v1.2, unless the metadata truthfulness fix lands first (see D3) |
+
+---
+
+## 7. As built — where the implementation differs from this design
+
+The design in §2 was followed, with four deltas worth recording.
+
+| § | design | as built | why |
+|---|---|---|---|
+| — | (not in the blueprint) | **new `factory/media/assets/paths.py`** | §2.7 required anchored paths but placed the helpers inside existing modules; a tiny dedicated module keeps the resolver, the library and creative QC reading the same source of truth, and gives tests one place to redirect |
+| 2.2 | two new drawers in `assets/generated.py` | **`bars` + `ratio`**, plus `figure_labels()` and `comparison_pair()` | a bar labelled with its own number is unreadable, so labels come from the narration; and a comparison must draw the pair the sentence contrasts, not the first two nouns |
+| 2.3 | `tools/asset_intake.py` (~180 lines) | **not built** | P1-2 is deferred: the intake tool only earns its place when there are licensed files to take in. The library path is implemented and tested, so the tool is a thin CLI over it when the owner supplies assets |
+| 2.5 | policy parsed into a type | **as designed**, plus `VISUAL_CATEGORIES`, `VISUAL_PALETTES`, `DEFAULT_VISUAL_MIN_MS/MAX_MS` as the single vocabulary | an unknown category must be a recorded warning, which needs a known set to compare against |
+
+Two additions beyond the blueprint, both driven by inspection of the rendered video rather than by the
+plan: the `dataviz` note names the actual cause when a figure is vague, and a `comparison` scene's
+`entities` are narrowed to the contrasted pair. Both are recorded in `VISUAL_ENGINE_V1_REPORT.md` §12.1.
+
+Test counts as built: **1,169 collected and passing** (1,015 at `ea9d30a`), goldens **78 / 0 changed**,
+three-channel compat **12/12 identical**.

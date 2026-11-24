@@ -9,5 +9,7 @@
   "max_on_screen_words": 8,
   "max_caption_collision_frames": 0,
   "require_visual_every_scene": true,
-  "min_scenes_per_10s": 1.5
+  "min_scenes_per_10s": 1.5,
+  "min_distinct_pixel_ratio": 0.5,
+  "max_fingerprint_distance": 6
 }

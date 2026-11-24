@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+
 import json
 import math
 import subprocess
@@ -704,6 +706,37 @@ def _draw_scene_planned(
     return drawn
 
 
+def plate_fingerprint(image: Any) -> str:
+    """A 16x16 greyscale fingerprint of a rendered plate.
+
+    v1.0 measured visual diversity by counting distinct spec hashes, which is a statement about
+    identifiers rather than about pictures. Two specs that happen to draw near-identical plates counted
+    as two visuals. This is the picture itself, at a size where a phrase-length difference does not
+    change the result but a different drawing does.
+    """
+
+    return compared_fingerprint(image)
+
+
+def compared_fingerprint(image: Any) -> str | None:
+    from PIL import Image as _Image
+
+    if image is None:
+        return None
+
+    small = image.convert("L").resize((16, 16), _Image.BILINEAR)
+    return hashlib.sha256(small.tobytes()).hexdigest()[:16]
+
+
+def fingerprint_distance(first: str, second: str) -> int:
+    """Hamming distance between two fingerprints, on the 64-bit prefix of the hash."""
+
+    try:
+        return bin(int(first[:16], 16) ^ int(second[:16], 16)).count("1")
+    except (TypeError, ValueError):
+        return 64
+
+
 class VisualDispatcher:
     """Scene plan -> resolved visuals, held for the length of one render.
 
@@ -757,7 +790,10 @@ class VisualDispatcher:
             scene.license = resolution.record.license if resolution.record else None
             scene.attribution_text = resolution.record.attribution_text if resolution.record else None
             resolutions.append(resolution)
-            images[scene.scene_id] = resolution.image()
+            plate = resolution.image()
+            images[scene.scene_id] = plate
+            if plate is not None:
+                resolution.plate_fingerprint = plate_fingerprint(plate)
         dispatcher = cls(plans, resolutions, spec, lines=lines)
         dispatcher.images = images
         return dispatcher

@@ -21,9 +21,13 @@ def scene(scene_id: str, start: int, end: int, *, variant: str = "pipeline",
         "duration_ms": end - start, "narration_text": "text", "main_concept": title,
         "on_screen_text": on_screen, "visual_category": category,
         "coverage_category": category, "asset_id": asset_id, "asset_source": "generated",
+        # v1.1: every scene carries provenance and the fingerprint of the plate actually drawn.
+        "license": "generated-local", "attribution_text": None,
         "duration_deviation": deviation,
         "resolution": {"scene_id": scene_id, "category": category, "kind": "generated",
-                       "asset_id": asset_id, "variant": variant, "spec_title": title},
+                       "asset_id": asset_id, "variant": variant, "spec_title": title,
+                       "entities": ["video"], "license": "generated-local", "attribution": None,
+                       "plate_fingerprint": f"{abs(hash(scene_id + variant)) % (16 ** 16):016x}"},
     }
 
 

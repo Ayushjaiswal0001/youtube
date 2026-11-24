@@ -116,9 +116,12 @@ def scene(scene_id: str, start: int, end: int, variant: str = "pipeline") -> dic
         "main_concept": "Robot arm learns", "on_screen_text": "Robot arm learns",
         "coverage_category": "diagram", "duration_deviation": None,
         # the real scenes.json carries the asset at both levels; the QC reads the top-level one
-        "asset_id": f"a-{scene_id}",
+        "asset_id": f"a-{scene_id}", "asset_source": "generated", "license": "generated-local",
+        "attribution_text": None,
         "resolution": {"scene_id": scene_id, "variant": variant, "asset_id": f"a-{scene_id}",
-                       "spec_title": "Robot arm learns"},
+                       "spec_title": "Robot arm learns", "entities": ["robot"],
+                       "license": "generated-local", "attribution": None,
+                       "plate_fingerprint": f"{abs(hash(scene_id)) % (16 ** 16):016x}"},
     }
 
 
@@ -159,7 +162,10 @@ class TestM3SemanticChecks:
                 "scenes": [dict(scene("s01", 0, 6000),
                                 narration_text="Robots learn from video footage.",
                                 resolution={"scene_id": "s01", "variant": "pipeline",
-                                            "asset_id": "a", "spec_title": "STUDY"}),
+                                            "asset_id": "a", "spec_title": "STUDY",
+                                            "entities": ["robot"], "license": "generated-local",
+                                            "attribution": None,
+                                            "plate_fingerprint": "0" * 16}),
                            scene("s02", 6000, 12000, "gap")]}
         report = evaluate(channel="nexus-node", scene_plan=plan)
         check = next(item for item in report.checks if item.name == "title_matches_narration")

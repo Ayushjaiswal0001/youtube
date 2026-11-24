@@ -252,3 +252,25 @@ audit produced the quoted output on `e5cff17`.
 - **Backward compatibility by construction**: opt-in policy, legacy path untouched, 12/12 identical.
 
 Any v1.1 change that weakens one of these four is not an improvement, regardless of how the plate looks.
+
+---
+
+## 7. Delivered (v1.1 implementation)
+
+Everything in §3 was fixed in the implementation branch, each with the test that fails if it returns.
+Measured results and evidence live in `VISUAL_ENGINE_V1_REPORT.md` §12; this table is the index.
+
+| finding | status | fix | test |
+|---|---|---|---|
+| §3.2 `dataviz` classified then ignored | **fixed** | `figures.py` + `bars`/`ratio` drawers, `figure_is_stated` (error) and `dataviz_delivered` (warning) | `test_v11_figures.py`, `test_v11_diversity.py::TestDatavizDelivery` |
+| §3.3 invented `data` subject | **fixed** | `"data"` fallback removed from `spec_for`, `_entity_row`, `_draw_statement` | `test_v11_composition.py::TestNoInventedSubject` |
+| §3.4 composition from an unsupported keyword | **fixed** | sequence cue required for pipeline/timeline; `comparison_pair` required for comparison; part word required for components | `test_v11_composition.py::TestCueBasedComposition` |
+| §3.5 `distinct_visuals` counts specs | **fixed** | plate fingerprints + Hamming clustering + `visual_diversity_pixels` | `test_v11_diversity.py` |
+| §3.6 `visual_policy` unvalidated | **fixed** | `VisualPolicy`, `parse_visual_policy`, recorded warnings | `test_v11_policy.py` |
+| §3.7 CWD-relative cache and thresholds | **fixed** | `factory/media/assets/paths.py`, `FACTORY_ASSET_CACHE`, `FACTORY_ASSET_LIBRARY` | `test_v11_paths.py` |
+| §3.8 image handle leak | **fixed** | `with Image.open(...)` in `Resolution.image()`; observable by deleting a loaded file | `test_v11_provenance.py::TestHandles` |
+| §3.9 sidecar values trusted | **fixed** | license allow-list, path confinement, recorded rejections, derived attribution line | `test_v11_provenance.py::TestLibrarySafety` |
+| §3.10 provenance is a string | **fixed** | `entities`, `variant`, `license`, `attribution`, `plate_fingerprint`, `record` in `scenes.json` | `test_v11_provenance.py::TestResolutionProvenance` |
+| §3.11 transitions declared but unread | **fixed (truthfully)** | `transition_in`/`out` now `cut`; no crossfade was implemented, so none is claimed | `test_scene_plan.py` (transitions) |
+| §3.1 asset layer never exercised | **partly**: exercised by every render and test, but with **no library content** — P1-2 needs owner-supplied files | — | `test_v11_provenance.py`, `test_assets.py` |
+| §3.12 one channel | **unchanged by design** | Nexus Node only; other two stay legacy (compatibility only) | 12/12 identical |

@@ -22,14 +22,18 @@ from typing import Any
 
 from PIL import Image
 
+from ...content.figures import extract as extract_figures
 from .base import AssetProvider, DisabledProvider
 from .cache import AssetCache, sha256_file
 from .generated import DiagramSpec, motion_plan, render_diagram, spec_for, write_diagram
 from .local import LocalAssetLibrary
 from .metadata import AssetRecord
+from .paths import asset_cache_root
 from .validators import validate_record
 
-CACHE_ROOT = Path("x100_asset_cache")
+# Kept for callers that imported it; the authoritative value comes from assets.paths and can be
+# redirected with FACTORY_ASSET_CACHE.
+CACHE_ROOT = asset_cache_root()
 DIAGRAM_SIZE = (940, 600)
 
 
@@ -49,6 +53,12 @@ class Resolution:
     visible_text: list[str] = field(default_factory=list)
     reason: str | None = None
     attempts: list[str] = field(default_factory=list)
+    entities: list[str] = field(default_factory=list)
+    license: str | None = None
+    attribution: str | None = None
+    # 16-char fingerprint of the rendered plate, filled in by the renderer. Creative QC clusters
+    # these to measure visual diversity on pixels rather than on spec identifiers.
+    plate_fingerprint: str | None = None
 
     @property
     def usable(self) -> bool:
@@ -60,7 +70,10 @@ class Resolution:
         if self.spec is not None:
             return render_diagram(self.spec, size=DIAGRAM_SIZE)
         if self.path:
-            return Image.open(self.path).convert("RGB")
+            # A leaked handle keeps the file locked on Windows, which makes re-intaking a library
+            # image impossible while a render is alive.
+            with Image.open(self.path) as image:
+                return image.convert("RGB")
         return None
 
     def to_dict(self) -> dict[str, Any]:
@@ -76,14 +89,20 @@ class Resolution:
             "visible_text": self.visible_text,
             "reason": self.reason,
             "attempts": self.attempts,
+            "entities": list(self.entities),
+            "license": self.license,
+            "attribution": self.attribution,
+            "plate_fingerprint": self.plate_fingerprint,
             "record": self.record.to_dict() if self.record else None,
         }
 
 
 class AssetResolver:
     def __init__(self, *, cache: AssetCache | None = None, library: LocalAssetLibrary | None = None,
-                 provider: AssetProvider | None = None, cache_root: str | Path | None = None) -> None:
-        root = Path(cache_root) if cache_root else CACHE_ROOT
+                 provider: AssetProvider | None = None, cache_root: str | Path | None = None,
+                 chart_values: bool = True) -> None:
+        root = Path(cache_root) if cache_root else asset_cache_root()
+        self.chart_values = chart_values
         self.cache = cache or AssetCache(root)
         self.library = library or LocalAssetLibrary()
         self.provider = provider or DisabledProvider()
@@ -124,7 +143,9 @@ class AssetResolver:
                 scene_id=getattr(scene, "scene_id", ""), category="photo", kind="library",
                 record=stored, asset_id=stored.asset_id, path=stored.local_path,
                 motion={"treatment": "push_in", "enter_s": 0.3, "asset_id": stored.asset_id},
-                attempts=attempts,
+                attempts=attempts, entities=[], license=stored.license,
+                attribution=stored.attribution_text,
+                visible_text=[stored.attribution_text] if stored.attribution_text else [],
             )
         return None
 
@@ -167,8 +188,13 @@ class AssetResolver:
         concept = getattr(scene, "main_concept", "") or ""
         narration = getattr(scene, "narration_text", "") or ""
         objective = getattr(scene, "objective", "") or ""
+        category = str(getattr(scene, "visual_category",
+                               getattr(scene, "desired_category", "")) or "")
+        figures = tuple((figure.phrase, figure.value, figure.unit)
+                        for figure in extract_figures(narration))
         spec = spec_for(concept=concept, narration=narration, objective=objective, colors=colors,
-                        on_screen=getattr(scene, "on_screen_text", None), avoid=avoid)
+                        on_screen=getattr(scene, "on_screen_text", None), avoid=avoid,
+                        figures=figures, category=category, chart_values=self.chart_values)
         duration_s = (getattr(scene, "duration_ms", 0) or 0) / 1000.0
 
         cached = self.cache.lookup(channel, "diagram", spec.digest)
@@ -191,9 +217,21 @@ class AssetResolver:
 
     def _generated_resolution(self, spec: DiagramSpec, path: str, duration_s: float,
                               attempts: list[str]) -> Resolution:
+        record = self.cache.read_record(path)
         return Resolution(
-            scene_id="", category="diagram", kind="generated",
-            record=self.cache.read_record(path), asset_id=spec.asset_id, variant=spec.variant,
+            scene_id="", category=_category_of_variant(spec.variant), kind="generated",
+            record=record, asset_id=spec.asset_id, variant=spec.variant,
             path=path, spec=spec, motion=motion_plan(spec, duration_s),
-            visible_text=[spec.title, *spec.labels], attempts=attempts,
+            visible_text=[spec.title, *spec.labels, *[figure[0] for figure in spec.figures]],
+            reason=spec.note or None, attempts=attempts, entities=list(spec.entities),
+            license=record.license if record else "generated-local",
+            attribution=record.attribution_text if record else None,
         )
+
+
+def _category_of_variant(variant: str) -> str:
+    """What was actually drawn, in the scene plan's own vocabulary."""
+
+    if variant in {"bars", "ratio"}:
+        return "dataviz"
+    return "diagram"

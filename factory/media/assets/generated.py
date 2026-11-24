@@ -34,7 +34,8 @@ LEXICON: dict[str, tuple[str, tuple[str, ...]]] = {
     "model": ("model", ("model", "network", "policy", "neural", "brain", "infer", "pretrain")),
     "action": ("action", ("action", "force", "forces", "torque", "grip", "grasp", "touch")),
     "robot": ("robot", ("robot", "robots", "machine", "machines", "arm", "automation")),
-    "demonstration": ("demos", ("demonstration", "demonstrations", "teleoperation", "human")),
+    "demonstration": ("demos", ("demonstration", "demonstrations", "demos", "demo",
+                                        "teleoperation", "human")),
     "data": ("data", ("data", "dataset", "examples", "samples", "library")),
     "grid": ("grid", ("grid", "interconnection", "interconnect", "substation", "transmission")),
     "queue": ("queue", ("queue", "backlog", "waiting", "timeline", "timelines", "approval")),
@@ -61,6 +62,37 @@ NEEDS_TWO = frozenset({"gap", "comparison", "topology", "panels"})
 # "demos vs data" comparison, which is neither what it says nor a relationship it asserts.
 _COMPARATIVE = re.compile(
     r"\b(more|fewer|less|than|versus|vs|compare|compared|twice|double|half)\b", re.IGNORECASE)
+
+# The cue that actually splits a sentence into two sides. "more" alone ("more slowly") contrasts
+# nothing, so the pair test below needs one of these.
+_COMPARATOR = re.compile(
+    r"\b(?:versus|vs\.?|than|compared\s+(?:to|with)|less\s+like|more\s+like|instead\s+of)\b",
+    re.IGNORECASE)
+
+
+def comparison_pair(entities: list[str], text: str) -> tuple[str, str] | None:
+    """The two entities a comparative sentence actually contrasts, or None.
+
+    "The future of robot training looks less like programming and more like a very large video
+    library" mentions four lexicon nouns; drawing TIME vs ROBOT because those came first would assert
+    a relationship the sentence never makes. The sentence does put one thing on each side of the cue,
+    and that pair is the one to draw.
+    """
+
+    if len(entities) < 2:
+        return None
+    def subject(side: list[str]) -> str:
+        # A property ("cost", "time") is what the sentence says about a subject, so it is only the
+        # thing being contrasted when the side names nothing else.
+        concrete = [entity for entity in side if entity not in ATTRIBUTE_ENTITIES]
+        return (concrete or side)[0]
+
+    for match in _COMPARATOR.finditer(text):
+        left = [entity for entity in entities_in(text[:match.start()]) if entity in entities]
+        right = [entity for entity in entities_in(text[match.end():]) if entity in entities]
+        if left and right and subject(left) != subject(right):
+            return subject(left), subject(right)
+    return None
 
 STOPWORDS = frozenset(
     "the a an and or but so then now that this these those it its is are was were be been being "
@@ -92,17 +124,30 @@ def font(names: tuple[str, ...], size: int) -> ImageFont.FreeTypeFont:
 
 @dataclass(frozen=True)
 class DiagramSpec:
-    """Everything needed to reproduce a diagram, and nothing that depends on the environment."""
+    """Everything needed to reproduce a diagram, and nothing that depends on the environment.
+
+    ``figures`` carries the figures the sentence states, as ``(phrase, value, unit)``. ``value`` is
+    None for a vague quantifier ("thousands", "half"): it is on the card as words and can never become
+    a number. ``note`` records why a requested visual was not delivered (a chart with no stated figure,
+    a statement with no subject), so the gap is auditable rather than silent.
+    """
 
     variant: str
     title: str
     entities: tuple[str, ...]
     emphasis: str
     palette: tuple[str, str, str, str, str]   # bg, panel, accent, accent2, text
+    figures: tuple[tuple[str, float | None, str], ...] = ()
+    # The words the narration uses for each figure ("human demonstrations", "video"), so a bar is
+    # labelled with the subject it belongs to instead of repeating its own number.
+    figure_labels: tuple[str, ...] = ()
+    note: str = ""
 
     def canonical(self) -> str:
         return json.dumps({"v": self.variant, "t": self.title, "e": list(self.entities),
-                           "m": self.emphasis, "p": list(self.palette)},
+                           "m": self.emphasis, "p": list(self.palette),
+                           "f": [list(figure) for figure in self.figures],
+                           "l": list(self.figure_labels), "n": self.note},
                           sort_keys=True, ensure_ascii=False)
 
     @property
@@ -182,18 +227,27 @@ def choose_variant(entities: list[str], text: str) -> str:
 
     if len(entities) >= 2 and has(" not ", " gap ", " missing ", " without ", " short of ", " instead "):
         return "gap"
-    if has(" thousand", " percent", " more than ", " fewer ", " cheaper ", " faster ", " slower ",
-           " cost ", " compare ", " versus ", " slow and "):
+    if comparison_pair(entities, text) is not None:
         return "comparison"
-    if has(" arm ", " gripper ", " joint ", " motor ", " sensor ", " grasp ", " grip "):
+    # The components drawer is a labelled cutaway ("shoulder, elbow, gripper"), which asserts the
+    # sentence is about hardware parts. Ordinary robotics prose mentions "arm" and "grasp" constantly,
+    # so only an explicit part word earns that plate.
+    if has(" joint ", " gripper ", " motor ", " sensor ", " actuator ", " end effector "):
         return "components"
     if has(" layer ", " stack ", " architecture ", " pipeline ", " stage "):
         return "layers"
     if has(" grid ", " interconnection ", " substation ", " queue ", " backlog "):
         return "topology"
-    if has(" year ", " years ", " month ", " months ", " decade ", " future ", " next "):
+    sequenced = has_sequence_cue(lowered)
+    if sequenced and has(" year ", " years ", " month ", " months ", " decade ", " future ", " next "):
         return "timeline"
-    return "pipeline"
+    if sequenced and len(entities) >= 2:
+        return "pipeline"
+    # Today's sentences often state two things without ordering or comparing them. Panels say only
+    # "both of these are in this sentence", which is the one claim that is always true.
+    if len(entities) >= 2:
+        return "panels"
+    return "statement"
 
 
 _TRAILING_STOPWORDS = frozenset("for on the in and of to a an with at by from".split())
@@ -231,19 +285,22 @@ _LADDER: dict[str, tuple[str, ...]] = {
     "timeline": ("pipeline", "topology"),
     "cta": ("cta",),
     "statement": ("pipeline", "timeline"),
+    "bars": ("ratio", "panels"),
+    "ratio": ("bars", "statement"),
 }
 
 
 def spec_for(*, concept: str, narration: str, objective: str,
              colors: dict[str, str], variant: str | None = None,
-             on_screen: str | None = None, avoid: tuple[str, ...] = ()) -> DiagramSpec:
+             on_screen: str | None = None, avoid: tuple[str, ...] = (),
+             figures: tuple[tuple[str, float | None, str], ...] = (),
+             category: str = "", chart_values: bool = True) -> DiagramSpec:
     entities = entities_in(f"{narration} {concept}")
-    if len(entities) < 2:
-        for word in content_words(f"{concept} {narration}"):
-            if not any(word == LEXICON[entity][0] for entity in entities):
-                entities.append("data")
-                break
+    # v1.0 appended a "data" entity when a sentence named nothing it recognised, which put a noun on
+    # the plate that the narration never said. A sentence with no subject gets a statement, not an
+    # invented one.
     chosen = variant or choose_variant(entities, f"{concept} {narration} {objective}")
+    note = ""
     stageable = [entity for entity in entities if entity not in ATTRIBUTE_ENTITIES]
     attributes = [entity for entity in entities if entity in ATTRIBUTE_ENTITIES]
 
@@ -267,7 +324,7 @@ def spec_for(*, concept: str, narration: str, objective: str,
         chosen = "statement"
     # A stated property (cost, time) with no comparison in the sentence is a statement about its
     # subject, not an ordering and not a contest between two things.
-    comparative = bool(_COMPARATIVE.search(f"{narration} {concept} {objective}"))
+    comparative = comparison_pair(entities, f"{narration} {concept} {objective}") is not None
     if attributes and not comparative and chosen in {"pipeline", "comparison", "gap",
                                                      "topology", "panels"}:
         chosen = "statement"
@@ -275,15 +332,44 @@ def spec_for(*, concept: str, narration: str, objective: str,
     # cannot claim a contest the narration does not make.
     if chosen == "comparison" and not comparative and len(stageable) >= 2:
         chosen = "panels"
+    if chosen in {"pipeline", "timeline"} and not has_sequence_cue(f"{concept} {narration}"):
+        chosen = "panels" if len(stageable) >= 2 else "statement"
+
+    # A stated figure earns a chart. A vague quantifier, a mixed-unit sentence or a single count does
+    # not: those need a baseline the narration never gives, so the plate keeps its words instead.
+    charted = _chart_kind(figures) if (figures and chart_values) else None
+    if charted:
+        chosen = charted
+    elif category == "dataviz":
+        numeric = [figure for figure in figures if figure[1] is not None]
+        if not figures:
+            note = "no stated figure: a chart would need a number the narration does not say"
+        elif not numeric:
+            note = (f"only a vague quantifier ({figures[0][0]!r}): a bar would invent the number "
+                    f"the narration never gives")
+        else:
+            note = (f"stated figures {[figure[0] for figure in figures]} cannot share one scale: "
+                    f"no chart drawn")
+
     palette = (
         colors.get("bg", "#050B16"), colors.get("panel", "#10243A"),
         colors.get("accent", "#4FD1E8"), colors.get("accent2", "#FFB84D"),
         colors.get("text", "#F5F9FF"),
     )
     title = short_title(on_screen or concept)
+    if chosen == "comparison":
+        # Draw exactly the pair the sentence contrasts, in the order it says them, so a plate cannot
+        # pair two nouns that merely appear in the same sentence.
+        pair = comparison_pair(entities, f"{narration} {concept} {objective}")
+        if pair is not None:
+            entities = [pair[0], pair[1]]
+    if not entities and not charted:
+        chosen = "statement"
+        note = note or "no subject named in the sentence: statement plate, no invented subject"
     return DiagramSpec(variant=chosen, title=title,
                        entities=tuple(entities), emphasis=entities[0] if entities else "idea",
-                       palette=palette)
+                       palette=palette, figures=tuple(figures),
+                       figure_labels=figure_labels(narration, tuple(figures)), note=note)
 
 
 # ---------------------------------------------------------------------------
@@ -555,6 +641,95 @@ def _icon_for(entity: str) -> str:
 
 
 # ---------------------------------------------------------------------------
+# stated figures (v1.1)
+# ---------------------------------------------------------------------------
+_SEQUENCE_CUES = re.compile(
+    r"\b(first|then|after|before|finally|last|second|third|"
+    r"step\s+(?:\d+|one|two|three|four)|one\s+by\s+one|in\s+order|followed\s+by)\b"
+    # "next" is a cue, but "next year" / "next month" is a date, not a sequence.
+    r"|\bnext\b(?!\s+(?:year|month|week|day|decade|quarter|time))",
+    re.IGNORECASE)
+
+
+def has_sequence_cue(text: str) -> bool:
+    """True only when the sentence states an order, not merely when it mentions time.
+
+    "The future of robot training looks like a video library" mentions the future and states no
+    chronology; drawing an axis there asserts an order the narration does not make.
+    """
+
+    lowered = f" {text.lower()} "
+    lowered = lowered.replace("cannot", " can not ")
+    return bool(_SEQUENCE_CUES.search(lowered))
+
+
+_LABEL_STOPWORDS = {"is", "are", "was", "were", "be", "of", "the", "a", "an", "at", "than", "and",
+                    "so", "to", "in", "on", "for", "with", "that", "this", "it", "its", "only",
+                    "about", "just", "only", "now", "then", "which", "while", "cost", "costs"}
+
+
+def figure_labels(narration: str,
+                  figures: tuple[tuple[str, float | None, str], ...]) -> tuple[str, ...]:
+    """The narration words that name each figure, for chart labels.
+
+    "Human demonstrations are 80 percent of the cost and video is 20 percent" labels its two bars
+    "human demonstrations" and "video", so the plate never repeats the number as its own subject.
+    """
+
+    text = str(narration or "")
+    lowered = text.lower()
+    labels: list[str] = []
+    for phrase, _, _ in figures:
+        position = lowered.find(str(phrase).lower())
+        if position <= 0:
+            labels.append("")
+            continue
+        words = [word.strip(".,;:!?") for word in text[:position].split()]
+        picked: list[str] = []
+        for word in reversed(words):
+            cleaned = word.strip(".,;:!?—-").lower()
+            if not cleaned or cleaned in _LABEL_STOPWORDS or not cleaned.isalpha():
+                if picked:
+                    break
+                continue
+            picked.insert(0, word.strip(".,;:!?"))
+            if len(picked) == 3:
+                break
+        labels.append(" ".join(picked))
+    return tuple(labels)
+
+
+def _chart_kind(figures: tuple[tuple[str, float | None, str], ...]) -> str | None:
+    """``bars`` for several comparable values, ``ratio`` for one stated proportion, else None."""
+
+    numeric = [figure for figure in figures if figure[1] is not None]
+    if not numeric:
+        return None
+    units = {figure[2] for figure in numeric}
+    if len(units) != 1:
+        return None
+    unit = numeric[0][2]
+    if len(numeric) == 1:
+        if unit != "%":
+            return None
+        value = float(numeric[0][1])
+        # A proportion of a whole is drawable only inside 0..100; anything else needs a baseline the
+        # sentence does not provide.
+        return "ratio" if 0 < value <= 100 else None
+    if unit == "%":
+        if not all(0 <= float(figure[1]) <= 100 for figure in numeric):
+            return None
+        return "bars"
+    if len(numeric) > 3:
+        return None
+    return "bars"
+
+
+def _figure_rows(spec: DiagramSpec) -> list[tuple[str, float | None, str]]:
+    return [tuple(row) for row in spec.figures]  # type: ignore[misc]
+
+
+# ---------------------------------------------------------------------------
 # composition
 # ---------------------------------------------------------------------------
 def _backdrop(canvas: Canvas) -> None:
@@ -584,8 +759,7 @@ def _entity_row(spec: DiagramSpec, count: int) -> list[str]:
     a claim about two stages that do not exist. A composition adapts to the entities it has.
     """
 
-    entities = list(dict.fromkeys(spec.entities)) or ["data"]
-    return entities[:count]
+    return list(dict.fromkeys(spec.entities))[:count]
 
 
 def _band(canvas: Canvas, top: float) -> tuple[float, float]:
@@ -755,6 +929,78 @@ def _draw_timeline(canvas: Canvas, spec: DiagramSpec, top: float) -> None:
 
 
 
+def _label_for(spec: DiagramSpec, index: int) -> str:
+    """The narration's own word for the figure at ``index``, upper-cased, or "" when there is none."""
+
+    if index < len(spec.figure_labels):
+        return spec.figure_labels[index].upper()
+    return ""
+
+
+def _stated_numbers(spec: DiagramSpec) -> list[tuple[str, float, str]]:
+    """Only the figures the sentence actually stated with a number."""
+
+    return [(phrase, float(value), unit) for phrase, value, unit in spec.figures
+            if value is not None]
+
+
+def _draw_bars(canvas: Canvas, spec: DiagramSpec, top: float) -> None:
+    """Comparable stated values, one bar each, on one scale, labelled with the spoken phrase.
+
+    Bars share a scale only when the units match (the spec builder refuses anything else), and no bar
+    is ever drawn against an imagined baseline: the empty track behind each bar is a guide, not a
+    second value.
+    """
+
+    stated = _stated_numbers(spec)[:3]
+    if not stated:
+        _draw_statement(canvas, spec, top)
+        return
+    upper, lower = _band(canvas, top)
+    height = min(74, (lower - upper) / (len(stated) + 0.5))
+    largest = max(value for _, value, _ in stated) or 1.0
+    track_x0, track_x1 = 250, canvas.width - 130
+    for index, (phrase, value, unit) in enumerate(stated):
+        y = upper + 18 + index * (height + 22)
+        canvas.rect(track_x0, y, track_x1, y + height, radius=12, fill=canvas.bg,
+                    outline=canvas.panel, width=2, alpha=235)
+        span = (track_x1 - track_x0) * (value / largest)
+        if span > 0:
+            canvas.rect(track_x0, y, track_x0 + max(14, span), y + height, radius=12,
+                        fill=canvas.accent, outline=canvas.accent, width=0, alpha=235)
+        label = f"{value:g}{unit}"
+        caption = _label_for(spec, index) or phrase.upper()[:22]
+        canvas.text_at(track_x0 - 18, y + height / 2 - 10, caption[:22], size=16, anchor="ra")
+        canvas.text_at(track_x0 + max(20, span) + 16, y + height / 2 - 10, label, size=19,
+                       fill=canvas.accent2)
+    _footer(canvas, spec, "FIGURES THE SENTENCE STATES")
+
+
+def _draw_ratio(canvas: Canvas, spec: DiagramSpec, top: float) -> None:
+    """One stated proportion of a whole, drawn against a full track and labelled as spoken."""
+
+    stated = _stated_numbers(spec)
+    if not stated:
+        _draw_statement(canvas, spec, top)
+        return
+    phrase, value, unit = stated[0]
+    fraction = max(0.0, min(1.0, value / 100.0 if unit == "%" else value))
+    upper, lower = _band(canvas, top)
+    track_x0, track_x1 = 130, canvas.width - 130
+    y = (upper + lower) / 2 - 26
+    canvas.rect(track_x0, y, track_x1, y + 52, radius=26, fill=canvas.bg,
+                outline=canvas.panel, width=2.5, alpha=235)
+    filled = track_x0 + (track_x1 - track_x0) * fraction
+    if filled - track_x0 > 6:
+        canvas.rect(track_x0, y, filled, y + 52, radius=26, fill=canvas.accent,
+                    outline=canvas.accent, width=0, alpha=235)
+    canvas.text_at(canvas.width / 2, y + 26, f"{value:g}{unit}", size=26, anchor="mm",
+                   fill=canvas.text)
+    canvas.text_at(canvas.width / 2, y - 34, (_label_for(spec, 0) or phrase.upper())[:40], size=17,
+                   anchor="ma", fill=canvas.accent2)
+    _footer(canvas, spec, "THE SHARE THE SENTENCE STATES")
+
+
 def _draw_cta(canvas: Canvas, spec: DiagramSpec, top: float) -> None:
     """A closing card: concentric rings, an arrow, three beats. No claim, just an invitation."""
 
@@ -782,7 +1028,17 @@ def _draw_statement(canvas: Canvas, spec: DiagramSpec, top: float) -> None:
     inventing an order between "demos", "cost" and "data". No number is drawn, no arrow is implied.
     """
 
-    entities = list(dict.fromkeys(spec.entities)) or ["data"]
+    entities = list(dict.fromkeys(spec.entities))
+    if not entities:
+        # A sentence that names nothing we can draw gets no pictogram and no label. The title and the
+        # footer are the whole plate; an invented subject was the defect this replaces.
+        upper, lower = _band(canvas, top)
+        cx, cy = canvas.width / 2, (upper + lower) / 2 - 22
+        canvas.circle(cx, cy, 132, outline=canvas.accent, width=3, alpha=200)
+        canvas.circle(cx, cy, 104, outline=canvas.accent2, width=2, alpha=120)
+        canvas.circle(cx, cy, 12, fill=canvas.accent, outline=canvas.bg, width=3)
+        _footer(canvas, spec, "WHAT THE SENTENCE STATES")
+        return
     subject = next((entity for entity in entities if entity not in ATTRIBUTE_ENTITIES), entities[0])
     attributes = [entity for entity in entities if entity in ATTRIBUTE_ENTITIES]
     upper, lower = _band(canvas, top)
@@ -817,6 +1073,8 @@ _DRAWERS = {
     "timeline": _draw_timeline,
     "cta": _draw_cta,
     "statement": _draw_statement,
+    "bars": _draw_bars,
+    "ratio": _draw_ratio,
 }
 
 # Matches the visual plate in the Shorts layout: 912 wide is the safe area divided by the maximum
@@ -836,7 +1094,13 @@ def render_diagram(spec: DiagramSpec, *, size: tuple[int, int] = DEFAULT_SIZE) -
     canvas = Canvas(size[0], size[1], spec.palette)
     _backdrop(canvas)
     top = _header(canvas, spec)
-    _DRAWERS.get(spec.variant, _draw_pipeline)(canvas, spec, top)
+    drawer = _DRAWERS.get(spec.variant, _draw_pipeline)
+    needs_subject = spec.variant not in {"statement", "cta", "bars", "ratio"}
+    if needs_subject and not list(dict.fromkeys(spec.entities)):
+        # Belt and braces: a forced variant with no subject draws a statement rather than raising or
+        # inventing the subject v1.0 used to append.
+        drawer = _draw_statement
+    drawer(canvas, spec, top)
     return canvas.finish()
 
 

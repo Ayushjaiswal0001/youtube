@@ -229,3 +229,56 @@ later change to the plan look like a change to the code.
 
 **Cost.** Two reviews instead of one, and the blueprint must stay honest as implementation reveals what
 the estimate got wrong. That is the intended outcome, not a cost.
+
+---
+
+## Delivered status
+
+Each decision below was implemented as written. Two were sharpened by the first rendered video, and are
+recorded here rather than being silently folded into the code.
+
+| decision | status | note |
+|---|---|---|
+| **D1** layer of three narrow components | delivered | `figures.py`, the two drawers, and the honesty/plumbing fixes; nothing else |
+| **D2** a chart may only draw a stated number | delivered | `extract()` never invents a value; a vague quantifier draws a `panels`/`statement` plate with a recorded reason; `figure_is_stated` fails a package that shows an unstated digit |
+| **D3** metadata must describe the rendered video | delivered | `transition_in`/`out` are `cut`; no crossfade is claimed |
+| **D4** typed policy, warnings never silent | delivered | `VisualPolicy` + `parse_visual_policy`; a non-object, a string category, an unknown category, a bad band and an unknown palette each produce a recorded warning and a safe default |
+| **D5** paths anchored, env-overridable | delivered | `paths.py`; the environment wins, the repository is the fallback, the working directory is never consulted |
+| **D6** diversity measured on pixels | delivered | 16×16 fingerprint per plate, Hamming ≤ 6 clusters, ratio ≥ 0.5 |
+| **D7** library path ships with an intake tool or not at all | **partly**: the library path shipped, the intake tool did not | the library is implemented, confined and tested, but with no licensed files the intake CLI has nothing to take in; P1-2 remains deferred, so this decision is *open*, not satisfied |
+| **D8** Academic paper palette, Natkhat excluded | honoured by not doing it | both channels untouched, 12/12 identical |
+| **D9** every claim gated by a number | delivered | the numbers are in `VISUAL_ENGINE_V1_REPORT.md` §12.2, measured before this branch was committed |
+| **D10** nothing weakens the four v1.0 guarantees | delivered | opt-in policy, pixel-identical legacy path, fail-closed gate (a missing creative verdict still blocks), measured-only claims |
+| **D11** documentation does not travel with the code | followed | the blueprint was merged as PR #14 before any implementation commit existed |
+
+### D12 (new). A comparison draws the pair the sentence contrasts, or it draws nothing
+
+**Decision.** `comparison` requires a `_COMPARATOR` (`versus`, `than`, `compared to`, `less like`,
+`more like`, `instead of`) with at least one entity on each side, and the plate draws exactly that pair.
+A side that names only a property (`cost`, `time`) is represented by its concrete subject.
+
+**Why.** The first v1.1 render put **TIME vs ROBOT** on the card for *"the future of robot training
+looks less like programming and more like a very large video library"*: four nouns matched, and the
+first two were drawn. That is the v1.0 co-mention defect wearing a new mask, and the audit had already
+named it (§3.4). After the fix the same sentence draws **ROBOT vs VIDEO**, which is the contrast it
+makes.
+
+**Rejected.** Keeping first-two-entities and only requiring comparative language (that is what D17 in
+`X100_AUTONOMOUS_DECISIONS.md` already forbade).
+
+**Cost.** Some real comparisons will now fall back to `panels` because the sentence puts both sides on
+one side of the cue. That is the correct direction of error: a plate may say less than the sentence, it
+may not say something else.
+
+### D13 (new). A chart label comes from the narration's own words for the figure
+
+**Decision.** `figure_labels()` takes up to three words immediately before each figure, minus
+stopwords, and the bar/ratio drawers print those instead of the figure's own phrase; the value is
+printed separately. When no label can be derived, the phrase is used as before.
+
+**Why.** The specimen render showed "80 PERCENT … 80%": the number repeated as both the subject and the
+value, which tells a viewer nothing about *what* is 80 %. The narration already names it.
+
+**Cost.** Labels can be terse ("VIDEO PRETRAINING"), and a sentence that states a figure before naming
+its subject produces no label; the phrase fallback still applies. Both are visible on the card, which is
+the point.

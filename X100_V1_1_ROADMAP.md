@@ -239,3 +239,45 @@ Items 1–7 are the release. Items 8–11 can follow as v1.1.x without re-openin
 9. Docs updated: `VISUAL_ENGINE_V1_REPORT.md` (v1.1 section, appended, v1.0 history intact),
    `X100_V1_1_*.md` marked as delivered with measured results.
 10. PR against `main`, CI green on all required checks, merged only by the owner.
+
+---
+
+## 8. Delivery record
+
+Branch `feature/x100-visual-engine-v1-1` from `main @ ea9d30a`. Every P0 item and P1-1 were delivered
+together, as §0 required; nothing outside that set was touched.
+
+| item | status | evidence |
+|---|---|---|
+| P0-1 typed `visual_policy` | **delivered** | `test_v11_policy.py` (19 tests) |
+| P0-2 no invented subject | **delivered** | `test_v11_composition.py::TestNoInventedSubject` |
+| P0-3 cue-required compositions | **delivered** | `test_v11_composition.py` (68 tests) |
+| P0-4 anchored paths | **delivered** | `test_v11_paths.py` (9) |
+| P0-5 structured provenance + handles | **delivered** | `test_v11_provenance.py` (13) |
+| P0-6 pixel-based diversity | **delivered** | `test_v11_diversity.py` (14) |
+| P1-1 stated figures → charts | **delivered** | `test_v11_figures.py` (35) |
+| P1-2 asset library pilot | **deferred** (needs owner files; intake tool not built) | — |
+| P1-3 Academic "paper" palette | **deferred** | — |
+| P1-4 composition budget | **deferred** | — |
+| P1-5 crossfade | **deferred**; transitions made truthful instead (`cut`) | §12.3 |
+| P2 (advanced) | **unchanged, still deferred** | — |
+
+### Against §7, the definition of done
+
+| # | criterion | result |
+|---|---|---|
+| 1 | full suite green, ≥ 1,015 + new | **1,169 passed**, engine files alone 263 in 14.4 s |
+| 2 | goldens unchanged | **78 frames, 0 changed, 0 new** |
+| 3 | 12/12 × 3-channel compat vs `e5cff17` | **12/12 identical** |
+| 4 | gate 25/25, creative + 5 new, manifest clean, plate within ±20 % | **25/25**, 21 checks (1 warning), verify clean, ink −1.1 % / colours −4.2 % |
+| 5 | ≤ 200 s, warm ≤ 700 ms, ≤ 2 MB/plate | **187.0 s**, **672.0 ms**, **1.10 MB** |
+| 6 | ≥ 1 stated number drawn, 0 invented | **no chart in the reference episode** (it states no number); chart capability verified on a specimen render, and `figure_is_stated` fails any package that shows an unstated number — see §12.3 of the report |
+| 7 | `scenes.json` provenance per scene | **present** for all 9 |
+| 8 | secret scan clean, no dependency, no network | **clean**; no new dependency; no network in the render path |
+| 9 | docs updated | this appendix, plus `VISUAL_ENGINE_V1_REPORT.md` §12 |
+| 10 | PR against `main`, CI green, merged only by the owner | PR opened, CI green, **not merged by the agent** |
+
+Criterion 6 is the one that is not a clean "yes". It is reported as measured, not as hoped: the engine
+can draw a stated number and refuses to draw an unstated one, but the reference narration never states
+one, so no chart appears in it. The remedy is a content edit (a beat that states a figure), which was
+outside the authorised scope.

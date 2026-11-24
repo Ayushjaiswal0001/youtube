@@ -65,7 +65,8 @@ class AssetRecord:
             return f"licence {self.license!r} requires attribution text and none was recorded"
         if self.generated and not self.generation_spec:
             return "generated asset without a generation spec is not reproducible"
-        if not self.generated and not (self.source_url or self.creator):
+        if self.license != "owner-supplied" and not self.generated and not (
+                self.source_url or self.creator):
             return "external asset without a source URL or creator"
         return None
 

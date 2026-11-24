@@ -19,6 +19,8 @@ Four rules shape it:
 
 from __future__ import annotations
 
+from .figures import extract as extract_figures
+
 import math
 import re
 from dataclasses import asdict, dataclass, field
@@ -81,6 +83,9 @@ class ScenePlan:
     visual_variant: str | None = None
     duration_deviation: dict[str, Any] | None = None
     derived_from: dict[str, Any] = field(default_factory=dict)
+    # Figures the sentence states, as data. A chart on the plate is auditable against this list, and
+    # a vague quantifier ("thousands") is recorded with value None so it can never become a number.
+    figures: list[dict[str, Any]] = field(default_factory=list)
 
     @property
     def duration_ms(self) -> int:
@@ -517,9 +522,12 @@ def plan_scenes(
             fallback="diagram" if category != "kinetic_type" else "motion_graphics",
             on_screen_text=_on_screen(str(getattr(piece["line"], "headline", "")), text),
             motion="push_in" if (index + 1) % 2 else "drift_right",
-            transition_in="cut" if index == 0 else "crossfade",
-            transition_out="cut" if index + 1 == len(merged) else "crossfade",
+            # The renderer cuts between scenes; v1.1 does not implement a crossfade, so the plan
+            # says "cut" rather than claiming a transition the video does not perform.
+            transition_in="cut",
+            transition_out="cut",
             duration_deviation=deviation,
+            figures=[figure.to_dict() for figure in extract_figures(text)],
             derived_from=({"line_index": piece["line_index"],
                            "lines": list(piece["merged_lines"]),
                            "word_range": None}

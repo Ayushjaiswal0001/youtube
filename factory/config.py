@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Iterator, Mapping
+
+LOGGER = logging.getLogger(__name__)
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 CHANNELS_DIR = REPO_ROOT / "channels"
@@ -90,6 +93,137 @@ def bool_env(name: str, default: bool = False) -> bool:
     return value.strip().lower() in {"1", "true", "yes", "on"}
 
 
+VISUAL_CATEGORIES = ("diagram", "dataviz", "motion_graphics", "kinetic_type", "photo",
+                     "illustration", "software_demo")
+VISUAL_PALETTES = ("default", "paper")
+DEFAULT_VISUAL_MIN_MS = 2000
+DEFAULT_VISUAL_MAX_MS = 8000
+
+
+@dataclass(frozen=True)
+class VisualPolicy(Mapping[str, Any]):
+    """How a channel is allowed to be visualised, parsed once and validated.
+
+    A raw dict allowed ``{"categories": "diagram"}`` to survive, which ``set()`` then turned into
+    ``{'d','i','a','g','r','m'}``; the planner compared categories against single characters and
+    silently picked a different visual language. This type refuses to be parsed that way, keeps the
+    warnings it produced, and still behaves like the dict every existing caller expects.
+    """
+
+    scene_planning: bool = False
+    categories: tuple[str, ...] = ()
+    min_scene_ms: int = DEFAULT_VISUAL_MIN_MS
+    max_scene_ms: int = DEFAULT_VISUAL_MAX_MS
+    palette: str = "default"
+    chart_values: bool = True
+    warnings: tuple[str, ...] = ()
+
+    def as_dict(self) -> dict[str, Any]:
+        """The mapping view, for callers that pass a policy around as plain data."""
+
+        return {
+            "scene_planning": self.scene_planning,
+            "categories": list(self.categories),
+            "min_scene_ms": self.min_scene_ms,
+            "max_scene_ms": self.max_scene_ms,
+            "palette": self.palette,
+            "chart_values": self.chart_values,
+        }
+
+    # Mapping protocol: `policy.get("scene_planning")`, `dict(policy)` and `policy or {}` all keep
+    # working exactly as they did with a plain dict.
+    def __getitem__(self, key: str) -> Any:
+        try:
+            return self.as_dict()[key]
+        except KeyError as error:
+            raise KeyError(key) from error
+
+    def __iter__(self) -> Iterator[str]:
+        return iter(self.as_dict())
+
+    def __len__(self) -> int:
+        return len(self.as_dict())
+
+    def get(self, key: str, default: Any = None) -> Any:  # type: ignore[override]
+        return self.as_dict().get(key, default)
+
+
+def parse_visual_policy(raw: Any, *, slug: str = "") -> VisualPolicy:
+    """Parse and validate ``visual_policy``. Bad values fall back and record why.
+
+    A typo in one channel's config must not stop the other two from rendering, so this warns and
+    defaults rather than raising - but the warning is kept on the object so a test (and a reviewer)
+    can see exactly what was rejected.
+    """
+
+    if isinstance(raw, VisualPolicy):
+        return raw
+    if raw is None:
+        return VisualPolicy()
+    if not isinstance(raw, Mapping):
+        message = f"visual_policy is {type(raw).__name__}, expected an object: ignored"
+        LOGGER.warning("%s: %s", slug or "channel", message)
+        return VisualPolicy(warnings=(message,))
+
+    warnings: list[str] = []
+    data = dict(raw)
+
+    scene_planning = data.get("scene_planning", False)
+    if not isinstance(scene_planning, bool):
+        warnings.append(f"scene_planning={scene_planning!r} is not a boolean: using False")
+        scene_planning = False
+
+    raw_categories = data.get("categories")
+    if raw_categories is None:
+        categories: tuple[str, ...] = ()
+    elif isinstance(raw_categories, str):
+        # One string is one category. Treating it as a sequence produced single characters.
+        categories = (raw_categories.strip(),) if raw_categories.strip() else ()
+    elif isinstance(raw_categories, (list, tuple, set, frozenset)):
+        categories = tuple(str(item).strip() for item in raw_categories if str(item).strip())
+    else:
+        warnings.append(f"categories={type(raw_categories).__name__} is not a list: ignored")
+        categories = ()
+    unknown = [category for category in categories if category not in VISUAL_CATEGORIES]
+    if unknown:
+        warnings.append(f"unknown visual categories dropped: {unknown}")
+        categories = tuple(category for category in categories if category in VISUAL_CATEGORIES)
+
+    def positive_int(key: str, default: int) -> int:
+        value = data.get(key, default)
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            warnings.append(f"{key}={value!r} is not a number: using {default}")
+            return default
+        number = int(value)
+        if number <= 0:
+            warnings.append(f"{key}={value!r} must be positive: using {default}")
+            return default
+        return number
+
+    min_scene_ms = positive_int("min_scene_ms", DEFAULT_VISUAL_MIN_MS)
+    max_scene_ms = positive_int("max_scene_ms", DEFAULT_VISUAL_MAX_MS)
+    if min_scene_ms >= max_scene_ms:
+        warnings.append(f"min_scene_ms ({min_scene_ms}) >= max_scene_ms ({max_scene_ms}): using defaults")
+        min_scene_ms, max_scene_ms = DEFAULT_VISUAL_MIN_MS, DEFAULT_VISUAL_MAX_MS
+
+    palette = data.get("palette", "default")
+    if not isinstance(palette, str) or palette not in VISUAL_PALETTES:
+        warnings.append(f"palette={palette!r} is not one of {list(VISUAL_PALETTES)}: using 'default'")
+        palette = "default"
+
+    chart_values = data.get("chart_values", True)
+    if not isinstance(chart_values, bool):
+        warnings.append(f"chart_values={chart_values!r} is not a boolean: using True")
+        chart_values = True
+
+    policy = VisualPolicy(scene_planning=scene_planning, categories=categories,
+                          min_scene_ms=min_scene_ms, max_scene_ms=max_scene_ms, palette=palette,
+                          chart_values=chart_values, warnings=tuple(warnings))
+    if warnings:
+        LOGGER.warning("%s: visual_policy: %s", slug or "channel", "; ".join(warnings))
+    return policy
+
+
 @dataclass(frozen=True)
 class ChannelSpec:
     slug: str
@@ -118,7 +252,8 @@ class ChannelSpec:
     # How this channel is allowed to be visualised. Empty means the legacy renderer: one visual per
     # narration line. ``scene_planning`` opts a channel into the scene planner, and ``categories``
     # bounds the visual jobs it may plan (a channel with no imagery supplied can never claim a photo).
-    visual_policy: dict = field(default_factory=dict)
+    # Parsed into :class:`VisualPolicy`, which is also a Mapping, so ``.get()`` callers keep working.
+    visual_policy: VisualPolicy = field(default_factory=VisualPolicy)
 
     @property
     def is_hindi(self) -> bool:
@@ -210,7 +345,7 @@ def load_channel_specs(channels_dir: Path | str | None = None) -> dict[str, Chan
             tags=tuple(tags),
             description_footer=str(defaults.get("description_footer", "")),
             made_for_kids=defaults.get("made_for_kids", False),
-            visual_policy=dict(factory.get("visual_policy") or {}),
+            visual_policy=parse_visual_policy(factory.get("visual_policy"), slug=slug),
         )
         specs[slug] = spec
     if not specs:
