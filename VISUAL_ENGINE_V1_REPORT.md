@@ -1,8 +1,11 @@
 # X100 Visual Engine v1.0 — local execution report
 
-Status: **implemented and verified locally. Nothing is committed, pushed, deployed, or uploaded.**
-Branch `feature/x100-visual-engine-v1` (base `b87edb3` = `main` after PR #12), working tree carries all
-changes uncommitted, as the authorisation requires.
+Status: **implemented, verified locally, committed as `44030107adf480b913b770811b02a0c60feb89a6` on
+`feature/x100-visual-engine-v1`, and pushed; open for review as PR #13 against `main`. Not deployed and
+not uploaded.**
+Base `b87edb3` = `main` after PR #12. The sections below are the historical record of the passes that
+produced this commit: they were written while the work was uncommitted, and their measurements, audit
+verdicts and limitations are reported exactly as they were measured at the time.
 
 Scope: **Nexus Node is fully integrated.** Academic Biohacker and Natkhat Toons are **compatibility
 only** — they must render exactly as before, and they do (pixel-identical, see §7).
@@ -221,18 +224,25 @@ verified by the same frame comparison.
 
 ## 8. Rollback
 
-Nothing is committed, so rollback is one command per file or a wholesale revert:
+The whole implementation is one commit, `44030107adf480b913b770811b02a0c60feb89a6` on
+`feature/x100-visual-engine-v1`, so the correct full rollback is a revert:
 
 ```bash
-git checkout -- factory/media/english_renderer.py factory/config.py factory/qa/publish_gate.py \
-                factory/manifesting.py channels/nexus-node.json
-git clean -fd factory/content/scene_plan.py factory/media/assets factory/qa/creative.py \
-               content/creative_qc.json tests/factory/test_scene_plan.py \
-               tests/factory/test_assets.py tests/factory/test_creative_qc.py
+git revert 44030107adf480b913b770811b02a0c60feb89a6
 ```
 
-The cache (`x100_asset_cache/`) and any build directory are disposable. `pipeline_state/` is tracked
-and was restored to `HEAD` after the render runs.
+That keeps history linear and needs no force-push and no history rewrite. If a **partial** rollback is
+wanted instead, restore the specific paths involved (never the whole tree):
+
+```bash
+git checkout 4403010^ -- path/to/file        # one file, back to its pre-PR content
+```
+
+On a branch where this work was never committed (the state this section was originally written in),
+the equivalent was `git checkout -- <tracked files>` plus `git clean -fd <new files>`; the commit now
+exists, so the revert above supersedes it. The cache (`x100_asset_cache/`) and any build directory are
+disposable and git-ignored. `pipeline_state/` is tracked and was restored to `HEAD` after the render
+runs.
 
 ## 9. Known limitations
 
@@ -256,8 +266,12 @@ Delivered: planner, asset layer, cache, generators, dispatcher, renderer integra
 technical QC (unchanged), creative QC, gate integration, configurable thresholds, tests, a real
 upgraded render, measured before/after, channel compatibility proof, rollback.
 
-Not delivered, and not claimed: any external asset acquisition, any paid service, any commit, push,
-PR, deployment or upload.
+Not delivered, and not claimed: any external asset acquisition, any paid service, any deployment or
+upload.
+
+Delivery status, as of this revision: committed as `44030107adf480b913b770811b02a0c60feb89a6`, pushed
+to `origin/feature/x100-visual-engine-v1`, opened as PR #13 against `main`. Still not merged, not
+deployed, and nothing is uploaded.
 
 ## 11. Defect-correction pass (independent audit findings H1–H4, M1–M4)
 

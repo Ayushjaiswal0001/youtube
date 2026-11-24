@@ -79,7 +79,7 @@ caption collisions. Plate ink +88 %, plate colour count +101 % versus baseline. 
 
 ---
 
-## Files changed (uncommitted)
+## Files changed (by the visual engine commit `4403010`)
 
 New: `factory/content/scene_plan.py`, `factory/media/assets/` (8 files), `factory/qa/creative.py`,
 `content/creative_qc.json`, `tests/factory/test_scene_plan.py`, `tests/factory/test_assets.py`,
@@ -131,5 +131,6 @@ Evidence: **1015 tests pass** (968 + 47 new), goldens **78 frames, 0 changed**, 
 **12/12 identical across 3 channels**, fresh package **verify clean / creative 16/16 / gate 25/25**,
 re-render 159.9 s at 38.733 s, 8,492,551 B, `2f4a936…`, plate ink +87 %, plate colours +104 %.
 
-Still nothing committed, pushed, deployed, uploaded or scheduled; every change is in the working tree
-of `feature/x100-visual-engine-v1`.
+Committed as `44030107adf480b913b770811b02a0c60feb89a6` on `feature/x100-visual-engine-v1`, pushed, and
+opened for review as PR #13 against `main`. Nothing is deployed, uploaded or scheduled: the three
+production crons remain `disabled_manually` and `UPLOAD_ENABLED` is untouched.
