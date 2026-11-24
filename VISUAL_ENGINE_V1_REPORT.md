@@ -376,17 +376,17 @@ produced.
 ### 12.2 The reference episode, rendered and measured
 
 `nexus-robot-video`, channel Nexus Node, fresh build directory and fresh cache:
-**`e22b1eac32d62217cf4ed25dd7356d9d91eb51cf568b158d2fcf369cea3b785f`**, 38.733 s, 8,397,088 B,
+**`dddbddc8347334ba421d7d86e1798092e6839c211dd7d6279ad5e098a54234ff`**, 38.733 s, 8,399,034 B,
 1920×1080 h264 + aac 44.1 kHz stereo.
 
 | measurement | v1.0 baseline (same box, same 12 samples, same run) | v1.1 | delta | budget |
 |---|---|---|---|---|
-| render wall time | — | **187.0 s** | — | ≤ 200 s ✓ |
-| planning (`plan_scenes`) | 0.9 ms | **2.6 ms** | +1.7 ms | — |
-| plate resolution, cold | 1,861.7 ms (206.9/plate) | **2,079.9 ms (231.1/plate)** | +11.7 % | — |
-| plate resolution, warm | 620.2 ms (68.9/plate) | **672.0 ms (74.7/plate)** | +8.4 % | ≤ 700 ms ✓ |
-| Python peak per plate | 1.1 MB | **1.10 MB** (1,103,738 B) | flat | ≤ 2 MB ✓ |
-| plate cache on disk | 470,373 B (52,264/plate) | **461,692 B (51,299/plate)** | −1.8 % | — |
+| render wall time | — | **180.6 s** | — | ≤ 200 s ✓ |
+| planning (`plan_scenes`) | 0.9 ms | **2.1 ms** | +1.2 ms | — |
+| plate resolution, cold | 1,861.7 ms (206.9/plate) | **1,836.0 ms (204.0/plate)** | −1.4 % | — |
+| plate resolution, warm | 620.2 ms (68.9/plate) | **635.2 ms (70.6/plate)** | +2.4 % | ≤ 700 ms ✓ |
+| Python peak per plate | 1.1 MB | **1.10 MB** (1,103,740 B) | flat | ≤ 2 MB ✓ |
+| plate cache on disk | 470,373 B (52,264/plate) | **461,701 B (51,300/plate)** | −1.8 % | — |
 | plate ink (mean of 12 samples) | 2.73 | **2.70** | −1.1 % | ±20 % ✓ |
 | plate colours (mean of 12 samples) | 8,700 | **8,332** | −4.2 % | ±20 % ✓ |
 | distinct plates / scenes | — | **9 / 9** (ratio 1.00) | — | ≥ 0.5 ✓ |
@@ -441,8 +441,8 @@ narration states no comparable number, and `scenes.json` records the reason verb
 
 | check | result |
 |---|---|
-| `pytest tests -q` | **1,169 passed** (1,015 at `ea9d30a`, **+154**) |
-| engine files alone (`assets`, `scene_plan`, `creative_qc`, `audit_corrections*`, `v11_*`) | 263 passed in 14.4 s |
+| `pytest tests -q` | **1,230 passed** (1,015 at `ea9d30a`, **+215**) |
+| engine files alone (`assets`, `scene_plan`, `creative_qc`, `audit_corrections*`, `v11_*`) | 312 passed in 18.9 s |
 | `python -m tools.capture_goldens --check` | **78 frames, 0 changed, 0 new** |
 | three-channel compat, 12 frames × 3 channels, `ea9d30a` vs working tree | **12/12 SHA-256 identical** |
 | manifest `verify()` on the fresh package before any rebuild | clean (10 artifacts) |
@@ -474,3 +474,42 @@ the legacy path). Secret scan and gitleaks are run over the tree before the comm
 | provenance as a free-text `notes` string | `entities`, `variant`, `license`, `attribution`, `plate_fingerprint`, `record` in every scene |
 | "nine scenes, three pictures" undetectable | fingerprints, Hamming clustering, `visual_diversity_pixels` |
 | a chart that could assert a number nobody said | structurally impossible: figures come from the sentence, and `figure_is_stated` fails the package otherwise |
+
+### 12.7 Independent audit of the delivered implementation (A1–A9)
+
+The v1.1 branch was then audited independently, against the diff rather than the report. Eight defects
+reproduced, all corrected in a second commit, each with a test named after it
+(`tests/factory/test_v11_audit_followup.py`, 44 tests). Two of them were honesty defects in the new
+feature itself, which is exactly where an audit should look.
+
+| | severity | defect (reproduced, not inferred) | correction |
+|---|---|---|---|
+| **A1** | high | `ratio` drew *"40 percent cheaper"* as a track filled to 40 % under **THE SHARE THE SENTENCE STATES** — a whole the narration never names | `share_framed()`; a percentage of change draws a statement plate and records *"a share of a change, not of a whole"*; a forced `ratio` is downgraded too |
+| **A2** | high | `concept="Video versus model"` + `"Video is the new manual."` drew **VIDEO vs MODEL**: a contrast supplied by the headline, not the sentence | the contrasted pair comes from the narration only; no pair means panels/statement |
+| **A3** | medium | a stated figure overrode a planned `photo`/`kinetic_type`/`diagram` category, so the plate was a bar chart the plan never asked for | charts only for `dataviz` or unplanned scenes; the note says why the figure stayed as text |
+| **A4** | medium | a typo in `visual_policy` (`chart_value`, `min_scenes_ms`) was dropped in silence — D4's "never a silent change" was not met | unknown keys are a recorded warning |
+| **A5** | medium | `figure_is_stated` returned **a pass** for a plate with no recorded `visible_text`: a check that did not run reported as verified | an unverifiable plate fails the check and names the scenes |
+| **A6** | low | a malformed fingerprint (`zz`) counted as a distinct picture, inflating diversity to 1.00 | fingerprints are format-checked; malformed counts as unmeasured, like missing |
+| **A7** | low | a chart disabled by `chart_values` recorded *"cannot share one scale"*, which was simply false | the note names the policy |
+| **A8** | low | the chart decision existed twice (`figures.chart_kind` and `generated._chart_kind`) and had already diverged on the 0..100 rule | one authority, `assets/generated.chart_kind`; `figures.py` extracts only |
+
+**A9** was cosmetic and is folded into the same commit: an unused `_DETERMINERS` constant, a redundant
+`plate_fingerprint`/`compared_fingerprint` alias, and a misaligned continuation line in `LEXICON`.
+
+Re-validated after the corrections, from scratch (`v11final2` build and cache directories that did not
+exist before):
+
+| measurement | value |
+|---|---|
+| `pytest tests -q` | **1,230 passed** in 938 s (1,015 at `ea9d30a`; 1,169 before this pass) |
+| goldens | **78 frames, 0 changed, 0 new** |
+| three-channel compat | **12/12 identical** |
+| reference render | **`dddbddc8347334ba421d7d86e1798092e6839c211dd7d6279ad5e098a54234ff`**, 38.733 s, 8,399,034 B, **180.6 s** wall |
+| planning / warm resolve / peak per plate | **2.1 ms** / **635.2 ms (70.6/plate)** / **1.10 MB** |
+| plate ink / colours vs v1.0, same box and samples | **2.70 vs 2.73 (−1.1 %)** / **8,332 vs 8,700 (−4.2 %)** |
+| distinct plates | **9 / 9** (ratio 1.00) |
+| creative QC / gate / manifest | **21 checks, 1 warning** / **25/25** / verify clean |
+| chart specimen | **`472a358aac483f67f7c6abeb19feb0551bba13f1df18151dffe06ac9f88011c1`**: `s02` **bars** (80 % / 20 % of cost), `s04` **ratio** ("40 percent of the training budget"), `s06` **no chart** for "30 percent cheaper" with the reason recorded |
+
+The specimen now demonstrates the correction rather than only the feature: two charts drawn from
+stated shares, and one figure deliberately left as words because the sentence describes a change.

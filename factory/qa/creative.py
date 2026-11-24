@@ -93,6 +93,9 @@ _NUMBER_WORDS = {
 }
 
 
+_FINGERPRINT = re.compile(r"^[0-9a-f]{16}$")
+
+
 def _hamming(first: str, second: str) -> int:
     """Bit distance between two hex fingerprints, used to cluster near-identical plates."""
 
@@ -319,8 +322,14 @@ def evaluate(
     # the worst thing this engine could put on screen. `figure_is_stated` compares every digit the
     # plate shows with the digits the sentence speaks.
     unsupported: list[str] = []
+    unrecorded: list[str] = []
     for scene in scenes:
         resolution = scene.get("resolution") or {}
+        if resolution.get("asset_id") and resolution.get("visible_text") is None:
+            # A plate exists but nothing recorded what it shows. That is not "no numbers on screen",
+            # it is a check that could not run, and reporting it as a pass would be a false claim.
+            unrecorded.append(scene["scene_id"])
+            continue
         shown = " ".join(str(value) for value in (resolution.get("visible_text") or []))
         shown += " " + str(resolution.get("spec_title") or "")
         spoken = str(scene.get("narration_text") or "")
@@ -333,11 +342,18 @@ def evaluate(
             digits = token.replace(",", "")
             if digits not in spoken_digits:
                 unsupported.append(f"{scene['scene_id']}:{token}")
-    report.checks.append(Check(
-        "figure_is_stated", not unsupported,
-        f"numbers shown on a plate that the narration does not state: {unsupported}"
-        if unsupported else "every number on screen is stated in the narration",
-    ))
+    if unrecorded:
+        report.checks.append(Check(
+            "figure_is_stated", False,
+            f"cannot verify the numbers on {unrecorded}: the plate exists but no visible_text was "
+            f"recorded, so this check did not run",
+        ))
+    else:
+        report.checks.append(Check(
+            "figure_is_stated", not unsupported,
+            f"numbers shown on a plate that the narration does not state: {unsupported}"
+            if unsupported else "every number on screen is stated in the narration",
+        ))
 
     undelivered = [scene["scene_id"] for scene in scenes
                    if scene.get("visual_category") == "dataviz"
@@ -353,7 +369,9 @@ def evaluate(
 
     fingerprints = [str((scene.get("resolution") or {}).get("plate_fingerprint") or "")
                     for scene in scenes]
-    measured = [value for value in fingerprints if value]
+    # A malformed fingerprint would otherwise count as a distinct picture and inflate the ratio, so a
+    # value that is not 16 hex characters counts as unmeasured, exactly like a missing one.
+    measured = [value for value in fingerprints if _FINGERPRINT.match(value or "")]
     if len(measured) != len(scenes) or not measured:
         report.checks.append(Check(
             "visual_diversity_pixels", False,

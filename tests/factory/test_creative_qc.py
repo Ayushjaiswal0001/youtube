@@ -27,6 +27,8 @@ def scene(scene_id: str, start: int, end: int, *, variant: str = "pipeline",
         "resolution": {"scene_id": scene_id, "category": category, "kind": "generated",
                        "asset_id": asset_id, "variant": variant, "spec_title": title,
                        "entities": ["video"], "license": "generated-local", "attribution": None,
+                       # the renderer records what the plate shows; the figure check reads this
+                       "visible_text": [title],
                        "plate_fingerprint": f"{abs(hash(scene_id + variant)) % (16 ** 16):016x}"},
     }
 

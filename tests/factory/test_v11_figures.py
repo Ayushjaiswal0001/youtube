@@ -7,9 +7,9 @@ import re
 import pytest
 
 from factory.config import load_channel_specs
-from factory.content.figures import Figure, chart_kind, chartable, extract
+from factory.content.figures import Figure, extract, numeric_figures
 from factory.content.scene_plan import plan_scenes
-from factory.media.assets.generated import render_diagram, spec_for
+from factory.media.assets.generated import chart_kind, render_diagram, share_framed, spec_for
 
 COLORS = load_channel_specs()["nexus-node"].colors
 DIGITS = re.compile(r"\d")
@@ -75,37 +75,101 @@ class TestExtraction:
         assert text[figure.start:figure.end] == figure.phrase
 
 
-class TestChartChoice:
-    def test_one_percentage_is_a_ratio(self) -> None:
-        assert chart_kind(extract("Video is 40 percent cheaper.")) == "ratio"
+def chart_for(text: str, *, category: str = "dataviz") -> str | None:
+    """The composition the real spec builder chooses, which is the only chart decision in the code."""
 
-    def test_two_percentages_are_bars(self) -> None:
-        assert chart_kind(extract("Demos are 80 percent and video is 20 percent.")) == "bars"
+    return spec_for(concept="COST", narration=text, objective="", colors=COLORS,
+                    figures=figures(text), category=category).variant
+
+
+class TestChartChoice:
+    """The decision is made in one place (`generated.chart_kind`); these assert through `spec_for`."""
+
+    def test_a_stated_share_is_a_ratio(self) -> None:
+        assert chart_for("Video is 40 percent of the training cost.") == "ratio"
+
+    def test_two_shares_are_bars(self) -> None:
+        assert chart_for("Demos are 80 percent of the cost and video is 20 percent.") == "bars"
 
     def test_two_values_of_the_same_unit_are_bars(self) -> None:
-        assert chart_kind(extract("Demos take 6 hours and video takes 2 hours.")) == "bars"
+        assert chart_for("Demos take 6 hours and video takes 2 hours.") == "bars"
 
     def test_mixed_units_are_not_charted(self) -> None:
-        assert chart_kind(extract("It is 40 percent cheaper after 3 hours.")) is None
+        assert chart_for("It is 40 percent of the budget after 3 hours.") not in {"bars", "ratio"}
 
     def test_a_lone_count_is_not_charted(self) -> None:
-        assert chart_kind(extract("It needs 1,200 examples.")) is None
+        assert chart_for("It needs 1,200 examples.") not in {"bars", "ratio"}
 
     def test_a_vague_quantifier_is_not_charted(self) -> None:
-        assert chart_kind(extract("It needs thousands of examples.")) is None
+        assert chart_for("It needs thousands of examples.") not in {"bars", "ratio"}
 
     def test_a_vague_word_does_not_block_a_stated_figure(self) -> None:
-        found = extract("Thousands of clips, 40 percent cheaper.")
-        assert [figure.value for figure in found if figure.numeric] == [40]
-        assert chartable(found) is True
+        found = extract("Thousands of clips, 40 percent of the library.")
+        assert [figure.value for figure in numeric_figures(found)] == [40]
+        assert chart_for("Thousands of clips, 40 percent of the library.") == "ratio"
 
-    def test_an_empty_sentence_is_not_chartable(self) -> None:
-        assert chart_kind(extract("That is the whole point.")) is None
+    def test_an_empty_sentence_is_not_charted(self) -> None:
+        assert chart_for("That is the whole point.") not in {"bars", "ratio"}
+
+    # -- a percentage of change is not a share of a whole (audit defect A1) ----------
+    @pytest.mark.parametrize("text", [
+        "Video is 40 percent cheaper.",
+        "Video is 40 percent faster than demos.",
+        "It is 40 percent slower.",
+        "Costs drop 40 percent.",
+        "Output rose 40 percent.",
+    ])
+    def test_a_relative_change_is_never_drawn_as_a_share(self, text: str) -> None:
+        assert share_framed(text) is False
+        planned = spec_for(concept="COST", narration=text, objective="", colors=COLORS,
+                           figures=figures(text), category="dataviz")
+        assert planned.variant not in {"bars", "ratio"}, planned.variant
+        assert planned.note and ("share of a change" in planned.note
+                                 or "vague" in planned.note or "no stated figure" in planned.note)
+
+    @pytest.mark.parametrize("text", [
+        "Video is 40 percent of the training cost.",
+        "Demos account for 40 percent of the budget.",
+        "Video makes up 60 percent of the data.",
+        "40 percent of the library is video.",
+    ])
+    def test_a_stated_part_of_a_whole_is_drawn_as_a_share(self, text: str) -> None:
+        assert share_framed(text) is True
+        assert spec_for(concept="COST", narration=text, objective="", colors=COLORS,
+                        figures=figures(text), category="dataviz").variant == "ratio"
+
+    def test_the_ratio_footer_only_claims_a_share_when_it_is_one(self) -> None:
+        import inspect
+
+        from factory.media.assets import generated
+
+        body = inspect.getsource(generated._draw_ratio)
+        assert "THE SHARE THE SENTENCE STATES" in body
+        # The drawer is only reachable for a framed share, so the footer never over-claims.
+        assert chart_kind(figures("Video is 40 percent cheaper."), narration="Video is 40 percent cheaper.",
+                          category="dataviz") is None
+
+    # -- the planned category is the contract (audit defect A3) --------------------
+    @pytest.mark.parametrize("category", ["diagram", "motion_graphics", "kinetic_type", "photo",
+                                          "illustration", "software_demo"])
+    def test_a_chart_never_overrides_a_planned_category(self, category: str) -> None:
+        planned = spec_for(concept="COST", narration="Demos are 80 percent of the cost.",
+                           objective="", colors=COLORS,
+                           figures=figures("Demos are 80 percent of the cost."), category=category)
+        assert planned.variant not in {"bars", "ratio"}
+        assert planned.note and category in planned.note
+
+    def test_a_disabled_chart_policy_says_so(self) -> None:
+        text = "Demos are 80 percent of the cost."
+        planned = spec_for(concept="COST", narration=text, objective="", colors=COLORS,
+                           figures=figures(text), category="dataviz", chart_values=False)
+        assert planned.variant not in {"bars", "ratio"}
+        assert "chart_values is disabled" in planned.note
 
 
 class TestChartsDrawOnlyStatedNumbers:
     def test_a_ratio_plate_labels_the_stated_figure(self) -> None:
-        text = "Video is 40 percent cheaper."
+        text = "Video is 40 percent of the training cost."
         planned = spec(text, category="dataviz")
         assert planned.variant == "ratio"
         assert render_diagram(planned).size == (912, 600)
@@ -128,23 +192,24 @@ class TestChartsDrawOnlyStatedNumbers:
         assert render_diagram(planned).size == (912, 600)
 
     def test_a_chart_spec_carries_the_figures_it_draws(self) -> None:
-        text = "Video is 40 percent cheaper."
+        text = "Video is 40 percent of the training cost."
         planned = spec(text, category="dataviz")
         assert planned.figures == figures(text)
         assert all(str(figure[1]) in planned.canonical() for figure in planned.figures)
 
     def test_two_charts_of_the_same_figures_are_the_same_asset(self) -> None:
-        text = "Video is 40 percent cheaper."
+        text = "Video is 40 percent of the training cost."
         first, second = spec(text, category="dataviz"), spec(text, category="dataviz")
         assert first.asset_id == second.asset_id
         assert first.canonical() == second.canonical()
 
-    def test_a_chart_does_not_share_an_asset_with_a_diagram(self) -> None:
-        text = "Video is 40 percent cheaper."
+    def test_a_chart_and_a_planned_diagram_are_different_assets(self) -> None:
+        text = "Video is 40 percent of the training cost."
         chart = spec(text, category="dataviz")
         diagram = spec_for(concept="T", narration=text, objective="", colors=COLORS,
                            figures=figures(text), category="diagram")
-        assert chart.asset_id != diagram.asset_id or chart.variant == diagram.variant
+        assert (chart.variant == "ratio") and diagram.variant != "ratio"
+        assert chart.asset_id != diagram.asset_id
 
 
 class TestPlanWiring:

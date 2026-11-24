@@ -121,6 +121,7 @@ def scene(scene_id: str, start: int, end: int, variant: str = "pipeline") -> dic
         "resolution": {"scene_id": scene_id, "variant": variant, "asset_id": f"a-{scene_id}",
                        "spec_title": "Robot arm learns", "entities": ["robot"],
                        "license": "generated-local", "attribution": None,
+                       "visible_text": ["Robot arm learns"],
                        "plate_fingerprint": f"{abs(hash(scene_id)) % (16 ** 16):016x}"},
     }
 
@@ -164,7 +165,7 @@ class TestM3SemanticChecks:
                                 resolution={"scene_id": "s01", "variant": "pipeline",
                                             "asset_id": "a", "spec_title": "STUDY",
                                             "entities": ["robot"], "license": "generated-local",
-                                            "attribution": None,
+                                            "attribution": None, "visible_text": ["STUDY"],
                                             "plate_fingerprint": "0" * 16}),
                            scene("s02", 6000, 12000, "gap")]}
         report = evaluate(channel="nexus-node", scene_plan=plan)

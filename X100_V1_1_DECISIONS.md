@@ -282,3 +282,50 @@ value, which tells a viewer nothing about *what* is 80 %. The narration already 
 **Cost.** Labels can be terse ("VIDEO PRETRAINING"), and a sentence that states a figure before naming
 its subject produces no label; the phrase fallback still applies. Both are visible on the card, which is
 the point.
+
+### D14 (new). A percentage of change is not a share of a whole
+
+**Decision.** `ratio` is drawn only when the sentence frames its percentage as a part of something
+(`of`, `share`, `proportion`, `accounts for`, `makes up`, `out of`) and does not frame it as a change
+(`cheaper`, `faster`, `slower`, `higher`, `more`, `less`, `drop`, `rise`, `saving`). A percentage of
+change draws a statement plate and records why in `scenes.json`.
+
+**Why.** The first v1.1 rendered *"Video pretraining is 40 percent cheaper"* as a full-width track
+filled to 40 % under the footer **THE SHARE THE SENTENCE STATES**. A filled track asserts a whole. The
+sentence never names one, so the plate invented the relationship - the exact class of error this
+release exists to remove, arriving through the new feature.
+
+**Rejected.** Keeping the track and softening the footer: a full-width bar with a 40 % fill reads as a
+share regardless of the caption.
+
+**Cost.** Fewer charts. A relative change now stays as words, which is the honest outcome when the
+baseline is not stated.
+
+### D15 (new). The sentence, not the headline, is the authority for what a plate claims
+
+**Decision.** Entities are detected from the narration plus the headline (the headline helps choose a
+composition style), but a *claim* - which two things are contrasted, what share is drawn, what number
+appears - is derived from the narration alone. A headline that says "video versus model" over a
+sentence about video alone produces panels, not a comparison.
+
+**Why.** The audit reproduced `concept="Video versus model"`, narration `"Video is the new manual."`
+drawing **VIDEO vs MODEL**. A headline is authored copy; the plate must not convert it into an
+assertion the spoken sentence never makes.
+
+**Cost.** A scene whose headline is more specific than its sentence loses that specificity on the
+plate. That is the safe direction.
+
+### D16 (new). A chart may not override the category the plan asked for
+
+**Decision.** `chart_kind` returns a chart only for `dataviz` or for a scene with no planned category.
+A scene planned as `diagram`, `photo`, `illustration`, `motion_graphics`, `kinetic_type` or
+`software_demo` keeps its planned composition, and the record notes that a stated figure stayed as
+text rather than overriding it.
+
+**Why.** Before the audit, any stated figure turned the plate into a bar chart regardless of the plan,
+so `coverage_category` and `visual_category` could disagree with nothing checking it. The plan's
+category is a contract (`X100_V1_1_ARCHITECTURE.md` §2.5), and a photograph replaced by a bar chart is
+a category the plan never asked for.
+
+**Cost.** A numeric sentence planned as a diagram gets no chart. The planner already classifies numeric
+cost/duration sentences as `dataviz`, so in practice this only removes charts nobody planned.

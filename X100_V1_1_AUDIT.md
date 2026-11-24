@@ -274,3 +274,20 @@ Measured results and evidence live in `VISUAL_ENGINE_V1_REPORT.md` §12; this ta
 | §3.11 transitions declared but unread | **fixed (truthfully)** | `transition_in`/`out` now `cut`; no crossfade was implemented, so none is claimed | `test_scene_plan.py` (transitions) |
 | §3.1 asset layer never exercised | **partly**: exercised by every render and test, but with **no library content** — P1-2 needs owner-supplied files | — | `test_v11_provenance.py`, `test_assets.py` |
 | §3.12 one channel | **unchanged by design** | Nexus Node only; other two stay legacy (compatibility only) | 12/12 identical |
+
+### Follow-up: six defects found in the delivered implementation
+
+The implementation was then audited independently again. Six defects were reproduced, corrected in a
+second commit, and pinned by tests; see `VISUAL_ENGINE_V1_REPORT.md` §12.7 and
+`tests/factory/test_v11_audit_followup.py`.
+
+| | defect | correction |
+|---|---|---|
+| A1 | a percentage of **change** ("40 percent cheaper") was drawn as a filled track, asserting a share of a whole the narration never states | `ratio` now requires share framing; a change draws a statement plate and records why |
+| A2 | a scene could claim a contrast taken from the **headline** ("video versus model") over a sentence that makes no comparison | the contrasted pair is taken from the narration only |
+| A3 | a stated figure **overrode the planned category**, so a `photo`/`kinetic_type` scene could become a bar chart | charts are only drawn for `dataviz` (or unplanned) scenes; the plan wins, and the note says so |
+| A4 | unknown `visual_policy` keys were dropped **silently**, so a typo changed nothing and said nothing | unknown keys are a recorded warning |
+| A5 | `figure_is_stated` reported **a pass** for a plate whose text was never recorded | an unverifiable plate fails the check with the scene ids named |
+| A6 | a **malformed** fingerprint counted as a distinct picture, inflating diversity | fingerprints are format-checked; malformed counts as unmeasured |
+| A7 | a chart disabled by `chart_values` recorded a **false** reason ("cannot share one scale") | the note names the policy |
+| A8 | the chart decision existed **twice** (`figures.py` and `generated.py`) and could drift | one authority, `assets/generated.chart_kind` |

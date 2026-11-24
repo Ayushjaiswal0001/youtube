@@ -35,7 +35,7 @@ LEXICON: dict[str, tuple[str, tuple[str, ...]]] = {
     "action": ("action", ("action", "force", "forces", "torque", "grip", "grasp", "touch")),
     "robot": ("robot", ("robot", "robots", "machine", "machines", "arm", "automation")),
     "demonstration": ("demos", ("demonstration", "demonstrations", "demos", "demo",
-                                        "teleoperation", "human")),
+                                "teleoperation", "human")),
     "data": ("data", ("data", "dataset", "examples", "samples", "library")),
     "grid": ("grid", ("grid", "interconnection", "interconnect", "substation", "transmission")),
     "queue": ("queue", ("queue", "backlog", "waiting", "timeline", "timelines", "approval")),
@@ -296,6 +296,10 @@ def spec_for(*, concept: str, narration: str, objective: str,
              figures: tuple[tuple[str, float | None, str], ...] = (),
              category: str = "", chart_values: bool = True) -> DiagramSpec:
     entities = entities_in(f"{narration} {concept}")
+    # The narration is the authority for what the plate may claim; the on-screen headline only helps
+    # choose a composition style. A headline that says "video versus model" over a sentence about
+    # video alone must not produce a plate asserting a contest.
+    sentence_pair = comparison_pair(entities, narration)
     # v1.0 appended a "data" entity when a sentence named nothing it recognised, which put a noun on
     # the plate that the narration never said. A sentence with no subject gets a statement, not an
     # invented one.
@@ -324,7 +328,7 @@ def spec_for(*, concept: str, narration: str, objective: str,
         chosen = "statement"
     # A stated property (cost, time) with no comparison in the sentence is a statement about its
     # subject, not an ordering and not a contest between two things.
-    comparative = comparison_pair(entities, f"{narration} {concept} {objective}") is not None
+    comparative = sentence_pair is not None
     if attributes and not comparative and chosen in {"pipeline", "comparison", "gap",
                                                      "topology", "panels"}:
         chosen = "statement"
@@ -335,21 +339,41 @@ def spec_for(*, concept: str, narration: str, objective: str,
     if chosen in {"pipeline", "timeline"} and not has_sequence_cue(f"{concept} {narration}"):
         chosen = "panels" if len(stageable) >= 2 else "statement"
 
-    # A stated figure earns a chart. A vague quantifier, a mixed-unit sentence or a single count does
-    # not: those need a baseline the narration never gives, so the plate keeps its words instead.
-    charted = _chart_kind(figures) if (figures and chart_values) else None
+    # A stated figure earns a chart. A vague quantifier, a mixed-unit sentence, a single count, a
+    # percentage of change, or a scene the plan did not ask to be a chart does not: those would need a
+    # baseline or a category the narration never gives, so the plate keeps its words instead.
+    charted = chart_kind(figures, narration=narration, category=category) if figures else None
+    if charted and not chart_values:
+        note = (f"chart_values is disabled for this channel: the stated figure "
+                f"{figures[0][0]!r} is drawn as text, not as a bar")
+        charted = None
     if charted:
         chosen = charted
-    elif category == "dataviz":
+    elif chosen in {"bars", "ratio"}:
+        # A variant forced by a caller still has to be true: a filled track for a percentage of change
+        # would assert a whole the sentence never names.
+        if chosen == "ratio" and not share_framed(narration):
+            chosen = "statement"
+            note = note or (f"a ratio was requested for a share of a change, not of a whole: "
+                            f"the plate states the figure as text instead")
+    elif category == "dataviz" and not note:
         numeric = [figure for figure in figures if figure[1] is not None]
         if not figures:
             note = "no stated figure: a chart would need a number the narration does not say"
         elif not numeric:
             note = (f"only a vague quantifier ({figures[0][0]!r}): a bar would invent the number "
                     f"the narration never gives")
+        elif len(numeric) == 1 and numeric[0][2] == "%" and not share_framed(narration):
+            note = (f"{numeric[0][0]!r} is a share of a change, not of a whole: a filled track would "
+                    f"invent the whole it is a share of")
         else:
             note = (f"stated figures {[figure[0] for figure in figures]} cannot share one scale: "
                     f"no chart drawn")
+    elif figures and category and category != "dataviz" and chart_kind(
+            figures, narration=narration, category=""):
+        # The sentence states a chartable figure but the plan asked for another kind of visual.
+        note = (f"planned as {category!r}: the stated figure {figures[0][0]!r} stays as text rather "
+                f"than overriding the planned category")
 
     palette = (
         colors.get("bg", "#050B16"), colors.get("panel", "#10243A"),
@@ -360,9 +384,10 @@ def spec_for(*, concept: str, narration: str, objective: str,
     if chosen == "comparison":
         # Draw exactly the pair the sentence contrasts, in the order it says them, so a plate cannot
         # pair two nouns that merely appear in the same sentence.
-        pair = comparison_pair(entities, f"{narration} {concept} {objective}")
-        if pair is not None:
-            entities = [pair[0], pair[1]]
+        if sentence_pair is not None:
+            entities = [sentence_pair[0], sentence_pair[1]]
+        else:
+            chosen = "panels" if len(stageable) >= 2 else "statement"
     if not entities and not charted:
         chosen = "statement"
         note = note or "no subject named in the sentence: statement plate, no invented subject"
@@ -699,9 +724,41 @@ def figure_labels(narration: str,
     return tuple(labels)
 
 
-def _chart_kind(figures: tuple[tuple[str, float | None, str], ...]) -> str | None:
-    """``bars`` for several comparable values, ``ratio`` for one stated proportion, else None."""
+# A percentage can describe a share of a whole ("40 percent of the cost") or a relative change
+# ("40 percent cheaper"). Only the first one is drawable as a filled track: filling a track to 40% for
+# "cheaper" asserts a whole the sentence never mentions, which is the same invented relationship this
+# release exists to remove.
+_SHARE_FRAMING = re.compile(
+    r"\bof\b|\bshare\b|\bproportion\b|\baccounts?\s+for\b|\bmakes?\s+up\b|\bout\s+of\b",
+    re.IGNORECASE)
+_RELATIVE_FRAMING = re.compile(
+    r"\b(cheaper|costlier|faster|slower|quicker|higher|lower|bigger|smaller|lighter|heavier|"
+    r"more|less|fewer|increase[sd]?|decrease[sd]?|reduction|improvement|drop[s]?|rise[s]?|"
+    r"grew|grow[s]?|fell|cut|saved|saving[s]?)\b", re.IGNORECASE)
 
+# Categories whose job is a data visual. A scene planned as a photograph or kinetic type must not be
+# turned into a chart: the plan is the contract, and a chart where a picture was requested is a
+# category the plan never asked for.
+_DATA_CATEGORIES = frozenset({"", "dataviz"})
+
+
+def share_framed(narration: str) -> bool:
+    """True when the sentence frames its percentage as a part of a whole."""
+
+    text = str(narration or "")
+    return bool(_SHARE_FRAMING.search(text)) and not _RELATIVE_FRAMING.search(text)
+
+
+def chart_kind(figures: tuple[tuple[str, float | None, str], ...], *,
+               narration: str = "", category: str = "") -> str | None:
+    """``bars`` for several comparable values, ``ratio`` for one stated share, else None.
+
+    This is the only place that decides whether a chart is drawn. It used to exist twice - here and in
+    ``factory/content/figures.py`` - which is how two rules for the same claim drift apart.
+    """
+
+    if category not in _DATA_CATEGORIES:
+        return None
     numeric = [figure for figure in figures if figure[1] is not None]
     if not numeric:
         return None
@@ -713,9 +770,9 @@ def _chart_kind(figures: tuple[tuple[str, float | None, str], ...]) -> str | Non
         if unit != "%":
             return None
         value = float(numeric[0][1])
-        # A proportion of a whole is drawable only inside 0..100; anything else needs a baseline the
-        # sentence does not provide.
-        return "ratio" if 0 < value <= 100 else None
+        # A proportion of a whole is drawable only inside 0..100, and only when the sentence actually
+        # says "of" something rather than "40 percent cheaper".
+        return "ratio" if 0 < value <= 100 and share_framed(narration) else None
     if unit == "%":
         if not all(0 <= float(figure[1]) <= 100 for figure in numeric):
             return None

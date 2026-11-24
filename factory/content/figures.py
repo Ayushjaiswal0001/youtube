@@ -136,9 +136,6 @@ def extract(text: str) -> list[Figure]:
     return figures
 
 
-_DETERMINERS = ("the ", "a ", "an ")
-
-
 def _phrase_tail(lowered: str, end: int) -> str:
     """The unit word after a number, so the phrase on the plate is the phrase that was spoken."""
 
@@ -166,33 +163,7 @@ def _vague_phrase(narration: str, start: int, end: int) -> str:
     return narration[start:end + match.end()].strip()
 
 
-def chartable(figures: list[Figure]) -> bool:
-    """True when a chart can be drawn without inventing a baseline or mixing units."""
+def numeric_figures(figures: list[Figure]) -> list[Figure]:
+    """Only the figures that carry a number. The chart decision itself lives in the asset layer."""
 
-    numeric = [figure for figure in figures if figure.numeric]
-    if not numeric:
-        return False
-    units = {figure.unit for figure in numeric}
-    if len(units) > 1:
-        # Two units cannot share a scale, and one bar alone asserts nothing. `ratio` handles the
-        # single-value case, so a mixed-unit sentence gets no chart at all.
-        return False
-    if len(numeric) == 1 and numeric[0].kind not in {"percent"}:
-        return False
-    return True
-
-
-def chart_kind(figures: list[Figure]) -> str | None:
-    """``bars`` for several comparable values, ``ratio`` for one stated proportion, else None."""
-
-    numeric = [figure for figure in figures if figure.numeric]
-    if not numeric:
-        return None
-    if {figure.unit for figure in numeric} != {numeric[0].unit}:
-        return None
-    if len(numeric) == 1:
-        return "ratio" if numeric[0].kind == "percent" else None
-    if numeric[0].kind == "percent":
-        return "bars"
-    return "bars" if all(figure.kind in {"percent", "count", "duration", "multiplier"}
-                         for figure in numeric) else None
+    return [figure for figure in figures if figure.numeric]

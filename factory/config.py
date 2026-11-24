@@ -95,6 +95,9 @@ def bool_env(name: str, default: bool = False) -> bool:
 
 VISUAL_CATEGORIES = ("diagram", "dataviz", "motion_graphics", "kinetic_type", "photo",
                      "illustration", "software_demo")
+# Every field ``parse_visual_policy`` understands. Anything else is reported, not dropped silently.
+_POLICY_FIELDS = frozenset({"scene_planning", "categories", "min_scene_ms", "max_scene_ms",
+                            "palette", "chart_values", "warnings"})
 VISUAL_PALETTES = ("default", "paper")
 DEFAULT_VISUAL_MIN_MS = 2000
 DEFAULT_VISUAL_MAX_MS = 8000
@@ -167,6 +170,11 @@ def parse_visual_policy(raw: Any, *, slug: str = "") -> VisualPolicy:
 
     warnings: list[str] = []
     data = dict(raw)
+    unknown_keys = sorted(str(key) for key in data if key not in _POLICY_FIELDS)
+    if unknown_keys:
+        # A typo ("chart_value", "min_scenes_ms") used to be dropped in silence, so a channel could
+        # believe it had changed a setting that never changed. A warning is the whole point of D4.
+        warnings.append(f"unknown visual_policy keys ignored: {unknown_keys}")
 
     scene_planning = data.get("scene_planning", False)
     if not isinstance(scene_planning, bool):

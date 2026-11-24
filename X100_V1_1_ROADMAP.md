@@ -266,12 +266,12 @@ together, as §0 required; nothing outside that set was touched.
 
 | # | criterion | result |
 |---|---|---|
-| 1 | full suite green, ≥ 1,015 + new | **1,169 passed**, engine files alone 263 in 14.4 s |
+| 1 | full suite green, ≥ 1,015 + new | **1,230 passed**, engine files alone 312 in 18.9 s |
 | 2 | goldens unchanged | **78 frames, 0 changed, 0 new** |
 | 3 | 12/12 × 3-channel compat vs `e5cff17` | **12/12 identical** |
 | 4 | gate 25/25, creative + 5 new, manifest clean, plate within ±20 % | **25/25**, 21 checks (1 warning), verify clean, ink −1.1 % / colours −4.2 % |
-| 5 | ≤ 200 s, warm ≤ 700 ms, ≤ 2 MB/plate | **187.0 s**, **672.0 ms**, **1.10 MB** |
-| 6 | ≥ 1 stated number drawn, 0 invented | **no chart in the reference episode** (it states no number); chart capability verified on a specimen render, and `figure_is_stated` fails any package that shows an unstated number — see §12.3 of the report |
+| 5 | ≤ 200 s, warm ≤ 700 ms, ≤ 2 MB/plate | **180.6 s**, **635.2 ms**, **1.10 MB** |
+| 6 | ≥ 1 stated number drawn, 0 invented | **no chart in the reference episode** (it states no number); capability verified on specimens that draw a stated share, and `figure_is_stated` fails any package that shows an unstated number. After the audit pass a percentage of *change* is no longer drawn as a share at all — see §12.3 and §12.7 of the report |
 | 7 | `scenes.json` provenance per scene | **present** for all 9 |
 | 8 | secret scan clean, no dependency, no network | **clean**; no new dependency; no network in the render path |
 | 9 | docs updated | this appendix, plus `VISUAL_ENGINE_V1_REPORT.md` §12 |
