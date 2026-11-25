@@ -22,7 +22,6 @@ import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-import pytest
 import yaml
 
 from factory.config import ChannelSpec, load_channel_specs
@@ -298,21 +297,27 @@ def test_the_cli_reports_the_policy_and_the_release_it_would_schedule():
     assert item["next_release"]["reason"]
 
 
-def test_the_cli_reports_a_manual_channel_without_scheduling_anything(monkeypatch):
-    """A channel that has not opted in must not be able to reach an automatic upload."""
+def test_the_cli_reports_a_manual_channel_as_not_ready(monkeypatch):
+    """A channel that has not opted in must not be able to reach an automatic upload.
 
-    from factory import config, publishing
+    `ready` is the output the workflow gates on, so this asserts the whole chain: policy -> resolver ->
+    what `produce.yml` would read, not just the dataclass default.
+    """
 
-    original = config.load_channel_specs
+    import argparse
 
-    def manual_only(directory=None):
-        specs = original(directory)
-        specs["nexus-node"].publishing = PublishingPolicy(mode="manual", scheduled_upload=False)
-        return specs
+    from factory import cli
 
-    monkeypatch.setattr(config, "load_channel_specs", manual_only)
-    item = publishing.PublishingPolicy(mode="manual").as_dict()
-    assert item["may_schedule"] is False
+    manual = spec(publishing=PublishingPolicy(mode="manual", scheduled_upload=False))
+    seen: list = []
+    monkeypatch.setattr(cli, "_specs", lambda name: [manual])
+    monkeypatch.setattr(cli, "_print", lambda payload, as_json: seen.append(payload))
+
+    assert cli.cmd_publishing(argparse.Namespace(channel="nexus-node", json=True)) == 0
+    item = seen[0][0]
+    assert item["policy"]["mode"] == "manual"
+    assert item["may_upload_on_schedule"] is False
+    assert item["ready"] is False
 
 
 def test_publish_refuses_to_schedule_an_explicitly_past_date():
