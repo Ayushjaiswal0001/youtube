@@ -370,7 +370,10 @@ class ResumeContractTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             out_dir = Path(tmp) / stage_story_id(spec, plan)
             out_dir.mkdir(parents=True)
-            (out_dir / "video.mp4").write_bytes(b"\0" * 50_000)
+            (out_dir / "video.mp4").write_bytes(b"complete-build")
+            # A verified artifact always carries the timeline it was rendered against; resume asks
+            # whether the build is complete, not merely whether a file called video.mp4 exists.
+            (out_dir / "timeline.json").write_text(json.dumps({"duration": 214.0}), encoding="utf-8")
             (out_dir / "qc.json").write_text(json.dumps({"ok": True}), encoding="utf-8")
             with mock.patch("factory.cli.load_plans_for", return_value=[plan]), \
                  mock.patch("factory.cli.episode_out_dir", return_value=out_dir), \
