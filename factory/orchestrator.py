@@ -60,7 +60,16 @@ def build_script(spec: ChannelSpec, plan: dict[str, Any]) -> Script:
     A landscape plan is normalised by `landscape_stage.plan_scenes`, which validates `scenes[].line` and maps it
     to `dialogue` before anything else sees it. Portrait Hindi plans still go through `build_hindi_script`,
     which stays strict about its own schema.
+
+    The plan's own `format` wins over the caller's spec, exactly as it does on the render path. Without that,
+    `validate --channel academic-biohacker --plan-id long-academic-study-protocol` (no `--format`, which is
+    how an operator naturally types it) built the 627-word 16:9 script against the *shorts* bounds and failed
+    with "too long (627 words, shorts allows 140)" - a message about the wrong problem entirely.
     """
+
+    declared = str(plan.get("format") or "").lower()
+    if declared in {"shorts", "long"} and declared != spec.format:
+        spec = replace(spec, format=declared)
 
     if resolve_engine(spec, plan) == "stage":
         from .media.landscape_stage import build_script as build_stage_script

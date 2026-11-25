@@ -245,24 +245,34 @@ def _iter_requested_plans(args: argparse.Namespace):
     empty result, and the error says which plans exist.
     """
 
+    from .orchestrator import plan_specs
+
     requested = str(getattr(args, "plan_id", "") or "")
     seen: list[str] = []
     matched = False
-    for spec in _specs(args.channel):
-        if getattr(args, "format", None):
-            spec = replace(spec, format=args.format)
-        try:
-            plans = load_plans_for(spec)
-        except ValueError:
-            # a channel with no plans for this composition profile is not an error here
-            continue
-        for plan in plans:
-            plan_id = plan_identifier(plan)
-            seen.append(plan_id)
-            if requested and plan_id != requested:
+    handled: set[str] = set()
+    for base_spec in _specs(args.channel):
+        # Without an explicit --format, both composition profiles are walked, the same way `gate` does it.
+        # Iterating only the channel's native profile made `validate --plan-id long-...` report "plan not in
+        # this repository" for a plan that was sitting on disk.
+        profiles = ([replace(base_spec, format=args.format)] if getattr(args, "format", None)
+                    else plan_specs(base_spec))
+        for spec in profiles:
+            try:
+                plans = load_plans_for(spec)
+            except ValueError:
+                # a channel with no plans for this composition profile is not an error here
                 continue
-            matched = matched or bool(requested)
-            yield spec, plan
+            for plan in plans:
+                plan_id = plan_identifier(plan)
+                seen.append(plan_id)
+                if requested and plan_id != requested:
+                    continue
+                if plan_id in handled:
+                    continue
+                handled.add(plan_id)
+                matched = matched or bool(requested)
+                yield spec, plan
     if requested and not matched:
         raise ValueError(
             f"plan {requested!r} is not in this repository; known plans: "
