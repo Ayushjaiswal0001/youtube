@@ -12,7 +12,7 @@ Candidate branch: `codex/fix-publishing-policy-clock-test`
 
 The merged implementation has working render, QC, gate, and private-upload code paths, and representative GitHub Actions artifacts were inspected for all three channels in both output formats. The merge-commit CI run exposed a clock-dependent test failure; the production resolver correctly rejected the missed release. The local Windows regression run also exposed a real lock-liveness portability bug: `os.kill(pid, 0)` sends a Ctrl+C event on Windows. The lock check now uses a waitable Win32 process handle and fails closed on uncertain access. Security review found a workflow-dispatch command injection in the production upload path; the focused branch now normalizes plan IDs and passes step outputs through environment variables. The available Nexus evaluation Short also had an unsupported absolute claim; it now uses qualified language and direct evidence links.
 
-The candidate is **production ready with documented limitations**, subject to review and merge of the focused branch and green required checks. This does not mean production is activated: all three publishing workflows remain disabled, no workflow was dispatched, no upload or public schedule was created, and no OAuth secret was read. Live YouTube schedule verification and current account-state checks remain owner-dependent.
+The candidate is **ready for owner review with documented limitations**. PR #22's code and security checks are green. This does not mean production is activated: all three publishing workflows remain disabled, no workflow was dispatched, no upload or public schedule was created, and no OAuth secret was read. Live YouTube schedule verification and current account-state checks remain owner-dependent.
 
 ## B. Repository identity and source of truth
 
@@ -20,20 +20,21 @@ The candidate is **production ready with documented limitations**, subject to re
 - Original workspace `D:\animated` was a different repository with user changes and was not modified.
 - The X100 repository was cloned separately to `D:\X100-youtube`.
 - Audit base `main`: `01f3abd4078abca30eabbd6822139130121a72d7`; PR #21 is merged.
-- The clock-test and editorial fixes are isolated on `codex/fix-publishing-policy-clock-test`; this report is updated with its final commit and PR checks before publication.
+- The clock-test, Windows lock, shell-injection, editorial, and documentation changes are isolated on `codex/fix-publishing-policy-clock-test`; PR #22 carries the review and CI record.
 
 ## C. CI status
 
 - Merge-commit run `45655992920`: six of seven checks passed. `factory (plan + publish gates)` failed one test after 1,371 passed and 2 skipped. The failure was `test_publish_looks_up_the_release_for_its_own_plan`; its fixed November 25 release had passed the late-grace window because the test used wall-clock time.
 - Security run `45655992820` passed. It ran the repository's secret, history, dependency, and workflow-permission checks.
 - The test now pins the resolver to a time before the intended release while still calling the real resolver. The focused test passed locally.
-- Candidate branch CI and PR status: **final result to be recorded after GitHub completes the run**.
+- PR [#22](https://github.com/Ayushjaiswal0001/youtube/pull/22) is open. CI and security checks on source commit `f6b24f44984c7224010f255a1fa37012f279d547` are green; GitHub reported the PR merge state as `CLEAN`. This closure-report refresh is documentation-only and will receive its own checks. The PR remains unmerged and awaits owner review.
+- PR CI run `45683044787`: factory tests **1,375 passed, 2 skipped** in 444.21 seconds; uploader unit tests **77 passed** on both Python 3.11 and 3.12. Security run `45683044836` passed all four jobs: secret/history scanning, Gitleaks, dependency audit, and workflow permissions/pinning. Duplicate push-triggered runs `45682960792` and `45682960745` also passed.
 
 ## D. Test results
 
-Before the security-auditor regression tests were added, `python -m pytest --collect-only -q` collected **1,451 tests across 81 modules**. Six disjoint, exhaustive file batches passed: **1,451 passed, 0 failed, 0 skipped, 5 successful subtests**; cumulative pytest runtime **1,009.88 s (16:49.88)**, excluding collection. After the workflow-audit fix, its new focused regression module passed **3/3**. The final branch collection and full CI run are pending; see the handover for the current check status.
+Before the security-auditor regression tests were added, `python -m pytest --collect-only -q` collected **1,451 tests across 81 modules**. Six disjoint, exhaustive file batches passed: **1,451 passed, 0 failed, 0 skipped, 5 successful subtests**; cumulative pytest runtime **1,009.88 s (16:49.88)**, excluding collection. After the audit fix, the current collection is **1,454 tests across 82 modules** and the added workflow-auditor tests passed **3/3** locally. The green PR CI covers the current suite through 1,375 factory pytest cases (2 skipped) and 77 uploader unit tests on each supported Python version.
 
-Environment: Windows 11, Python 3.12.7. `python -m compileall -q factory studio tools` passed after the workflow-audit change. The current collection is 1,454 tests across 82 modules; the new workflow-audit tests passed 3/3. The full final suite is delegated to branch CI after push.
+Environment: Windows 11, Python 3.12.7. `python -m compileall -q factory studio tools` passed after the workflow-audit change. The current collection is 1,454 tests across 82 modules; the new workflow-audit tests passed 3/3. On source commit `f6b24f4`, CI covered 1,375 factory tests (2 skipped) plus all 77 uploader unit tests on Python 3.11 and 3.12.
 
 Batch 1: 243 tests — 188.71 s
 ```powershell
@@ -163,12 +164,12 @@ An 11-beat horizontal hosted render was measured at 3,008 seconds (about 50 minu
 ## O. Security findings
 
 - The completed Standard security review (scan `809f271b-0654-454a-9ea3-c7579717dada`) reported one high-confidence CWE-78: a manual `plan_id` could reach Bash source in the upload step after channel OAuth credentials were exported. The scan snapshot predates the fix; the current branch normalizes the value and avoids direct expression interpolation in shell.
-- After the fix, `python -m tools.workflow_audit` reported **7 workflows, 0 findings**; `tests/factory/test_workflow_audit.py` passed **3/3**; the local tree secret scan reported **0 findings**; `produce.yml` parsed as YAML. The base commit security workflow `45655992820` passed, but its older multiline audit did not catch this issue. Final branch CI/security checks remain pending.
+- After the fix, `python -m tools.workflow_audit` reported **7 workflows, 0 findings**; `tests/factory/test_workflow_audit.py` passed **3/3**; the local tree secret scan reported **0 findings**; `produce.yml` parsed as YAML. The base commit security workflow `45655992820` passed, but its older multiline audit did not catch this issue. The final PR security run `45683044836` passed all four jobs, including the enhanced workflow audit.
 - Production workflows grant `contents: read` and pass channel-specific YouTube credentials to that channel's reusable jobs. CI uses read-only GitHub permissions.
 - No OAuth values were read, printed, copied, changed, or rotated. No repository secrets were modified.
 - Codex Security Daybreak access was not granted, the dependency audit was not rerun locally, and no independent reviewer was assigned. This is repository/workflow evidence, not an account-level OAuth grant audit.
 
-Result: **FINDING FIXED ON BRANCH — FINAL CI AND INDEPENDENT REVIEW PENDING**.
+Result: **FINDING FIXED ON BRANCH — CI GREEN; OWNER REVIEW PENDING**.
 
 ## P. Documentation completed
 
@@ -188,7 +189,7 @@ Created or refreshed `X100_FINAL_SYSTEM_ARCHITECTURE.md`, `X100_FINAL_QUALITY_AU
 | --- | --- | --- |
 | Architecture | PASS | Static review, plan/config inspection, artifacts, and passing suite; no formal independent architecture review |
 | Python quality | PASS | Deterministic regression fix and final suite result recorded above |
-| Security | FIXED ON BRANCH; CI PENDING | One high CWE-78 in the pre-fix snapshot; source fix and auditor regression tests pass locally |
+| Security | FIXED ON BRANCH; CI GREEN | One high CWE-78 in the pre-fix snapshot; current PR security workflow and local auditor regression tests pass |
 | Visual quality | PASS WITH LIMITATIONS | Six decoded artifacts and five sampled frames each; not frame-exhaustive |
 | Audio quality | PASS WITH LIMITATIONS | Encoded-output loudness/peak and decode measurements; no full listening pass |
 | Subtitle quality | PASS WITH LIMITATIONS | SRT timing bounds and sampled-frame visibility; no YouTube track verification |
@@ -213,4 +214,4 @@ Do not manually dispatch the publishing workflow as a substitute for the schedul
 
 ## T. Final verdict
 
-**RELEASE CANDIDATE WITH DOCUMENTED LIMITATIONS** — the focused branch contains the security fix, but final full-suite/security CI and owner review are pending. Production workflows remain disabled pending merge, separate account preflight, and explicit activation approval described above.
+**RELEASE CANDIDATE WITH DOCUMENTED LIMITATIONS** — PR #22 is open with all CI and security checks green; owner review and merge remain pending. Production workflows remain disabled pending merge, separate account preflight, and explicit activation approval described above.

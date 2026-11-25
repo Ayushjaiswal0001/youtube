@@ -9,13 +9,14 @@ Audit window: 2026-11-25–26. Repository: `Ayushjaiswal0001/youtube`; base `mai
 - The test is now isolated from wall-clock time by invoking the real resolver at a fixed time before its intended release. The focused test passed locally on Python 3.12.7 / Windows 11: `1 passed in 0.81s`.
 - The same local regression run exposed `os.kill(pid, 0)` interrupting Windows when the lock check examined a live process. `factory/reliability.py` now checks a waitable Win32 process handle and treats uncertain access as live. `tests/factory/test_reliability.py`: 38 passed in 2.06s after the fix.
 - A second publishing-policy test failed near midnight because it used the wall clock and represented the previous day's time as an ambiguous time-only value. It now pins the real resolver to 20:05 IST and passed with the full file: 36 passed in 3.01s.
-- Original exhaustive local suite: 1,451 passed, 0 failed, 0 skipped, and 5 successful subtests across six disjoint module batches; cumulative runtime 1,009.88 seconds. After the workflow-audit regression tests were added, the new targeted module passed 3/3. Final branch collection and full CI remain pending; exact original commands and module groups are recorded in the closure report.
+- Original exhaustive local suite: 1,451 passed, 0 failed, 0 skipped, and 5 successful subtests across six disjoint module batches; cumulative runtime 1,009.88 seconds. The final collection is 1,454 tests across 82 modules; the 3 added workflow-auditor tests passed separately.
+- PR #22 CI passed. The factory job reported 1,375 passed and 2 skipped in 444.21 seconds. Uploader unit tests passed all 77 tests on Python 3.11 and 3.12. The PR security workflow passed all four jobs. The duplicate branch-push CI and security runs also passed.
 
 ## Security workflow review
 
 - Completed Standard review `809f271b-0654-454a-9ea3-c7579717dada` found one high-confidence CWE-78 in its pre-fix working-tree snapshot: manually supplied `plan_id` was emitted as a workflow step output and interpolated into Bash source in the credential-bearing upload step.
 - The focused branch normalizes the ID with `slugify` before writing it as output, no longer writes the raw dispatch input to `GITHUB_OUTPUT`, and passes step outputs through environment variables instead of embedding them in shell source. The scanner was also fixed to inspect multiline `run:` scripts; three new regression tests pass.
-- Current local checks: `python -m tools.workflow_audit` — 7 workflows, 0 findings; `python -m tools.secret_scan` — 0 findings; reusable workflow YAML parse — passed. The pre-fix scan is not a post-remediation scan, and branch CI/security checks are pending.
+- Current checks: `python -m tools.workflow_audit` — 7 workflows, 0 findings; `python -m tools.secret_scan` — 0 findings; reusable workflow YAML parse — passed. PR CI and all four security jobs passed; the pre-fix scan itself remains a historical snapshot rather than a post-remediation scan.
 - The base security workflow passed run `45655992820`, though its previous audit missed this multiline shell interpolation. OAuth values were not inspected. Daybreak access was not granted, no independent reviewer was assigned, and pip-audit was not rerun locally.
 
 ## Production artifacts inspected

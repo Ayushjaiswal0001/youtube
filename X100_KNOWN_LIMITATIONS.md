@@ -22,8 +22,8 @@ Verified or documented limits as of 2026-11-26. See [quality audit](X100_FINAL_Q
 ## Operations/evidence limits
 
 - GitHub Actions daily publishing workflows are disabled. No activation is authorized by this document.
-- Merge-commit CI exposed a clock-dependent test failure. The local 1,451-test suite passed before the security-auditor regression tests were added; those three added tests passed separately. Final branch CI must run the complete current suite before merge.
-- A Standard security review found a high-confidence shell-injection finding in the pre-fix workflow snapshot. The focused branch contains a source fix and stronger multiline workflow auditing; its security checks must pass before merge. The review snapshot predates the fix, no independent reviewer was assigned, and no OAuth values were inspected.
+- Merge-commit CI exposed a clock-dependent test failure. PR #22's branch CI passed 1,375 factory tests with 2 skipped; the uploader's 77 unit tests passed on Python 3.11 and 3.12. Three new workflow-auditor regression tests are included in the factory job.
+- A Standard security review found a high-confidence shell-injection finding in the pre-fix workflow snapshot. The focused branch contains the source fix and stronger multiline workflow auditing, and all four PR security jobs passed. The review snapshot predates the fix; no independent reviewer was assigned, and no OAuth values were inspected.
 - Historical QC reports describe previous artifacts. Only the artifacts enumerated in the final quality audit were downloaded and independently decoded/measured in this audit.
 - Rendering and TTS depend on existing runner/runtime components and service availability. The documented ₹0/month target excludes paid APIs but does not guarantee unlimited free quota, stable external services, or zero machine/energy cost.
 - Current runtime pause flags, live YouTube pending schedules, and account permissions were not directly checked in this audit.
