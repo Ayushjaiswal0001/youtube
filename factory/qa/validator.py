@@ -391,6 +391,13 @@ def validate_episode(
                     "framing_off_shot_characters", False,
                     f"characters outside the chosen shot (by design): {excluded}",
                     severity="warning"))
+            near_edge = int(framing.get("near_edge_required_frames") or 0)
+            if near_edge:
+                warnings.append(_check(
+                    "framing_margin", False,
+                    f"a required subject sat inside the safe margin on {near_edge} frames "
+                    f"(inside the picture, tight to the edge)",
+                    severity="warning"))
             zoom_rate = float(framing.get("max_zoom_rate", 0.0))
             checks.append(_check("framing_continuity", zoom_rate <= FRAMING_MAX_ZOOM_RATE,
                                  f"peak zoom change {zoom_rate:.2f}/s "

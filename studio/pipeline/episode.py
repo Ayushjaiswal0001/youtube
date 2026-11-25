@@ -162,6 +162,10 @@ class EpisodePipeline:
             # close-up deliberately excludes is not a framing failure.
             merged["cropped_required_frames"] = sum(
                 int(scene.get("cropped_required", 0)) for scene in merged["scenes"])
+            # Inside the picture but inside the safe margin: tight staging, not a crop. Reported so the
+            # number is never silently zero, and gated as a warning rather than an error.
+            merged["near_edge_required_frames"] = sum(
+                int(scene.get("near_edge_required", 0)) for scene in merged["scenes"])
             merged["total_cropped_frames"] = sum(v["cropped_frames"]
                                                  for v in merged["subjects"].values())
             merged["max_zoom_rate"] = max((d.get("max_zoom_rate", 0.0)

@@ -230,6 +230,30 @@ class ReportTests(unittest.TestCase):
         self.assertEqual(report.cropped_frames("chiku"), 10)
         self.assertGreater(report.worst_overflow("chiku"), 0.0)
 
+    def test_a_subject_inside_the_picture_but_inside_the_margin_is_not_a_crop(self):
+        """The margin is a planning goal; the frame edge is the picture.
+
+        A wide shot with zero pixels of overflow was reported as cropping a required subject on 140
+        frames, purely because the subject stood in the outer margin band, and the episode was blocked.
+        """
+
+        report = None
+        for step in range(-400, 400):
+            candidate = self.build(1.0, float(step))
+            if (not candidate.records[0].visible["chiku"]
+                    and candidate.worst_overflow("chiku") == 0.0):
+                report = candidate
+                break
+        self.assertIsNotNone(report, "no pan puts the subject inside the margin but inside the frame")
+        self.assertEqual(report.cropped_frames("chiku"), 0)
+        self.assertEqual(report.near_edge_frames("chiku"), 10)
+        self.assertEqual(report.summary()["near_edge_required"], 10)
+        self.assertEqual(report.summary()["cropped_required"], 0)
+
+    def test_a_subject_outside_the_picture_is_not_counted_as_near_edge(self):
+        report = self.build(1.7, 240.0)
+        self.assertEqual(report.near_edge_frames("chiku"), 0)
+
     def test_the_summary_separates_required_from_incidental_subjects(self):
         report = self.build(1.7, 240.0)
         summary = report.summary()
