@@ -116,6 +116,18 @@ def _english_script(spec: ChannelSpec, plan: dict[str, Any]) -> tuple[Script, Pa
     return script, out_dir
 
 
+def build_is_complete(out_dir: Path) -> bool:
+    """True when an episode is finished: the video *and* the timeline it was rendered against.
+
+    Found by killing a render 40 s in, while FFmpeg was writing: the directory held a 524 KB truncated
+    ``video.mp4`` and no ``timeline.json``. `resume` then failed with "missing timeline" for ever, because
+    "a file called video.mp4 exists" was treated as "this episode is done". A cancelled GitHub Actions job
+    leaves exactly that, so the recovery path was broken for the most likely interruption there is.
+    """
+
+    return (out_dir / "video.mp4").is_file() and (out_dir / "timeline.json").is_file()
+
+
 def _render_english(
     spec: ChannelSpec,
     script: Script,
@@ -124,13 +136,19 @@ def _render_english(
     force: bool,
 ) -> dict[str, Any]:
     video_path = out_dir / "video.mp4"
-    if video_path.is_file() and not force:
-        timeline = read_json(out_dir / "timeline.json", {})
+    timeline = read_json(out_dir / "timeline.json", {})
+    if video_path.is_file() and timeline and not force:
         return {
             "video_path": str(video_path),
             "duration": float(timeline.get("duration", 0.0)),
             "skipped": True,
         }
+    if video_path.is_file() and not force:
+        # An interrupted encode. Keeping the fragment would make the episode permanently unresumable:
+        # the renderer refuses to overwrite an existing output, and the timeline will never appear while
+        # the partial file is mistaken for the result. Only the fragment is removed, so completed scene
+        # work and `force` semantics are unchanged.
+        video_path.unlink()
     narration = synthesize_script(script, spec, out_dir / "audio")
     renderer = render_landscape if spec.format == "long" else render_english
     return renderer(
@@ -282,7 +300,7 @@ def _render_tracked(
     # compute it afterwards, when the video always exists, so every fresh render reported
     # `skipped_render: true` - the opposite of what happened, in the field an operator reads first.
     expected_out_dir = episode_out_dir(spec, selected)
-    reused_build = (expected_out_dir / "video.mp4").is_file() and not force
+    reused_build = build_is_complete(expected_out_dir) and not force
     job.transition("GENERATING", engine=engine)
     if engine == "stage":
         script, story, out_dir, stage_result = _render_stage(

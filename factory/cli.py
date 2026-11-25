@@ -21,6 +21,7 @@ from .config import (
 from .content.plans import bank_status, generate_plan
 from .content.script import build_english_script, build_hindi_script, load_plans_for
 from .orchestrator import (
+    build_is_complete,
     episode_out_dir,
     find_plan,
     plan_identifier,
@@ -317,7 +318,9 @@ def cmd_resume(args: argparse.Namespace) -> int:
             plan_id = plan_identifier(plan)
             out_dir = episode_out_dir(spec, plan)
             qc = read_json(out_dir / "qc.json", {})
-            if (out_dir / "video.mp4").is_file() and qc.get("ok") and not args.force:
+            # `build_is_complete` rather than "the file exists": an interrupted encode leaves a truncated
+            # video.mp4, and skipping it here would report a broken episode as finished.
+            if build_is_complete(out_dir) and qc.get("ok") and not args.force:
                 continue
             results.append(_render_one(spec, plan_id, force=args.force))
     if not results:
