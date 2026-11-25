@@ -24,6 +24,7 @@ from .orchestrator import (
     episode_out_dir,
     find_plan,
     plan_identifier,
+    plan_specs,
     render_episode,
 )
 from .publisher import analytics_for, publish_episode
@@ -76,14 +77,34 @@ def _script_for(spec: ChannelSpec, plan: dict[str, Any]):
     return build_script(spec, plan)
 
 
+def _profile_for(spec: ChannelSpec, plan: dict[str, Any]) -> ChannelSpec:
+    """The composition profile a plan belongs to.
+
+    A 16:9 plan published under the channel's native 9:16 profile was rejected by the uploader's own
+    validation - "video must be 1080x1920, got 1920x1080" - so the long-form half of the nightly cadence
+    could be rendered, gated and then refused at the last step. The plan declares its format; the verb
+    follows it.
+    """
+
+    declared = str(plan.get("format") or "").lower()
+    if declared in {"shorts", "long"} and declared != spec.format:
+        return replace(spec, format=declared)
+    return spec
+
+
 def _rendered_plan(spec: ChannelSpec, plan_id: str | None) -> dict[str, Any]:
     if plan_id:
         return find_plan(spec, plan_id)
     candidates: list[tuple[float, dict[str, Any]]] = []
-    for plan in load_plans_for(spec):
-        video = episode_out_dir(spec, plan) / "video.mp4"
-        if video.is_file():
-            candidates.append((video.stat().st_mtime, plan))
+    for profile in plan_specs(spec):
+        try:
+            plans = load_plans_for(profile)
+        except ValueError:
+            continue
+        for plan in plans:
+            video = episode_out_dir(profile, plan) / "video.mp4"
+            if video.is_file():
+                candidates.append((video.stat().st_mtime, plan))
     if not candidates:
         raise ValueError(f"no rendered plan found for {spec.slug}")
     return max(candidates, key=lambda item: item[0])[1]
@@ -425,6 +446,7 @@ def cmd_qc(args: argparse.Namespace) -> int:
     results = []
     for spec in _specs(args.channel):
         plan = _rendered_plan(spec, args.plan_id)
+        spec = _profile_for(spec, plan)
         script = _script_for(spec, plan)
         out_dir = episode_out_dir(spec, plan)
         results.append(
@@ -453,6 +475,7 @@ def cmd_publish(args: argparse.Namespace) -> int:
     results = []
     for spec in _specs(args.channel):
         plan = _rendered_plan(spec, args.plan_id)
+        spec = _profile_for(spec, plan)
         script = _script_for(spec, plan)
         out_dir = episode_out_dir(spec, plan)
         publish_at = None

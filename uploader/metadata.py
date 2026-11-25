@@ -15,6 +15,12 @@ from .errors import SafetyError, ValidationError
 _SENTINEL = object()
 
 
+#: The two 1080p profiles this factory renders: 9:16 for Shorts, 16:9 for long-form. Anything else is
+#: rejected, so an upscaled, cropped or wrong-aspect file never reaches YouTube. Long-form videos could be
+#: rendered, QC'd and gated but not uploaded, because this check only knew the portrait geometry.
+ALLOWED_GEOMETRIES: frozenset[tuple[int, int]] = frozenset({(1080, 1920), (1920, 1080)})
+
+
 @dataclass(frozen=True)
 class UploadRequest:
     channel_slug: str
@@ -294,10 +300,9 @@ class UploadRequest:
         video = video_streams[0]
         width = video.get("width")
         height = video.get("height")
-        if width != 1080 or height != 1920:
-            raise ValidationError(
-                f"video must be 1080x1920, got {width}x{height}"
-            )
+        if (width, height) not in ALLOWED_GEOMETRIES:
+            allowed = " or ".join(f"{w}x{h}" for w, h in sorted(ALLOWED_GEOMETRIES))
+            raise ValidationError(f"video must be {allowed}, got {width}x{height}")
         return {
             "width": width,
             "height": height,
