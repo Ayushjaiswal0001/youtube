@@ -363,7 +363,9 @@ jobs:
       - name: Publishing policy (per channel)
         # Three separate authorizations: rendering, uploading, scheduling. This step answers the third one
         # from the channel config, so a scheduled run never uploads merely because it rendered, and a
-        # channel that has not opted in stays manual no matter what the workflow asks for.
+        # channel that has not opted in stays manual. The gate below distinguishes the two kinds of upload:
+        # `release: auto` (a scheduled publication, which needs the channel's consent) from an explicit
+        # `upload: true` with no release (a human asking for a private upload, which does not).
         id: policy
         run: |
           python -m factory.cli publishing --channel "$CHANNEL" --json > publishing.json
@@ -372,7 +374,7 @@ jobs:
 
       - name: Export channel credentials
         id: creds
-        if: ${{ inputs.upload && steps.policy.outputs.ready == '1' }}
+        if: ${{ inputs.upload && (inputs.release != 'auto' || steps.policy.outputs.ready == '1') }}
         env:
           # Passed through the environment: interpolating a dispatch input straight into a shell
           # command is how `$(...)` typed into an input becomes a command on the runner.
@@ -399,11 +401,11 @@ jobs:
           echo "ready=1" >> "$GITHUB_OUTPUT"
 
       - name: Verify channel identity before upload
-        if: ${{ inputs.upload && steps.policy.outputs.ready == '1' && steps.creds.outputs.ready == '1' }}
+        if: ${{ inputs.upload && (inputs.release != 'auto' || steps.policy.outputs.ready == '1') && steps.creds.outputs.ready == '1' }}
         run: python -m uploader.cli verify --channel "$CHANNEL"
 
       - name: Upload (private, gated)
-        if: ${{ inputs.upload && steps.policy.outputs.ready == '1' && steps.creds.outputs.ready == '1' && steps.gate.outputs.ok == '1' }}
+        if: ${{ inputs.upload && (inputs.release != 'auto' || steps.policy.outputs.ready == '1') && steps.creds.outputs.ready == '1' && steps.gate.outputs.ok == '1' }}
         env:
           FACTORY_ALLOW_UPLOAD: "1"
           UPLOAD_ENABLED: "true"

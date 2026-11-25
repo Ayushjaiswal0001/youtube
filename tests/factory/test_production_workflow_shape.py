@@ -150,8 +150,9 @@ class TestProduceWorkflow:
     def test_the_upload_step_is_gated_on_the_gate_and_credentials(self) -> None:
         job = load("produce.yml")["jobs"]["produce"]
         upload = next(step for step in job["steps"] if step.get("name") == "Upload (private, gated)")
-        assert upload["if"] == ("${{ inputs.upload && steps.policy.outputs.ready == '1' && "
-                               "steps.creds.outputs.ready == '1' && steps.gate.outputs.ok == '1' }}")
+        assert upload["if"] == (
+            "${{ inputs.upload && (inputs.release != 'auto' || steps.policy.outputs.ready == '1') && "
+            "steps.creds.outputs.ready == '1' && steps.gate.outputs.ok == '1' }}")
 
     def test_the_manifest_is_rebuilt_after_qc(self) -> None:
         job = load("produce.yml")["jobs"]["produce"]

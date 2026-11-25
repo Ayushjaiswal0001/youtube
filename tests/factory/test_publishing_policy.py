@@ -454,9 +454,11 @@ def test_a_scheduled_run_asks_for_an_upload_and_a_release_but_the_policy_decides
 def test_the_upload_steps_are_gated_on_the_channel_policy():
     text = raw("produce.yml")
     assert "id: policy" in text
-    assert "steps.policy.outputs.ready == '1'" in text
-    # credentials, identity verification and the upload itself all consult the policy
-    assert text.count("steps.policy.outputs.ready == '1'") >= 3
+    # a scheduled publication needs the channel's consent; credentials, identity verification and the upload
+    # itself all check it, so no step can reach a release time without the policy saying yes
+    assert text.count("inputs.release != 'auto' || steps.policy.outputs.ready == '1'") == 3
+    # a manual private upload (upload: true, no release) does not need the channel to opt into scheduling
+    assert "inputs.upload && (inputs.release != 'auto'" in text
     # and the global default is still "no uploads"
     assert 'UPLOAD_ENABLED: "false"' in text
 
