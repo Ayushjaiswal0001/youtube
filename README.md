@@ -2,7 +2,7 @@
 
 Centralized YouTube uploader for three channels. The primary safety rule is simple: **the token used for an upload must belong to the exact channel selected for that upload**.
 
-This repository currently contains the uploader implementation and offline tests. No video has been uploaded by this code.
+The repository includes the production factory and uploader, and GitHub Actions artifacts document hosted renders for all three channels in Shorts and horizontal formats. A dated [private upload checklist](X100_PRIVATE_UPLOAD_CHECKLIST.md) records earlier private pilot uploads; those account states were not re-read during the latest audit. For current test, workflow, and activation status, use [the final closure report](X100_FINAL_PRODUCTION_CLOSURE_REPORT.md), [operations guide](X100_PRODUCTION_OPERATIONS_GUIDE.md), and [activation handover](X100_FINAL_ACTIVATION_HANDOVER.md). All three publishing workflows were disabled during that audit.
 
 ## Channels
 

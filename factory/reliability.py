@@ -185,6 +185,56 @@ class LockInfo:
     heartbeat: float
 
 
+def _pid_is_alive(pid: int) -> bool:
+    """Check a local PID without sending a signal to it.
+
+    POSIX commonly uses ``os.kill(pid, 0)`` as an existence probe. On Windows, signal zero maps to
+    ``CTRL_C_EVENT`` and can interrupt this process, so use a waitable process handle instead.
+    Unknown Windows errors are treated as alive to avoid stealing a lock we cannot prove stale.
+    """
+
+    if os.name == "nt":
+        import ctypes
+        from ctypes import wintypes
+
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        open_process = kernel32.OpenProcess
+        open_process.argtypes = (wintypes.DWORD, wintypes.BOOL, wintypes.DWORD)
+        open_process.restype = wintypes.HANDLE
+        wait_for_single_object = kernel32.WaitForSingleObject
+        wait_for_single_object.argtypes = (wintypes.HANDLE, wintypes.DWORD)
+        wait_for_single_object.restype = wintypes.DWORD
+        close_handle = kernel32.CloseHandle
+        close_handle.argtypes = (wintypes.HANDLE,)
+        close_handle.restype = wintypes.BOOL
+
+        synchronize = 0x00100000
+        handle = open_process(synchronize, False, int(pid))
+        if not handle:
+            # ERROR_INVALID_PARAMETER / ERROR_NOT_FOUND mean the process no longer exists.
+            return ctypes.get_last_error() not in (87, 1168)
+        try:
+            result = wait_for_single_object(handle, 0)
+            if result == 0:  # WAIT_OBJECT_0: process has exited.
+                return False
+            return True  # WAIT_TIMEOUT or any uncertain result: fail closed.
+        finally:
+            close_handle(handle)
+
+    try:
+        os.kill(int(pid), 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    except OSError as exc:
+        # Only ESRCH proves absence. Treat other OS errors conservatively as a live process.
+        import errno
+
+        return exc.errno != errno.ESRCH
+    return True
+
+
 class JobLock:
     """One lock file per channel+plan, safe across processes and across runners.
 
@@ -231,12 +281,7 @@ class JobLock:
         # A different host cannot be probed; trust the heartbeat. Same host: check the pid, because
         # a killed process leaves a fresh heartbeat behind for as long as the ttl.
         if info.host == socket.gethostname():
-            try:
-                os.kill(info.pid, 0)
-            except (ProcessLookupError, PermissionError):
-                return True
-            except OSError:
-                return True
+            return not _pid_is_alive(info.pid)
         return False
 
     # -- acquisition -----------------------------------------------------

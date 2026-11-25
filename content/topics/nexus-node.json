@@ -215,35 +215,35 @@
       "slot": "pm",
       "tags": ["ai", "evaluation", "benchmarks"],
       "sources": [
-        "https://arxiv.org/search/?query=benchmark+contamination+language+model",
+        "https://arxiv.org/abs/2310.18018",
         "https://crfm.stanford.edu/helm/"
       ],
-      "hook": "A benchmark score is only useful if the answers were not already in the training data.",
+      "hook": "A benchmark score can be misleading when test answers leak into training data.",
       "hook_headline": "Test leakage",
       "hook_visual": "grid",
       "beats": [
         {
-          "text": "Public test sets end up on the web, which means they can end up inside the next training run.",
+          "text": "Public test sets can appear online and may be included in later training data.",
           "headline": "Contamination",
           "visual": "flow"
         },
         {
-          "text": "A model that memorised the answers looks brilliant and fails the moment the question changes.",
+          "text": "A model may memorize familiar examples yet struggle with new questions that test the same skill.",
           "headline": "Memorised, not learned",
           "visual": "gap"
         },
         {
-          "text": "Labs increasingly hold private test sets and rotate them, which makes scores harder to compare.",
+          "text": "Private or newly written tests can reduce some leakage risk, while differences between test sets can make comparisons harder.",
           "headline": "Private tests",
           "visual": "lock"
         },
         {
-          "text": "Task-specific evaluation on your own data is the only number that predicts your results.",
+          "text": "Use public leaderboards for broad comparisons, then test candidates on representative, held-out examples from your own workload.",
           "headline": "Measure your task",
           "visual": "bars"
         }
       ],
-      "payoff": "Treat leaderboards as press releases and your own evaluation set as the actual spec.",
+      "payoff": "Treat leaderboards as a starting point, then check shortlisted models on held-out examples from your workload.",
       "payoff_headline": "Your data is the benchmark",
       "cta": "Follow for more sober AI coverage.",
       "cta_headline": "Follow"

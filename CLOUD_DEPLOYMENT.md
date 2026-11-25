@@ -1,7 +1,13 @@
 # Cloud deployment
 
-Status: **prepared, not executed.** No GitHub-hosted runner has produced a video yet. This document
-records exactly what exists, what it needs, and what is blocking the first real run.
+> **Historical snapshot:** this status predates the hosted production artifacts inspected in the November 25,
+> 2026 final audit. The current evidence and remaining account/runtime limits are in
+> [the final quality audit](X100_FINAL_QUALITY_AUDIT.md) and
+> [the final closure report](X100_FINAL_PRODUCTION_CLOSURE_REPORT.md). Do not use this snapshot as a current
+> deployment or activation checklist.
+
+At the time this snapshot was written, cloud execution had not yet been verified. The following table records
+that earlier state and is retained for provenance.
 
 ## What runs where
 

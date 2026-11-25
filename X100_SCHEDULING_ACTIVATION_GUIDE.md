@@ -1,5 +1,10 @@
 # X100 scheduling activation guide
 
+> **Superseded for current activation:** use [the final activation handover](X100_FINAL_ACTIVATION_HANDOVER.md)
+> and [final closure report](X100_FINAL_PRODUCTION_CLOSURE_REPORT.md). All three publishing workflows were
+> disabled during the latest audit; the enable and dispatch examples below are historical procedures, not
+> approval to act.
+
 How a video becomes public without anyone clicking "publish", what has been proven, and the exact order in
 which the three channels may be switched on.
 
@@ -232,7 +237,7 @@ rejected by the uploader if that flag is ever false. The pilot confirmed the API
 
 ```bash
 gh workflow disable "nexus-node daily"
-python -m factory.cli pause --channel all --reason "owner stop"
+python -m factory.cli pause
 ```
 
 `pause` stops rendering and publishing inside the code; disabling the workflow stops the trigger. Do both if

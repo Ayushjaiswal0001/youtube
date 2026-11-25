@@ -32,6 +32,56 @@ PERMISSIONS = re.compile(r"^permissions:\s*$", re.MULTILINE)
 DANGEROUS_PERMISSIONS = ("write-all", "contents: write", "id-token: write")
 SECRETS = re.compile(r"secrets\.[A-Za-z_]|secrets\[", re.IGNORECASE)
 INTERPOLATED_INPUT = re.compile(r"\$\{\{\s*inputs\.[A-Za-z_]+\s*\}\}")
+INTERPOLATED_STEP_OUTPUT = re.compile(
+    r"\$\{\{\s*steps\.[A-Za-z0-9_-]+\.outputs\.[A-Za-z0-9_-]+\s*\}\}"
+)
+
+
+def _run_script_lines(text: str) -> list[str]:
+    """Return inline and block-scalar shell source from workflow ``run`` keys.
+
+    GitHub expressions inside ``run: |`` are expanded before the shell executes. Looking only at the YAML
+    key line misses the common multiline form and silently lets tainted inputs or step outputs through.
+    This small indentation-aware reader is enough for the workflow files in this repository and does not
+    mistake ``env:``, ``with:`` or ``if:`` values for shell source.
+    """
+
+    scripts: list[str] = []
+    run_indent: int | None = None
+    for line in text.splitlines():
+        if run_indent is None:
+            match = re.match(r"^(\s*)run:\s*(.*)$", line)
+            if not match:
+                continue
+            run_indent = len(match.group(1))
+            if run_indent < 4:
+                # A job can be named `run`; only step-level `run:` keys execute shell source.
+                run_indent = None
+                continue
+            value = match.group(2).strip()
+            if value and value[0] not in "|>":
+                scripts.append(value)
+                run_indent = None
+            continue
+
+        if not line.strip():
+            continue
+        indent = len(line) - len(line.lstrip())
+        if indent <= run_indent:
+            run_indent = None
+            match = re.match(r"^(\s*)run:\s*(.*)$", line)
+            if match:
+                run_indent = len(match.group(1))
+                if run_indent < 4:
+                    run_indent = None
+                    continue
+                value = match.group(2).strip()
+                if value and value[0] not in "|>":
+                    scripts.append(value)
+                    run_indent = None
+            continue
+        scripts.append(line)
+    return scripts
 
 
 def _job_bodies(text: str) -> dict[str, str]:
@@ -100,15 +150,9 @@ def audit_workflow(path: Path) -> list[dict]:
             add("secret-without-permissions",
                 f"job '{job}' reads secrets but does not narrow its own permissions")
 
-    for line in text.splitlines():
-        stripped = line.strip()
-        if stripped.startswith("- ") or stripped.startswith("#"):
-            continue
-        if stripped.startswith("run:") and INTERPOLATED_INPUT.search(stripped):
-            add("input-in-shell", stripped[:100])
-        elif not stripped.startswith("run:") and INTERPOLATED_INPUT.search(stripped):
-            # Interpolation is fine in `env:`, `with:` and `if:`; only shells are the injection path.
-            continue
+    for line in _run_script_lines(text):
+        if INTERPOLATED_INPUT.search(line) or INTERPOLATED_STEP_OUTPUT.search(line):
+            add("input-in-shell", line.strip()[:100])
     return findings
 
 

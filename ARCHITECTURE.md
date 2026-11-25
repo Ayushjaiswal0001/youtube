@@ -117,15 +117,16 @@ rather than editing code.
 .github/workflows/
   ci.yml                          # uploader (3.11/3.12 unittest) + factory (deps + 27 tests)
   produce.yml                     # reusable: plan -> render -> qc -> verify -> upload -> artifacts
-  produce-nexus-node.yml          # cron 30 14 * * *  (20:00 IST)
-  produce-academic-biohacker.yml  # cron 30 6  * * *  (12:00 IST)
-  produce-natkhat-toons.yml       # cron 30 12 * * *  (18:00 IST)
+  produce-nexus-node.yml          # cron 30 12 * * *  (18:00 IST start; release 20:00 IST)
+  produce-academic-biohacker.yml  # cron 30 4  * * *  (10:00 IST start; release 12:00 IST)
+  produce-natkhat-toons.yml       # cron 30 10 * * *  (16:00 IST start; release 18:00 IST)
 ```
 
 State survives runs through `actions/cache/restore`/`save` of `pipeline_state/` and
 `.state/youtube` with a rolling `state-<channel>-` prefix. Uploads are skipped with a
 warning when the channel's secrets are absent, so a dry dispatch never fails on auth.
-**None of the produce workflows has been executed yet.**
+The older architecture summary above is superseded for current workflow/test status by
+`X100_FINAL_PRODUCTION_CLOSURE_REPORT.md`.
 
 Each produce workflow: `workflow_dispatch` + `schedule` + `concurrency` lock +
 `timeout-minutes` + retry wrapper + artifact upload (`build/`, `qc.json`,

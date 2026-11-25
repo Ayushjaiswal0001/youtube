@@ -292,6 +292,14 @@ def test_publish_looks_up_the_release_for_its_own_plan(monkeypatch):
         cli, "latest_scheduled_release",
         lambda channel, plan_id=None: seen.append((channel.slug, plan_id)) or None,
     )
+    # This test is about the per-plan history lookup, not whether today's release window is still open.
+    # Pin the resolver's clock so it remains valid when CI runs after the configured 20:00 IST release.
+    monkeypatch.setattr(
+        cli,
+        "resolve_release",
+        lambda channel, **kwargs: resolve_release(
+            channel, now=at("2026-11-25T12:00:00Z"), **kwargs),
+    )
 
     assert cli.cmd_publish(_publish_args(execute=False)) == 0
     assert seen == [("nexus-node", "long-nexus-power-grid")]
@@ -485,7 +493,8 @@ def test_a_five_minute_late_run_publishes_today_not_tomorrow(monkeypatch):
 
     from factory import cli
 
-    now_ist = datetime.now(timezone.utc).astimezone(IST)
+    now = at("2026-11-25T14:35:00Z")  # 20:05 IST, five minutes after the intended 20:00 release.
+    now_ist = now.astimezone(IST)
     late_time = (now_ist - timedelta(minutes=5)).strftime("%H:%M")
     channel = spec(publish_time_ist=late_time)
     monkeypatch.setattr(cli, "_specs", lambda name: [channel])
@@ -493,6 +502,11 @@ def test_a_five_minute_late_run_publishes_today_not_tomorrow(monkeypatch):
     monkeypatch.setattr(cli, "_profile_for", lambda channel, plan: channel)
     monkeypatch.setattr(cli, "_script_for", lambda channel, plan: None)
     monkeypatch.setattr(cli, "episode_out_dir", lambda channel, plan: Path("/tmp/none"))
+    monkeypatch.setattr(
+        cli,
+        "resolve_release",
+        lambda channel, **kwargs: resolve_release(channel, now=now, **kwargs),
+    )
 
     seen: dict = {}
     monkeypatch.setattr(
@@ -502,9 +516,9 @@ def test_a_five_minute_late_run_publishes_today_not_tomorrow(monkeypatch):
 
     assert cli.cmd_publish(_publish_args(execute=False)) == 0
     scheduled = at(seen["publish_at"].replace("Z", "+00:00"))
-    assert scheduled - datetime.now(timezone.utc) <= timedelta(minutes=20)
-    assert scheduled - datetime.now(timezone.utc) > timedelta(0)
-    assert scheduled.astimezone(IST).date() == datetime.now(timezone.utc).astimezone(IST).date()
+    assert scheduled - now <= timedelta(minutes=20)
+    assert scheduled - now > timedelta(0)
+    assert scheduled.astimezone(IST).date() == now_ist.date()
 
 
 # ----------------------------------------------------------------------------------- workflow wiring
