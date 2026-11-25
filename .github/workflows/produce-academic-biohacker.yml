@@ -18,9 +18,15 @@ name: academic-biohacker daily
 # whose publishing policy is `manual` renders and skips the upload; only a channel that opted into
 # `mode: scheduled` uploads and receives its release time. Nothing uploads because a render succeeded.
 
+# Cron starts two hours before the release time, not at it. A run that starts at the release instant is late
+# by definition: the resolver would shift it to `now + 15 min` and the declared release time would never be
+# met. Two hours covers the measured long-form render (18 min on a hosted runner, 50 min on a developer
+# machine) plus the 15 minute minimum lead, so both jobs finish before the release and schedule it exactly.
+
 on:
   schedule:
-    - cron: "30 6 * * *"
+    # 10:00 IST, so the release at 12:00 IST can actually be scheduled.
+    - cron: "30 4 * * *"
   workflow_dispatch:
     inputs:
       episode:

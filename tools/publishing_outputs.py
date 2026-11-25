@@ -26,6 +26,10 @@ def outputs(path: Path) -> dict[str, str]:
         "scheduled_upload": "1" if policy["scheduled_upload"] else "0",
         "next_release": str(release["publish_at"] or ""),
         "release_reason": str(release["reason"]),
+        # informational only: another plan of this channel already has a release pending. It does not block
+        # this run - the Short and the long-form share one release instant by design - but an operator
+        # reading the summary should know a second video is queued for the same channel.
+        "pending_release": str(item.get("pending_release") or ""),
     }
 
 
