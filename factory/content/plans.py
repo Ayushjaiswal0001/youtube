@@ -27,9 +27,12 @@ from typing import Any
 from ..config import CONTENT_DIR, ChannelSpec
 from ..util import IST, atomic_write_json, iso_now, read_json, slugify
 from ..state import ChannelState
+from .script import BatchPlan
 
 TOPICS_DIR = CONTENT_DIR / "topics"
 SERIES_DIR = CONTENT_DIR / "series"
+# Long-form episodes are authored here, not generated: they are 11-beat scripts a selector cannot invent.
+LONGFORM_DIR = CONTENT_DIR / "longform"
 
 
 class PlanGenerationError(RuntimeError):
@@ -296,6 +299,46 @@ def next_natkhat_plan(
     return plan
 
 
+# ---------------------------------------------------------------- long-form plans
+
+
+def load_longform_plans(spec: ChannelSpec) -> list[dict[str, Any]]:
+    """The authored 16:9 plans for a channel, in file order.
+
+    A missing or empty file is an error rather than an empty list: the nightly long-form job must fail
+    with "author another one" instead of quietly producing nothing.
+    """
+
+    path = LONGFORM_DIR / f"{spec.slug}.json"
+    if not path.is_file():
+        raise PlanGenerationError(f"no long-form bank for {spec.slug}: {path}")
+    batch = BatchPlan.load(path)
+    plans = [plan for plan in batch.for_channel(spec.slug) if isinstance(plan, dict) and plan.get("id")]
+    if not plans:
+        raise PlanGenerationError(f"long-form bank {path} has no plans for {spec.slug}")
+    return plans
+
+
+def next_longform_plan(spec: ChannelSpec, state: ChannelState) -> dict[str, Any]:
+    """The oldest long-form plan that has not been uploaded.
+
+    The order is the file's order, so two runs pick the same episode: the selector is deterministic, and
+    a plan that was rendered but whose upload failed is picked again - `resume` reuses the validated
+    video, so a failed upload never costs a second render.
+    """
+
+    for plan in load_longform_plans(spec):
+        plan_id = plan_id_of(plan)
+        status = _history_status(state, plan_id) or ""
+        if status == "uploaded":
+            continue
+        return plan
+    raise PlanGenerationError(
+        f"{spec.slug}: every long-form plan in {LONGFORM_DIR / f'{spec.slug}.json'} has been uploaded; "
+        "author the next long-form episode before the nightly long-form job runs"
+    )
+
+
 # ------------------------------------------------------------------- entry points
 
 
@@ -305,10 +348,26 @@ def generate_plan(
     allow_unpublished: bool = False,
     batch_date: datetime | None = None,
     write: bool = True,
+    format: str | None = None,
 ) -> dict[str, Any]:
-    """Return the next plan for a channel, writing it to today's batch by default."""
+    """Return the next plan for a channel, writing it to today's batch by default.
+
+    ``format="long"`` selects from the authored long-form bank instead of generating a Short. Nothing is
+    written in that case: the plan already lives in ``content/longform/``, and copying it into a batch
+    file would make the same episode exist twice, which is exactly how a duplicate render starts.
+    """
 
     state = ChannelState(spec.slug)
+    wanted = str(format or spec.format or "shorts").lower()
+    if wanted == "long":
+        plan = next_longform_plan(spec, state)
+        return {
+            "plan": plan,
+            "plan_id": plan_id_of(plan),
+            "channel": spec.slug,
+            "created": False,
+            "reason": "long-form plan is authored in content/longform, not generated",
+        }
     plan = (
         next_natkhat_plan(spec, state, allow_unpublished=allow_unpublished)
         if spec.is_hindi

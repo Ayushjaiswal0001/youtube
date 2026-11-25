@@ -13,19 +13,27 @@ from pathlib import Path
 BUILD = Path(os.environ.get("FACTORY_BUILD_DIR", "build"))
 OUT = Path(os.environ.get("FACTORY_QC_REPORT", "X100_EPISODE_QC_REPORTS.md"))
 
-EPISODES = [
-    ("nexus-node", "nexus-small-models", BUILD / "nexus-node/nexus-small-models"),
-    ("nexus-node", "nexus-robot-video", BUILD / "nexus-node/nexus-robot-video"),
-    ("academic-biohacker", "academic-morning-light",
-     BUILD / "academic-biohacker/academic-morning-light"),
-    ("academic-biohacker", "academic-slow-breathing",
-     BUILD / "academic-biohacker/academic-slow-breathing"),
-    ("natkhat-toons", "natkhat-haveli-e1",
-     BUILD / "natkhat-toons/natkhat-toons_natkhat-haveli-e1"),
-    ("nexus-node", "long-nexus-power-grid (16:9)",
-     Path(os.environ.get("FACTORY_LONGFORM_BUILD_DIR", BUILD))
-     / "nexus-node/long-nexus-power-grid"),
-]
+def discover(build: Path) -> list[tuple[str, str, Path]]:
+    """Every episode directory in the build tree, in channel then plan order.
+
+    The list used to be hard-coded, which meant a report could silently omit an episode that was rendered
+    in a different session. Discovery keeps the report a description of the artifacts rather than of
+    someone's memory.
+    """
+
+    found: list[tuple[str, str, Path]] = []
+    for channel_dir in sorted(p for p in build.iterdir() if p.is_dir()) if build.is_dir() else []:
+        for out_dir in sorted(p for p in channel_dir.iterdir() if p.is_dir()):
+            if (out_dir / "video.mp4").is_file():
+                found.append((channel_dir.name, out_dir.name, out_dir))
+    longform = os.environ.get("FACTORY_LONGFORM_BUILD_DIR")
+    if longform:
+        extra = Path(longform)
+        for channel_dir in sorted(p for p in extra.iterdir() if p.is_dir()) if extra.is_dir() else []:
+            for out_dir in sorted(p for p in channel_dir.iterdir() if p.is_dir()):
+                if (out_dir / "video.mp4").is_file():
+                    found.append((channel_dir.name, f"{out_dir.name} (16:9)", out_dir))
+    return found
 
 
 def load(path: Path) -> dict:
@@ -75,11 +83,11 @@ def main() -> None:
            "Generated from the artifacts in the acceptance build directory. Values are read from "
            "`render.json`, `qc.json`, `creative.json` and `manifest.json`; nothing here is transcribed "
            "by hand.", ""]
-    for channel, plan_id, root in EPISODES:
-        if root.exists():
-            out.extend(section(channel, plan_id, root))
-        else:
-            out.extend([f"## {channel} / {plan_id}", "", "- **not rendered** in this mission", ""])
+    episodes = discover(BUILD)
+    if not episodes:
+        out.extend(["No rendered episodes were found in the build directory.", ""])
+    for channel, plan_id, root in episodes:
+        out.extend(section(channel, plan_id, root))
     OUT.write_text("\n".join(out) + "\n", encoding="utf-8")
     print(f"wrote {OUT} ({len(out)} lines)")
 

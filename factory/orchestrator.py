@@ -60,7 +60,16 @@ def build_script(spec: ChannelSpec, plan: dict[str, Any]) -> Script:
     A landscape plan is normalised by `landscape_stage.plan_scenes`, which validates `scenes[].line` and maps it
     to `dialogue` before anything else sees it. Portrait Hindi plans still go through `build_hindi_script`,
     which stays strict about its own schema.
+
+    The plan's own `format` wins over the caller's spec, exactly as it does on the render path. Without that,
+    `validate --channel academic-biohacker --plan-id long-academic-study-protocol` (no `--format`, which is
+    how an operator naturally types it) built the 627-word 16:9 script against the *shorts* bounds and failed
+    with "too long (627 words, shorts allows 140)" - a message about the wrong problem entirely.
     """
+
+    declared = str(plan.get("format") or "").lower()
+    if declared in {"shorts", "long"} and declared != spec.format:
+        spec = replace(spec, format=declared)
 
     if resolve_engine(spec, plan) == "stage":
         from .media.landscape_stage import build_script as build_stage_script
@@ -269,6 +278,11 @@ def _render_tracked(
         spec = replace(spec, format=requested)
     engine = resolve_engine(spec, selected)
     stage_result: dict[str, Any] = {}
+    # Whether this run re-used a finished build has to be read *before* rendering: the payload used to
+    # compute it afterwards, when the video always exists, so every fresh render reported
+    # `skipped_render: true` - the opposite of what happened, in the field an operator reads first.
+    expected_out_dir = episode_out_dir(spec, selected)
+    reused_build = (expected_out_dir / "video.mp4").is_file() and not force
     job.transition("GENERATING", engine=engine)
     if engine == "stage":
         script, story, out_dir, stage_result = _render_stage(
@@ -387,7 +401,7 @@ def _render_tracked(
             if not item["ok"] and item["severity"] == "error"
         ],
         "qc_report": str(out_dir / "qc.json"),
-        "skipped_render": bool(timeline and video_path.is_file() and not force),
+        "skipped_render": reused_build,
     }
     payload["manifest_path"] = str(out_dir / "manifest.json")
     payload["job_id"] = job.job_id

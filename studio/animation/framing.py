@@ -489,8 +489,29 @@ class FramingReport:
             spill[name] = overflow(box, zoom, pan_x, pan_y, self.viewport)
         self.records.append(FrameRecord(t, zoom, visible, spill, cut))
 
+    #: A subject this close to the edge counts as cut. Sub-pixel round-off is not a crop.
+    CROP_TOLERANCE_PX = 0.5
+
     def cropped_frames(self, name: str) -> int:
-        return sum(1 for record in self.records if not record.visible.get(name, True))
+        """Frames on which the subject is actually outside the picture.
+
+        This used to count frames where the subject merely left the safe *margin*, which is a planning
+        goal, not the edge of the picture. A character standing still near the frame edge was reported
+        as cropped on 140 frames of a wide shot with zero pixels of overflow, and the episode was
+        blocked at the gate for a defect that could not be seen. A check that fires on good work is
+        worse than none, so the two conditions are now measured separately: `cropped_frames` means
+        pixels outside the frame, `near_edge_frames` means inside the frame but inside the margin band.
+        """
+
+        return sum(1 for record in self.records
+                   if record.overflow.get(name, 0.0) > self.CROP_TOLERANCE_PX)
+
+    def near_edge_frames(self, name: str) -> int:
+        """Frames the subject spent inside the picture but inside the margin band."""
+
+        return sum(1 for record in self.records
+                   if not record.visible.get(name, True)
+                   and record.overflow.get(name, 0.0) <= self.CROP_TOLERANCE_PX)
 
     def worst_overflow(self, name: str) -> float:
         return max([record.overflow.get(name, 0.0) for record in self.records], default=0.0)
@@ -513,10 +534,12 @@ class FramingReport:
             "frames": len(self.records),
             "required": list(self.required),
             "cropped_required": sum(self.cropped_frames(name) for name in self.required),
+            "near_edge_required": sum(self.near_edge_frames(name) for name in self.required),
             "subjects": {
                 name: {
                     "required": name in self.required,
                     "cropped_frames": self.cropped_frames(name),
+                    "near_edge_frames": self.near_edge_frames(name),
                     "worst_overflow_px": round(self.worst_overflow(name), 1),
                     "visible_fraction": round(
                         sum(1 for record in self.records if record.visible.get(name))

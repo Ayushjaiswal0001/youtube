@@ -5,6 +5,11 @@ name: production (manual)
 #
 # UPLOAD_ENABLED and SCHEDULED_PUBLISHING_ENABLED stay false unless this run sets `upload`, and even
 # then the workflow's publish step is additionally gated on the publishing gate passing.
+#
+# One job per channel, each passing only its own three secrets. A single job that receives all nine would
+# hand every channel's refresh token to a run that can only ever use one; the daily workflows already work
+# this way, and a manual upload validation has to be able to do the same thing without a cron being
+# enabled first.
 
 on:
   workflow_dispatch:
@@ -41,32 +46,55 @@ permissions:
   contents: read
 
 concurrency:
-  group: production-${{ inputs.channel }}
+  group: production-${{ inputs.channel }}-${{ inputs.format || 'native' }}
   cancel-in-progress: false
 
 jobs:
-  resolve:
-    runs-on: ubuntu-latest
-    outputs:
-      secret_prefix: ${{ steps.map.outputs.prefix }}
-    steps:
-      - id: map
-        run: |
-          case "${{ inputs.channel }}" in
-            nexus-node) PREFIX=NEXUS_NODE ;;
-            academic-biohacker) PREFIX=ACADEMIC_BIOHACKER ;;
-            natkhat-toons) PREFIX=NATKHAT_TOONS ;;
-            *) echo "::error::unknown channel"; exit 1 ;;
-          esac
-          echo "prefix=${PREFIX}" >> "$GITHUB_OUTPUT"
-
-  produce:
-    needs: resolve
+  nexus-node:
+    if: ${{ inputs.channel == 'nexus-node' }}
     uses: ./.github/workflows/produce.yml
     with:
-      channel: ${{ inputs.channel }}
-      secret_prefix: ${{ needs.resolve.outputs.secret_prefix }}
+      channel: nexus-node
+      secret_prefix: NEXUS_NODE
       mode: ${{ inputs.mode }}
       plan_id: ${{ inputs.plan_id }}
       format: ${{ inputs.format }}
       upload: ${{ inputs.upload }}
+      # A long-form episode took 3,008 s measured; 120 minutes is the budget for one, 60 for a Short.
+      timeout_minutes: ${{ inputs.format == 'long' && 120 || 60 }}
+    secrets:
+      YT_NEXUS_NODE_CLIENT_ID: ${{ secrets.YT_NEXUS_NODE_CLIENT_ID }}
+      YT_NEXUS_NODE_CLIENT_SECRET: ${{ secrets.YT_NEXUS_NODE_CLIENT_SECRET }}
+      YT_NEXUS_NODE_REFRESH_TOKEN: ${{ secrets.YT_NEXUS_NODE_REFRESH_TOKEN }}
+
+  academic-biohacker:
+    if: ${{ inputs.channel == 'academic-biohacker' }}
+    uses: ./.github/workflows/produce.yml
+    with:
+      channel: academic-biohacker
+      secret_prefix: ACADEMIC_BIOHACKER
+      mode: ${{ inputs.mode }}
+      plan_id: ${{ inputs.plan_id }}
+      format: ${{ inputs.format }}
+      upload: ${{ inputs.upload }}
+      timeout_minutes: ${{ inputs.format == 'long' && 120 || 60 }}
+    secrets:
+      YT_ACADEMIC_BIOHACKER_CLIENT_ID: ${{ secrets.YT_ACADEMIC_BIOHACKER_CLIENT_ID }}
+      YT_ACADEMIC_BIOHACKER_CLIENT_SECRET: ${{ secrets.YT_ACADEMIC_BIOHACKER_CLIENT_SECRET }}
+      YT_ACADEMIC_BIOHACKER_REFRESH_TOKEN: ${{ secrets.YT_ACADEMIC_BIOHACKER_REFRESH_TOKEN }}
+
+  natkhat-toons:
+    if: ${{ inputs.channel == 'natkhat-toons' }}
+    uses: ./.github/workflows/produce.yml
+    with:
+      channel: natkhat-toons
+      secret_prefix: NATKHAT_TOONS
+      mode: ${{ inputs.mode }}
+      plan_id: ${{ inputs.plan_id }}
+      format: ${{ inputs.format }}
+      upload: ${{ inputs.upload }}
+      timeout_minutes: ${{ inputs.format == 'long' && 120 || 60 }}
+    secrets:
+      YT_NATKHAT_TOONS_CLIENT_ID: ${{ secrets.YT_NATKHAT_TOONS_CLIENT_ID }}
+      YT_NATKHAT_TOONS_CLIENT_SECRET: ${{ secrets.YT_NATKHAT_TOONS_CLIENT_SECRET }}
+      YT_NATKHAT_TOONS_REFRESH_TOKEN: ${{ secrets.YT_NATKHAT_TOONS_REFRESH_TOKEN }}

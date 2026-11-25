@@ -139,8 +139,11 @@ def test_a_plan_walk_without_a_request_covers_every_plan(build_dir) -> None:
     pairs = list(cli._iter_requested_plans(Args()))
     ids = {plan.get("id") for _, plan in pairs}
     assert "nexus-data-wall" in ids
-    # without --format the walk stays on the channel's own profile; the gate is what crosses profiles
-    assert {spec.format for spec, _ in pairs} == {"shorts"}
+    # Without --format the walk now crosses both composition profiles, because staying on the native one
+    # made `validate --plan-id long-...` report "plan not in this repository" for a plan sitting on disk.
+    # The change is additive: every plan is still walked, and exactly once.
+    assert {spec.format for spec, _ in pairs} == {"shorts", "long"}
+    assert len(ids) == len(pairs), "each plan must be walked once"
 
     class LongArgs(Args):
         format = "long"

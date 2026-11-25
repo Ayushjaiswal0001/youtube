@@ -24,6 +24,7 @@ from .orchestrator import (
     episode_out_dir,
     find_plan,
     plan_identifier,
+    plan_specs,
     render_episode,
 )
 from .publisher import analytics_for, publish_episode
@@ -76,14 +77,34 @@ def _script_for(spec: ChannelSpec, plan: dict[str, Any]):
     return build_script(spec, plan)
 
 
+def _profile_for(spec: ChannelSpec, plan: dict[str, Any]) -> ChannelSpec:
+    """The composition profile a plan belongs to.
+
+    A 16:9 plan published under the channel's native 9:16 profile was rejected by the uploader's own
+    validation - "video must be 1080x1920, got 1920x1080" - so the long-form half of the nightly cadence
+    could be rendered, gated and then refused at the last step. The plan declares its format; the verb
+    follows it.
+    """
+
+    declared = str(plan.get("format") or "").lower()
+    if declared in {"shorts", "long"} and declared != spec.format:
+        return replace(spec, format=declared)
+    return spec
+
+
 def _rendered_plan(spec: ChannelSpec, plan_id: str | None) -> dict[str, Any]:
     if plan_id:
         return find_plan(spec, plan_id)
     candidates: list[tuple[float, dict[str, Any]]] = []
-    for plan in load_plans_for(spec):
-        video = episode_out_dir(spec, plan) / "video.mp4"
-        if video.is_file():
-            candidates.append((video.stat().st_mtime, plan))
+    for profile in plan_specs(spec):
+        try:
+            plans = load_plans_for(profile)
+        except ValueError:
+            continue
+        for plan in plans:
+            video = episode_out_dir(profile, plan) / "video.mp4"
+            if video.is_file():
+                candidates.append((video.stat().st_mtime, plan))
     if not candidates:
         raise ValueError(f"no rendered plan found for {spec.slug}")
     return max(candidates, key=lambda item: item[0])[1]
@@ -245,24 +266,34 @@ def _iter_requested_plans(args: argparse.Namespace):
     empty result, and the error says which plans exist.
     """
 
+    from .orchestrator import plan_specs
+
     requested = str(getattr(args, "plan_id", "") or "")
     seen: list[str] = []
     matched = False
-    for spec in _specs(args.channel):
-        if getattr(args, "format", None):
-            spec = replace(spec, format=args.format)
-        try:
-            plans = load_plans_for(spec)
-        except ValueError:
-            # a channel with no plans for this composition profile is not an error here
-            continue
-        for plan in plans:
-            plan_id = plan_identifier(plan)
-            seen.append(plan_id)
-            if requested and plan_id != requested:
+    handled: set[str] = set()
+    for base_spec in _specs(args.channel):
+        # Without an explicit --format, both composition profiles are walked, the same way `gate` does it.
+        # Iterating only the channel's native profile made `validate --plan-id long-...` report "plan not in
+        # this repository" for a plan that was sitting on disk.
+        profiles = ([replace(base_spec, format=args.format)] if getattr(args, "format", None)
+                    else plan_specs(base_spec))
+        for spec in profiles:
+            try:
+                plans = load_plans_for(spec)
+            except ValueError:
+                # a channel with no plans for this composition profile is not an error here
                 continue
-            matched = matched or bool(requested)
-            yield spec, plan
+            for plan in plans:
+                plan_id = plan_identifier(plan)
+                seen.append(plan_id)
+                if requested and plan_id != requested:
+                    continue
+                if plan_id in handled:
+                    continue
+                handled.add(plan_id)
+                matched = matched or bool(requested)
+                yield spec, plan
     if requested and not matched:
         raise ValueError(
             f"plan {requested!r} is not in this repository; known plans: "
@@ -415,6 +446,7 @@ def cmd_qc(args: argparse.Namespace) -> int:
     results = []
     for spec in _specs(args.channel):
         plan = _rendered_plan(spec, args.plan_id)
+        spec = _profile_for(spec, plan)
         script = _script_for(spec, plan)
         out_dir = episode_out_dir(spec, plan)
         results.append(
@@ -443,6 +475,7 @@ def cmd_publish(args: argparse.Namespace) -> int:
     results = []
     for spec in _specs(args.channel):
         plan = _rendered_plan(spec, args.plan_id)
+        spec = _profile_for(spec, plan)
         script = _script_for(spec, plan)
         out_dir = episode_out_dir(spec, plan)
         publish_at = None
@@ -545,6 +578,45 @@ def cmd_batch(args: argparse.Namespace) -> int:
     return 0 if all(item.get("qc_ok", True) for item in results) else 2
 
 
+def cmd_cleanup(args: argparse.Namespace) -> int:
+    """Report (and optionally delete) build directories that are released and old.
+
+    Dry run unless --apply. `factory.housekeeping` refuses to classify anything as deletable unless the
+    episode is recorded as uploaded, passed QC, has a complete manifest and no job is writing to it.
+    """
+
+    from .housekeeping import apply, scan, summary
+
+    specs = _specs(args.channel)
+    entries = scan(specs, keep_days=args.keep_days)
+    report: dict[str, Any] = summary(entries, keep_days=args.keep_days)
+    report["entries"] = [entry.to_dict() for entry in entries]
+    if args.apply:
+        report.update(apply(entries))
+    else:
+        report["applied"] = False
+    _print(report if args.json else _cleanup_lines(report), args.json)
+    return 0 if not report.get("failed") else 1
+
+
+def _cleanup_lines(report: dict[str, Any]) -> list[str]:
+    lines = [
+        f"build entries: {report['build_entries']}  "
+        f"deletable: {report['deletable']}  "
+        f"reclaimable: {report['reclaimable_bytes'] / 1_048_576:.1f} MiB  "
+        f"total: {report['total_bytes'] / 1_048_576:.1f} MiB  keep window: {report['keep_days']} days"
+    ]
+    for entry in report["entries"]:
+        lines.append(f"  {entry['action']:6} {entry['channel']:20} {entry['plan_id'][:30]:32} "
+                     f"{entry['bytes'] / 1_048_576:6.1f} MiB  {entry['reason']}")
+    if not report.get("applied"):
+        lines.append("dry run: pass --apply to delete the rows marked 'delete'")
+    else:
+        lines.append(f"deleted {len(report.get('deleted') or [])} director(ies), "
+                     f"freed {report.get('freed_bytes', 0) / 1_048_576:.1f} MiB")
+    return lines
+
+
 def cmd_doctor(args: argparse.Namespace) -> int:
     import os
     import shutil
@@ -584,6 +656,7 @@ def cmd_plan_new(args: argparse.Namespace) -> int:
                 spec,
                 allow_unpublished=args.allow_unpublished,
                 write=not args.no_write,
+                format=getattr(args, "format", None),
             )
         )
     _print(
@@ -749,6 +822,13 @@ def build_parser() -> argparse.ArgumentParser:
 
     doctor = subparsers.add_parser("doctor")
     doctor.add_argument("--json", action="store_true", help=argparse.SUPPRESS)
+    cleanup = subparsers.add_parser(
+        "cleanup", help="report or delete released build directories (dry run by default)")
+    cleanup.add_argument("--channel", default="all")
+    cleanup.add_argument("--keep-days", type=int, default=14)
+    cleanup.add_argument("--apply", action="store_true", help="actually delete")
+    cleanup.add_argument("--json", action="store_true", help=argparse.SUPPRESS)
+    cleanup.set_defaults(func=cmd_cleanup)
     doctor.set_defaults(func=cmd_doctor)
 
     plan = subparsers.add_parser("plan", help="generate and inspect episode plans")
@@ -762,6 +842,10 @@ def build_parser() -> argparse.ArgumentParser:
         help="Natkhat: plan the next episode even if the previous one has not been uploaded",
     )
     plan_new.add_argument("--no-write", action="store_true", help="preview without touching the batch")
+    plan_new.add_argument(
+        "--format", choices=("shorts", "long"), default=None,
+        help="which bank to select from; long-form plans are authored, never generated",
+    )
     plan_new.add_argument("--json", action="store_true", help=argparse.SUPPRESS)
     plan_new.set_defaults(func=cmd_plan_new)
 

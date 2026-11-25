@@ -313,7 +313,8 @@ _LADDER: dict[str, tuple[str, ...]] = {
     "pipeline": ("topology", "timeline"),
     "gap": ("comparison", "pipeline"),
     "comparison": ("pipeline", "panels", "gap"),
-    "panels": ("pipeline", "timeline"),
+    "panels": ("stacked", "pipeline", "timeline"),
+    "stacked": ("panels", "pipeline"),
     "topology": ("pipeline", "timeline"),
     "components": ("pipeline", "topology"),
     "layers": ("pipeline", "topology"),
@@ -365,7 +366,8 @@ def spec_for(*, concept: str, narration: str, objective: str,
             result = "statement" if attributes else "pipeline"
         elif result == "pipeline" and len(stageable) < 2 and attributes:
             result = "statement"
-        if attributes and not comparative and result in {"comparison", "gap", "topology", "panels"}:
+        if attributes and not comparative and result in {"comparison", "gap", "topology", "panels",
+                                                        "stacked"}:
             result = "statement"
         # Comparison or co-mention? A sentence that never compares anything gets panels, so the plate
         # cannot claim a contest the narration does not make.
@@ -1098,6 +1100,32 @@ def _draw_panels(canvas: Canvas, spec: DiagramSpec, top: float) -> None:
     _footer(canvas, spec, "WHAT THE SENTENCE MENTIONS")
 
 
+def _draw_stacked(canvas: Canvas, spec: DiagramSpec, top: float) -> None:
+    """Two mentioned subjects, one above the other, and no claim about how they relate.
+
+    The same assertion as `panels` in a different layout. It exists because a sentence run can produce three
+    co-mentions in a row: `panels` has no honest alternative for a two-subject sentence (an arrow would assert
+    an order, a "vs" would assert a contest, a single subject would drop one of them), so the run tripped the
+    no-repeat check and blocked the episode at the gate.
+    """
+
+    entities = _entity_row(spec, 2)
+    if len(entities) < 2:
+        _draw_statement(canvas, spec, top)
+        return
+    upper, lower = _band(canvas, top)
+    height = (lower - upper - 18) / 2
+    for index, entity in enumerate(entities):
+        y = upper + index * (height + 18)
+        icon_x = canvas.width * (0.30 if index == 0 else 0.70)
+        canvas.circle(icon_x, y + height / 2, min(96, height * 0.46), outline=canvas.accent2,
+                      width=2.5, alpha=200)
+        ICONS[_icon_for(entity)](canvas, icon_x, y + height / 2, min(150, height * 0.66))
+        text_x = canvas.width * (0.62 if index == 0 else 0.38)
+        canvas.text_at(text_x, y + height / 2 - 12, LEXICON[entity][0].upper(), size=25, anchor="ma")
+    _footer(canvas, spec, "WHAT THE SENTENCE MENTIONS")
+
+
 def _draw_topology(canvas: Canvas, spec: DiagramSpec, top: float) -> None:
     entities = _entity_row(spec, 2)
     if len(entities) < 2:
@@ -1341,6 +1369,7 @@ _DRAWERS = {
     "gap": _draw_gap,
     "comparison": _draw_comparison,
     "panels": _draw_panels,
+    "stacked": _draw_stacked,
     "topology": _draw_topology,
     "components": _draw_components,
     "layers": _draw_layers,
