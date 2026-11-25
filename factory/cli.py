@@ -545,6 +545,45 @@ def cmd_batch(args: argparse.Namespace) -> int:
     return 0 if all(item.get("qc_ok", True) for item in results) else 2
 
 
+def cmd_cleanup(args: argparse.Namespace) -> int:
+    """Report (and optionally delete) build directories that are released and old.
+
+    Dry run unless --apply. `factory.housekeeping` refuses to classify anything as deletable unless the
+    episode is recorded as uploaded, passed QC, has a complete manifest and no job is writing to it.
+    """
+
+    from .housekeeping import apply, scan, summary
+
+    specs = _specs(args.channel)
+    entries = scan(specs, keep_days=args.keep_days)
+    report: dict[str, Any] = summary(entries, keep_days=args.keep_days)
+    report["entries"] = [entry.to_dict() for entry in entries]
+    if args.apply:
+        report.update(apply(entries))
+    else:
+        report["applied"] = False
+    _print(report if args.json else _cleanup_lines(report), args.json)
+    return 0 if not report.get("failed") else 1
+
+
+def _cleanup_lines(report: dict[str, Any]) -> list[str]:
+    lines = [
+        f"build entries: {report['build_entries']}  "
+        f"deletable: {report['deletable']}  "
+        f"reclaimable: {report['reclaimable_bytes'] / 1_048_576:.1f} MiB  "
+        f"total: {report['total_bytes'] / 1_048_576:.1f} MiB  keep window: {report['keep_days']} days"
+    ]
+    for entry in report["entries"]:
+        lines.append(f"  {entry['action']:6} {entry['channel']:20} {entry['plan_id'][:30]:32} "
+                     f"{entry['bytes'] / 1_048_576:6.1f} MiB  {entry['reason']}")
+    if not report.get("applied"):
+        lines.append("dry run: pass --apply to delete the rows marked 'delete'")
+    else:
+        lines.append(f"deleted {len(report.get('deleted') or [])} director(ies), "
+                     f"freed {report.get('freed_bytes', 0) / 1_048_576:.1f} MiB")
+    return lines
+
+
 def cmd_doctor(args: argparse.Namespace) -> int:
     import os
     import shutil
@@ -750,6 +789,13 @@ def build_parser() -> argparse.ArgumentParser:
 
     doctor = subparsers.add_parser("doctor")
     doctor.add_argument("--json", action="store_true", help=argparse.SUPPRESS)
+    cleanup = subparsers.add_parser(
+        "cleanup", help="report or delete released build directories (dry run by default)")
+    cleanup.add_argument("--channel", default="all")
+    cleanup.add_argument("--keep-days", type=int, default=14)
+    cleanup.add_argument("--apply", action="store_true", help="actually delete")
+    cleanup.add_argument("--json", action="store_true", help=argparse.SUPPRESS)
+    cleanup.set_defaults(func=cmd_cleanup)
     doctor.set_defaults(func=cmd_doctor)
 
     plan = subparsers.add_parser("plan", help="generate and inspect episode plans")
