@@ -124,11 +124,33 @@ class SeriesContinuityTests(WorkspaceTestCase):
         self.assertEqual(plan["id"], "natkhat-haveli-e4")
 
     def test_out_of_order_episode_is_blocked(self) -> None:
+        """The guarantee is about episodes the factory produced. `start_episode: 4` says 1-3 are an earlier
+        batch published outside the factory, so their absence from history must not block episode 4 - which is
+        the state a brand-new channel is in, and it made the channel unable to start at all. What must block is
+        an episode this factory rendered and has not published.
+        """
+
         spec = self.specs["natkhat-toons"]
+        state = self.state(spec.slug)
+        state.root.mkdir(parents=True, exist_ok=True)
+        (state.root / "series.json").write_text(
+            json.dumps({"active_series": "natkhat-haveli", "next_episode": 5}), encoding="utf-8")
+        state.record(
+            topic="previous",
+            title="previous",
+            status="rendered",
+            plan_id="natkhat-haveli-e4",
+        )
         with self.assertRaises(PlanGenerationError) as caught:
-            next_natkhat_plan(spec, self.state(spec.slug))
-        self.assertIn("natkhat-haveli-e3", str(caught.exception))
+            next_natkhat_plan(spec, state)
+        self.assertIn("natkhat-haveli-e4", str(caught.exception))
         self.assertIn("not uploaded", str(caught.exception))
+        self.assertEqual(caught.exception.kind, "blocked")
+
+    def test_a_channel_with_no_factory_history_starts_at_its_first_authored_episode(self) -> None:
+        spec = self.specs["natkhat-toons"]
+        plan = next_natkhat_plan(spec, self.state(spec.slug))
+        self.assertEqual(plan["id"], "natkhat-haveli-e4")
 
     def test_previous_episode_uploaded_unblocks_the_next(self) -> None:
         spec = self.specs["natkhat-toons"]

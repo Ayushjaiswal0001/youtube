@@ -24,13 +24,32 @@ import pytest
 from factory.config import load_channel_specs
 from factory.content.script import build_english_script, load_plans_for
 from factory.publisher import build_upload_data, publish_episode
+from uploader.errors import UploaderError
 
 
 class FakeRouter:
     """Stands in for uploader.router.ChannelRouter; records what it was asked to do."""
 
-    def __init__(self) -> None:
+    def __init__(self, observed_publish_at: str | None = None, status_privacy: str = "private") -> None:
         self.calls: list[dict] = []
+        self.read_backs: list[dict] = []
+        self.observed_publish_at = observed_publish_at
+        self.status_privacy = status_privacy
+
+    # `publisher.verify_schedule` reads the video back after a scheduled upload; a real router refreshes a
+    # token and returns a YouTubeApi. This returns the same shape without a network call.
+    def refresh_api(self, slug):
+        router = self
+
+        class _Api:
+            def get_video(self, video_id, parts="status"):
+                router.read_backs.append({"video_id": video_id, "parts": parts})
+                status = {"privacyStatus": router.status_privacy}
+                if router.observed_publish_at is not None:
+                    status["publishAt"] = router.observed_publish_at
+                return {"id": video_id, "status": status}
+
+        return _Api()
 
     def upload(self, slug, video_path, data, *, execute=False, confirm_channel=None, allow_public=False):
         self.calls.append(
@@ -45,7 +64,12 @@ class FakeRouter:
         )
         if not execute:
             return {"status": "dry_run", "channel": slug}
-        return {"status": "uploaded", "channel": slug, "video_id": "vid123"}
+        return {
+            "status": "uploaded",
+            "channel": slug,
+            "video_id": "vid123",
+            "publish_at": data.get("publishAt"),
+        }
 
 
 class PublishGateTests(unittest.TestCase):
@@ -171,7 +195,7 @@ class PublishGateTests(unittest.TestCase):
         # and the scheduled upload reaches the client with the same three properties
         os.environ["FACTORY_ALLOW_UPLOAD"] = "1"
         os.environ["FACTORY_ALLOW_SCHEDULE"] = "1"
-        router = FakeRouter()
+        router = FakeRouter(observed_publish_at="2026-11-25T12:30:00Z")
         result = publish_episode(
             spec,
             self.script,
@@ -188,7 +212,64 @@ class PublishGateTests(unittest.TestCase):
         self.assertEqual(sent["publishAt"], "2026-11-25T12:30:00Z")
         self.assertTrue(sent["madeForKids"])
         self.assertTrue(result["scheduled"])
+        self.assertTrue(result["schedule_verified"])
+        self.assertEqual(result["observed_publish_at"], "2026-11-25T12:30:00Z")
         self.assertEqual(result["requested_privacy"], "private")
+
+
+class ScheduleVerificationTests(unittest.TestCase):
+    """`scheduled: true` used to mean "we asked for a release", not "YouTube has one"."""
+
+    def setUp(self) -> None:
+        self.tmp = Path(tempfile.mkdtemp(prefix="factory-schedule-"))
+        self.video = self.tmp / "video.mp4"
+        self.video.write_bytes(bytes(2048))
+        self.spec = load_channel_specs()["nexus-node"]
+        self.script = build_english_script(self.spec, load_plans_for(self.spec)[0])
+        self._env = mock.patch.dict(os.environ, {}, clear=False)
+        self._env.start()
+        os.environ["FACTORY_ALLOW_UPLOAD"] = "1"
+        os.environ["FACTORY_ALLOW_SCHEDULE"] = "1"
+        self._state = mock.patch("factory.publisher.ChannelState", autospec=False)
+        self.state_mock = self._state.start()
+
+    def tearDown(self) -> None:
+        self._state.stop()
+        self._env.stop()
+        import shutil
+
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def test_an_upload_without_a_release_time_is_not_read_back(self) -> None:
+        router = FakeRouter()
+        result = publish_episode(
+            self.spec, self.script, self.video, execute=True,
+            confirm_channel=self.spec.slug, router=router, skip_gate=True)
+        self.assertEqual(result["status"], "uploaded")
+        self.assertFalse(result["scheduled"])
+        self.assertNotIn("schedule_verified", result)
+        self.assertEqual(router.read_backs, [])
+
+    def test_a_release_youtube_never_stored_fails_the_run(self) -> None:
+        """The video uploaded private with no publishAt: that is not a scheduled release, so not a success."""
+
+        router = FakeRouter(observed_publish_at=None)
+        with mock.patch("factory.publisher.SCHEDULE_READ_BACK_SECONDS", 0.0):
+            with self.assertRaises(UploaderError):
+                publish_episode(
+                    self.spec, self.script, self.video, execute=True,
+                    confirm_channel=self.spec.slug,
+                    publish_at="2026-11-25T14:30:00Z", router=router, skip_gate=True)
+        self.assertEqual(len(router.read_backs), 5)  # retried, then refused to call it verified
+
+    def test_a_release_time_that_differs_from_the_request_fails_the_run(self) -> None:
+        router = FakeRouter(observed_publish_at="2026-11-26T14:30:00Z")  # a day late
+        with mock.patch("factory.publisher.SCHEDULE_READ_BACK_SECONDS", 0.0):
+            with self.assertRaises(UploaderError):
+                publish_episode(
+                    self.spec, self.script, self.video, execute=True,
+                    confirm_channel=self.spec.slug,
+                    publish_at="2026-11-25T14:30:00Z", router=router, skip_gate=True)
 
 
 class StudioPathBindingTests(unittest.TestCase):

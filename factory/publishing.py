@@ -25,7 +25,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING, Any, Mapping
 
-from .util import IST, publish_at_utc
+from .util import IST, publish_at_utc, slugify
 
 if TYPE_CHECKING:  # pragma: no cover - typing only, keeps this module importable from config
     from .config import ChannelSpec
@@ -188,8 +188,8 @@ def resolve_release(
        it out by ``minimum_lead_minutes``;
     4. if it has already passed, apply ``late_run_policy``: ``shift`` publishes today, a few minutes from
        now, within the grace window; ``skip`` refuses, so nothing is published quietly;
-    5. never return a ``publishAt`` in the past, and never overwrite a newer release that is already
-       scheduled.
+    5. never return a ``publishAt`` in the past, and never overwrite a newer release that this plan already
+       has.
     """
 
     policy = spec.publishing
@@ -250,10 +250,14 @@ def scheduled_plan_at(
     if not plan_id:
         return None
     target = when.astimezone(timezone(IST)).date()
+    wanted = slugify(plan_id)
     for item in ChannelState(spec.slug).history():
         if str(item.get("status") or "") not in {"uploaded", "scheduled"}:
             continue
-        if str(item.get("plan_id") or "") != plan_id:
+        # Compared slugified: the plan id is written to history unslugified, while callers pass the value
+        # `plan_identifier` produced. A raw comparison silently never matched a plan whose id had a space
+        # or a capital, which would have disabled this guard exactly where it was needed.
+        if slugify(str(item.get("plan_id") or "")) != wanted:
             continue
         value = item.get("publish_at")
         if not value:
@@ -269,14 +273,27 @@ def scheduled_plan_at(
     return None
 
 
-def latest_scheduled_release(spec: "ChannelSpec") -> datetime | None:
-    """The newest future release already recorded for this channel, if any."""
+def latest_scheduled_release(
+    spec: "ChannelSpec", plan_id: str | None = None) -> datetime | None:
+    """The newest future release already recorded for this plan, if any.
+
+    Scoped to the plan, not to the channel. A channel publishes a Short and a long-form episode every day, so
+    a channel-wide answer made the first job's release look like a reason the second job must not publish:
+    measured on the merged code, the Short's 20:00 made the long-form's 20:00 return
+    ``release_already_scheduled`` and the channel produced one video a day instead of two.
+
+    With no ``plan_id`` it answers the channel-wide question, which is what the reporting path
+    (``factory.cli publishing``) is asking.
+    """
 
     from .state import ChannelState
 
+    wanted = slugify(plan_id) if plan_id else None
     newest: datetime | None = None
     for item in ChannelState(spec.slug).history():
         if str(item.get("status") or "") not in {"uploaded", "scheduled"}:
+            continue
+        if wanted is not None and slugify(str(item.get("plan_id") or "")) != wanted:
             continue
         value = item.get("publish_at")
         if not value:

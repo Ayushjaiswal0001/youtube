@@ -222,7 +222,39 @@ jobs:
           python -c "import json,pathlib; d=json.loads(pathlib.Path('research.json').read_text(encoding='utf-8')); i=d[0] if isinstance(d,list) else d; print(f\"::notice::research {i['candidates']} candidate(s) from {len(i['sources'])} source(s)\")" \
             || echo "::notice::research produced no report"
 
+      - name: Content availability
+        # A content gap is not a production failure. `plan available` answers without producing anything and
+        # separates "the bank is exhausted" (warning, skip) from "this run is blocked" (hard failure, exit 2).
+        id: content
+        env:
+          PLAN_ID: ${{ inputs.plan_id }}
+          FORMAT: ${{ inputs.format }}
+          ALLOW_UNPUBLISHED: ${{ inputs.allow_unpublished }}
+        run: |
+          if [ -n "$PLAN_ID" ]; then
+            echo "available=1" >> "$GITHUB_OUTPUT"
+            echo "kind=explicit" >> "$GITHUB_OUTPUT"
+            echo "plan_id=$PLAN_ID" >> "$GITHUB_OUTPUT"
+            echo "reason=an explicit plan id was requested" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          ARGS=(--channel "$CHANNEL")
+          if [ -n "$FORMAT" ]; then ARGS+=(--format "$FORMAT"); fi
+          if [ "$ALLOW_UNPUBLISHED" = "true" ]; then ARGS+=(--allow-unpublished); fi
+          python -m factory.cli plan available "${ARGS[@]}" --json > available.json
+          python tools/content_outputs.py available.json > content.txt
+          cat content.txt >> "$GITHUB_OUTPUT"
+          cat available.json
+          # A content gap is announced, not failed. An exhausted bank means the day has no episode; a blocked
+          # run is a fault and `plan available` has already exited non-zero, failing the step above.
+          if grep -q '^available=0' content.txt; then
+            echo "::warning::no content available: $(grep '^reason=' content.txt | cut -d= -f2-)"
+          else
+            echo "plan available: $(grep '^plan_id=' content.txt | cut -d= -f2-)"
+          fi
+
       - name: Resolve the plan
+        if: ${{ steps.content.outputs.available == '1' }}
         id: resolve
         env:
           ALLOW_UNPUBLISHED: ${{ inputs.allow_unpublished }}
@@ -249,7 +281,7 @@ jobs:
           echo "artifact_dir=${ARTIFACT_DIR}" >> "$GITHUB_OUTPUT"
 
       - name: Resume or render
-        if: ${{ inputs.mode != 'validate' }}
+        if: ${{ inputs.mode != 'validate' && steps.content.outputs.available == '1' }}
         run: |
           ARGS=(--channel "$CHANNEL" --plan-id "${{ steps.resolve.outputs.plan_id }}")
           if [ -n "$FORMAT" ]; then ARGS+=(--format "$FORMAT"); fi
@@ -261,6 +293,7 @@ jobs:
           python -m factory.cli resume "${ARGS[@]}" --json | tee resume.json
 
       - name: Quality assurance
+        if: ${{ steps.content.outputs.available == '1' }}
         id: qc
         run: |
           ARGS=(--channel "$CHANNEL" --plan-id "${{ steps.resolve.outputs.plan_id }}")
@@ -289,6 +322,7 @@ jobs:
           test "$(cat qc_ok.txt)" = "1"
 
       - name: Rebuild manifest after QC
+        if: ${{ steps.content.outputs.available == '1' }}
         # The render writes a manifest, then this workflow's own QC step rewrites qc.json. The first cloud run
         # failed here: the manifest still hashed the pre-QC report, same size, different bytes. The manifest is
         # now rebuilt from the bytes that are final, and the gate verifies against those.
@@ -299,6 +333,7 @@ jobs:
           python -m factory.cli manifest "${ARGS[@]}" --json | tee manifest-step.json
 
       - name: Publishing gate
+        if: ${{ steps.content.outputs.available == '1' }}
         id: gate
         run: |
           ARGS=(--channel "$CHANNEL" --plan-id "${{ steps.resolve.outputs.plan_id }}")
@@ -317,6 +352,7 @@ jobs:
           test "$(cat gate_ok.txt)" = "1"
 
       - name: Package manifest
+        if: ${{ steps.content.outputs.available == '1' }}
         id: package
         run: |
           python - <<'PY'
@@ -374,7 +410,7 @@ jobs:
 
       - name: Export channel credentials
         id: creds
-        if: ${{ inputs.upload && (inputs.release != 'auto' || steps.policy.outputs.ready == '1') }}
+        if: ${{ inputs.upload && steps.content.outputs.available == '1' && (inputs.release != 'auto' || steps.policy.outputs.ready == '1') }}
         env:
           # Passed through the environment: interpolating a dispatch input straight into a shell
           # command is how `$(...)` typed into an input becomes a command on the runner.
@@ -401,11 +437,11 @@ jobs:
           echo "ready=1" >> "$GITHUB_OUTPUT"
 
       - name: Verify channel identity before upload
-        if: ${{ inputs.upload && (inputs.release != 'auto' || steps.policy.outputs.ready == '1') && steps.creds.outputs.ready == '1' }}
+        if: ${{ inputs.upload && steps.content.outputs.available == '1' && (inputs.release != 'auto' || steps.policy.outputs.ready == '1') && steps.creds.outputs.ready == '1' }}
         run: python -m uploader.cli verify --channel "$CHANNEL"
 
       - name: Upload (private, gated)
-        if: ${{ inputs.upload && (inputs.release != 'auto' || steps.policy.outputs.ready == '1') && steps.creds.outputs.ready == '1' && steps.gate.outputs.ok == '1' }}
+        if: ${{ inputs.upload && steps.content.outputs.available == '1' && (inputs.release != 'auto' || steps.policy.outputs.ready == '1') && steps.creds.outputs.ready == '1' && steps.gate.outputs.ok == '1' }}
         env:
           FACTORY_ALLOW_UPLOAD: "1"
           UPLOAD_ENABLED: "true"
@@ -458,6 +494,7 @@ jobs:
             echo ""
             echo "| item | value |"
             echo "| --- | --- |"
+            echo "| content | ${{ steps.content.outputs.available == '1' && 'available' || 'none (content gap)' }} |"
             echo "| plan | \`${{ steps.resolve.outputs.plan_id }}\` |"
             echo "| QC | ${{ steps.qc.outputs.ok }} |"
             echo "| publishing gate | ${{ steps.gate.outputs.ok }} |"
@@ -466,6 +503,7 @@ jobs:
             echo "| publishing policy | ${{ steps.policy.outputs.mode }} (ready ${{ steps.policy.outputs.ready }}) |"
             echo "| release mode | ${{ inputs.release || '(private, no release time)' }} |"
             echo "| release scheduled | ${{ steps.policy.outputs.next_release }} (${{ steps.policy.outputs.release_reason }}) |"
+            echo "| another release pending | ${{ steps.policy.outputs.pending_release || 'none' }} |"
             echo "| upload performed | ${{ steps.creds.outputs.ready == '1' && inputs.upload }} |"
             echo ""
             echo '```'

@@ -7,11 +7,14 @@ environment gate so an accidental workflow invocation cannot publish anything.
 from __future__ import annotations
 
 import os
+import time
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 from uploader.config import load_channel_configs
 from uploader.credentials import CredentialManager
+from uploader.errors import UploaderError
 from uploader.router import ChannelRouter
 
 from .config import CHANNELS_DIR, SECRETS_ROOT, UPLOAD_STATE_ROOT, ChannelSpec
@@ -127,6 +130,9 @@ def publish_episode(
     if gate_note:
         result["gate_note"] = gate_note
 
+    if execute and publish_at and result.get("status") == "uploaded":
+        verify_schedule(client, spec, result, publish_at)
+
     if execute and result.get("status") == "uploaded":
         state = ChannelState(spec.slug)
         state.record(
@@ -142,6 +148,77 @@ def publish_episode(
         if target is not None:
             result["series_state"] = advance_after_publish(spec, target)
     return result
+
+
+#: How many times to re-read `videos.list` before calling a schedule unverified. The insert response and the
+#: list API are not always consistent within the same second; a few seconds of retry removes that race without
+#: ever turning a missing `publishAt` into a success.
+SCHEDULE_READ_BACK_ATTEMPTS = 5
+SCHEDULE_READ_BACK_SECONDS = 3.0
+
+
+def _same_instant(left: Any, right: Any) -> bool:
+    if not left or not right:
+        return False
+    try:
+        a = datetime.fromisoformat(str(left).replace("Z", "+00:00"))
+        b = datetime.fromisoformat(str(right).replace("Z", "+00:00"))
+    except ValueError:
+        return False
+    if a.tzinfo is None:
+        a = a.replace(tzinfo=timezone.utc)
+    if b.tzinfo is None:
+        b = b.replace(tzinfo=timezone.utc)
+    return abs((a - b).total_seconds()) < 1.0
+
+
+def verify_schedule(client: Any, spec: ChannelSpec, result: dict[str, Any], publish_at: str) -> None:
+    """Read the video back and require YouTube to hold the release time we asked for.
+
+    `result["scheduled"]` records what the factory *asked* for. This turns it into evidence. It raises rather
+    than returning a flag, because a run that uploaded a video and did not schedule it must not end green: the
+    video is private in that case, so failing is safe and visible.
+
+    Deliberately no retry on an API *error*: a permission failure is not transient, and retrying it is how a
+    token gets throttled. The retry loop only covers a missing `publishAt` while the API catches up.
+    """
+
+    api_factory = getattr(client, "refresh_api", None)
+    if api_factory is None:  # a test double that cannot read back
+        result["schedule_verified"] = None
+        return
+
+    observed: Any = None
+    detail = ""
+    for attempt in range(SCHEDULE_READ_BACK_ATTEMPTS):
+        try:
+            api = api_factory(spec.slug)
+            status = api.get_video(str(result.get("video_id")), parts="status").get("status", {})
+        except Exception as exc:  # noqa: BLE001 - a failed read must never look like a successful schedule
+            result["schedule_verified"] = False
+            result["schedule_error"] = f"{type(exc).__name__}: {exc}"
+            raise UploaderError(
+                f"uploaded {result.get('video_id')} but could not read its release time back: {exc}"
+            ) from exc
+        observed = status.get("publishAt")
+        if _same_instant(observed, publish_at):
+            result["schedule_verified"] = True
+            result["observed_publish_at"] = observed
+            result["privacy_status"] = status.get("privacyStatus")
+            return
+        detail = (
+            f"YouTube holds publishAt={observed!r} privacyStatus={status.get('privacyStatus')!r} "
+            f"for video {result.get('video_id')}"
+        )
+        if attempt + 1 < SCHEDULE_READ_BACK_ATTEMPTS:
+            time.sleep(SCHEDULE_READ_BACK_SECONDS)
+
+    result["schedule_verified"] = False
+    result["observed_publish_at"] = observed
+    raise UploaderError(
+        f"uploaded {result.get('video_id')} but the release was not applied: {detail}. "
+        f"requested publishAt={publish_at}. The video is private; set the release time in Studio."
+    )
 
 
 def analytics_for(

@@ -247,6 +247,86 @@ def test_a_failed_entry_does_not_count_as_a_release():
         state_module.ChannelState = saved
 
 
+def test_a_short_release_does_not_block_the_long_form_release():
+    """Two jobs produce one channel's day. The duplicate guard must be per plan, not per channel.
+
+    With the guard scoped to the channel, the Short that schedules 20:00 blocks the long-form that wants the
+    same 20:00, and the channel silently publishes one video a day instead of two.
+    """
+
+    from factory import publishing
+    import factory.state as state_module
+
+    # relative to now, because a "future release" only counts while it is still in the future
+    soon = (datetime.now(timezone.utc) + timedelta(hours=2)).replace(microsecond=0)
+    FakeState.entries = [{
+        "status": "uploaded",
+        "plan_id": "nexus-data-wall",
+        "publish_at": soon.isoformat(),
+    }]
+    saved = state_module.ChannelState
+    state_module.ChannelState = FakeState
+    try:
+        assert publishing.latest_scheduled_release(spec(), "nexus-data-wall") == soon
+        assert publishing.latest_scheduled_release(spec(), "long-nexus-power-grid") is None
+        # and the channel-wide question still answers, for reporting
+        assert publishing.latest_scheduled_release(spec()) == soon
+    finally:
+        state_module.ChannelState = saved
+
+
+def test_publish_looks_up_the_release_for_its_own_plan(monkeypatch):
+    """The CLI must ask "has *this* plan got a release?", not "has this channel?"."""
+
+    from factory import cli
+
+    seen: list = []
+    monkeypatch.setattr(cli, "_specs", lambda name: [spec()])
+    monkeypatch.setattr(cli, "_rendered_plan", lambda channel, plan_id: {"id": "long-nexus-power-grid"})
+    monkeypatch.setattr(cli, "_profile_for", lambda channel, plan: channel)
+    monkeypatch.setattr(cli, "_script_for", lambda channel, plan: None)
+    monkeypatch.setattr(cli, "episode_out_dir", lambda channel, plan: Path("/tmp/none"))
+    monkeypatch.setattr(cli, "scheduled_plan_at", lambda channel, plan_id, when: None)
+    monkeypatch.setattr(cli, "publish_episode", lambda *a, **k: {"channel": "nexus-node", "status": "dry_run_ok"})
+    monkeypatch.setattr(
+        cli, "latest_scheduled_release",
+        lambda channel, plan_id=None: seen.append((channel.slug, plan_id)) or None,
+    )
+
+    assert cli.cmd_publish(_publish_args(execute=False)) == 0
+    assert seen == [("nexus-node", "long-nexus-power-grid")]
+
+
+def test_every_channel_cron_starts_before_its_release_time():
+    """A cron that fires *at* the release instant can never be on time; it is always late by definition.
+
+    Today's crons fire at 20:00 / 12:00 / 18:00 IST, which is the release instant itself, so the resolver's
+    `on_time` branch is unreachable in production and every video is published `minimum_lead_minutes` late.
+    A cron must start early enough for the render to finish first.
+    """
+
+    import re
+
+    specs = load_channel_specs()
+    for slug, channel in specs.items():
+        workflow = yaml.safe_load(
+            (WORKFLOWS / f"produce-{slug}.yml").read_text(encoding="utf-8"))
+        cron = workflow[True]["schedule"][0]["cron"]
+        minute, hour, *_ = cron.split()
+        release_hour, release_minute = (int(part) for part in channel.publish_time_ist.split(":"))
+        release_utc_minutes = (release_hour * 60 + release_minute - 330) % (24 * 60)
+        cron_utc_minutes = (int(hour) * 60 + int(minute)) % (24 * 60)
+        lead = (release_utc_minutes - cron_utc_minutes) % (24 * 60)
+        assert lead >= 60, f"{slug}: cron {cron} starts only {lead} min before the release"
+
+        # and the resolver agrees that a run at the cron instant is on time
+        day = datetime(2026, 11, 25, tzinfo=timezone.utc)
+        fired = day + timedelta(hours=int(hour), minutes=int(minute))
+        release = resolve_release(channel, now=fired, run_started=fired)
+        assert release.reason == "on_time", f"{slug}: a run at its cron instant is {release.reason}"
+        assert release.publish_at == intended_release(channel, fired)
+
+
 def test_no_moment_in_a_day_produces_a_past_release():
     channel = spec()
     start = at("2026-11-25T00:00:00Z")
@@ -390,7 +470,7 @@ def test_publish_does_not_upload_a_plan_that_already_has_a_release_today(monkeyp
     monkeypatch.setattr(cli, "_profile_for", lambda channel, plan: channel)
     monkeypatch.setattr(cli, "_script_for", lambda channel, plan: None)
     monkeypatch.setattr(cli, "episode_out_dir", lambda channel, plan: Path("/tmp/none"))
-    monkeypatch.setattr(cli, "latest_scheduled_release", lambda channel: None)
+    monkeypatch.setattr(cli, "latest_scheduled_release", lambda channel, plan_id=None: None)
     monkeypatch.setattr(cli, "publish_episode", lambda *a, **k: calls.append(1) or {})
     monkeypatch.setattr(
         cli, "scheduled_plan_at",
@@ -418,7 +498,7 @@ def test_a_five_minute_late_run_publishes_today_not_tomorrow(monkeypatch):
     monkeypatch.setattr(
         cli, "publish_episode",
         lambda c, s, v, **kw: seen.update(kw) or {"channel": c.slug, "status": "uploaded"})
-    monkeypatch.setattr(cli, "latest_scheduled_release", lambda channel: None)
+    monkeypatch.setattr(cli, "latest_scheduled_release", lambda channel, plan_id=None: None)
 
     assert cli.cmd_publish(_publish_args(execute=False)) == 0
     scheduled = at(seen["publish_at"].replace("Z", "+00:00"))
@@ -457,8 +537,9 @@ def test_the_upload_steps_are_gated_on_the_channel_policy():
     # a scheduled publication needs the channel's consent; credentials, identity verification and the upload
     # itself all check it, so no step can reach a release time without the policy saying yes
     assert text.count("inputs.release != 'auto' || steps.policy.outputs.ready == '1'") == 3
-    # a manual private upload (upload: true, no release) does not need the channel to opt into scheduling
-    assert "inputs.upload && (inputs.release != 'auto'" in text
+    # a manual private upload (upload: true, no release) does not need the channel to opt into scheduling,
+    # but it does need a plan: a day with no content must not reach a credential
+    assert "inputs.upload && steps.content.outputs.available == '1' && (inputs.release != 'auto'" in text
     # and the global default is still "no uploads"
     assert 'UPLOAD_ENABLED: "false"' in text
 

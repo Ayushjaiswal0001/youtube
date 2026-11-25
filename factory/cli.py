@@ -502,7 +502,9 @@ def cmd_publish(args: argparse.Namespace) -> int:
                     continue
             else:
                 release = resolve_release(
-                    spec, existing_scheduled=latest_scheduled_release(spec))
+                    spec,
+                    existing_scheduled=latest_scheduled_release(spec, plan_identifier(plan)),
+                )
                 if not release.scheduled:
                     # Fail closed: no upload, no silent reschedule, and the reason travels with the result.
                     results.append({
@@ -554,13 +556,19 @@ def cmd_publishing(args: argparse.Namespace) -> int:
 
     results = []
     for spec in _specs(args.channel):
-        release = resolve_release(spec, existing_scheduled=latest_scheduled_release(spec))
+        # Reporting answers "what would a run of this channel schedule now?", so it deliberately does not
+        # apply the per-plan duplicate guard: that guard belongs to `publish`, which knows which plan it is
+        # about. Folding it in here made the summary say `ready 0` for the long-form whenever the Short had
+        # already scheduled the same instant, which is exactly when the long-form should publish.
+        release = resolve_release(spec)
+        pending = latest_scheduled_release(spec)
         results.append({
             "channel": spec.slug,
             "release_time_ist": spec.publish_time_ist,
             "policy": spec.publishing.as_dict(),
             "may_upload_on_schedule": spec.publishing.may_schedule,
             "next_release": release.describe(),
+            "pending_release": pending.isoformat().replace("+00:00", "Z") if pending else None,
             "ready": spec.publishing.may_schedule and release.scheduled,
         })
     if args.json:
@@ -750,6 +758,47 @@ def cmd_plan_new(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_plan_available(args: argparse.Namespace) -> int:
+    """Is there anything to produce? A content question, answered without producing it.
+
+    Returns 0 with ``available: false`` when the bank is exhausted, and non-zero when the run is blocked for a
+    reason that is a fault. The workflow turns the first into a warning and the second into a failure.
+    """
+
+    from .content.plans import PlanGenerationError, generate_plan
+
+    results = []
+    blocked = False
+    for spec in _specs(args.channel):
+        wanted = getattr(args, "format", None) or None
+        try:
+            plan = generate_plan(
+                spec, write=False, format=wanted,
+                allow_unpublished=bool(getattr(args, "allow_unpublished", False)),
+            )
+        except PlanGenerationError as exc:
+            exhausted = getattr(exc, "kind", "blocked") == "exhausted"
+            blocked = blocked or not exhausted
+            results.append({
+                "channel": spec.slug,
+                "format": wanted or spec.format,
+                "available": False,
+                "kind": "exhausted" if exhausted else "blocked",
+                "reason": str(exc),
+            })
+        else:
+            results.append({
+                "channel": spec.slug,
+                "format": wanted or spec.format,
+                "available": True,
+                "kind": "available",
+                "plan_id": plan.get("plan_id"),
+                "reason": plan.get("reason") or "plan available",
+            })
+    _print(results if args.json else [json.dumps(item, ensure_ascii=False, indent=2) for item in results], args.json)
+    return 2 if blocked else 0
+
+
 def cmd_plan_status(args: argparse.Namespace) -> int:
     results = [bank_status(spec) for spec in _specs(args.channel)]
     _print(results if args.json else [json.dumps(item, ensure_ascii=False, indent=2) for item in results], args.json)
@@ -931,6 +980,14 @@ def build_parser() -> argparse.ArgumentParser:
     )
     plan_new.add_argument("--json", action="store_true", help=argparse.SUPPRESS)
     plan_new.set_defaults(func=cmd_plan_new)
+
+    plan_available = plan_sub.add_parser(
+        "available", help="can this channel produce anything right now? (no render, no write)")
+    plan_available.add_argument("--channel", required=True)
+    plan_available.add_argument("--format", choices=("shorts", "long"), default=None)
+    plan_available.add_argument("--allow-unpublished", action="store_true")
+    plan_available.add_argument("--json", action="store_true", help=argparse.SUPPRESS)
+    plan_available.set_defaults(func=cmd_plan_available)
 
     plan_status = plan_sub.add_parser("status", help="remaining topics / series position")
     plan_status.add_argument("--channel", default="all")

@@ -17,11 +17,16 @@ from pathlib import Path
 import pytest
 import yaml
 
+from factory.config import load_channel_specs
+
 WORKFLOWS = Path(".github/workflows")
+#: Cron in UTC. Each starts two hours before its channel's IST release time, because a run that starts at the
+#: release instant is late by definition: the resolver shifts it to `now + 15 min`, so the declared 20:00 /
+#: 12:00 / 18:00 IST release would never be met. Measured before this change: every daily run published late.
 CHANNELS = {
-    "nexus-node": ("NEXUS_NODE", "30 14 * * *"),
-    "academic-biohacker": ("ACADEMIC_BIOHACKER", "30 6 * * *"),
-    "natkhat-toons": ("NATKHAT_TOONS", "30 12 * * *"),
+    "nexus-node": ("NEXUS_NODE", "30 12 * * *"),      # 18:00 IST, release 20:00 IST
+    "academic-biohacker": ("ACADEMIC_BIOHACKER", "30 4 * * *"),  # 10:00 IST, release 12:00 IST
+    "natkhat-toons": ("NATKHAT_TOONS", "30 10 * * *"),  # 16:00 IST, release 18:00 IST
 }
 
 #: Measured on a developer machine: `long-nexus-power-grid` rendered 223.1 s of video in 3,008 s.
@@ -92,9 +97,15 @@ class TestChannelWorkflows:
             }, f"{channel}:{name} received {sorted(passed)}"
 
     @pytest.mark.parametrize("channel", sorted(CHANNELS))
-    def test_the_schedule_and_publish_time_are_unchanged(self, channel: str) -> None:
+    def test_the_cron_starts_two_hours_before_the_release(self, channel: str) -> None:
         cron = trigger(load(f"produce-{channel}.yml"))["schedule"][0]["cron"]
         assert cron == CHANNELS[channel][1]
+        # the pairing is what matters, not the literal: check it against the channel's own release time
+        specs = load_channel_specs()
+        hour, minute = (int(part) for part in specs[channel].publish_time_ist.split(":"))
+        release_utc = (hour * 60 + minute - 330) % (24 * 60)
+        cron_utc = int(cron.split()[1]) * 60 + int(cron.split()[0])
+        assert (release_utc - cron_utc) % (24 * 60) == 120
 
     @pytest.mark.parametrize("channel", sorted(CHANNELS))
     def test_uploads_default_to_off(self, channel: str) -> None:
@@ -151,7 +162,8 @@ class TestProduceWorkflow:
         job = load("produce.yml")["jobs"]["produce"]
         upload = next(step for step in job["steps"] if step.get("name") == "Upload (private, gated)")
         assert upload["if"] == (
-            "${{ inputs.upload && (inputs.release != 'auto' || steps.policy.outputs.ready == '1') && "
+            "${{ inputs.upload && steps.content.outputs.available == '1' && "
+            "(inputs.release != 'auto' || steps.policy.outputs.ready == '1') && "
             "steps.creds.outputs.ready == '1' && steps.gate.outputs.ok == '1' }}")
 
     def test_the_manifest_is_rebuilt_after_qc(self) -> None:

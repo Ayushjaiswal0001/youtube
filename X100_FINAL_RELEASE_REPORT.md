@@ -1,5 +1,10 @@
 # X100 final release report
 
+> **Superseded for production timing by `X100_POST_MERGE_PRODUCTION_READINESS_REPORT.md`.**
+> After PR #20 merged, an audit found the crons fired *at* their release instants, so `on_time` was unreachable
+> and every video published late; the crons now start two hours earlier. Everything else here still describes
+> the merged system.
+
 Date: 2026-11-25 (evening, IST)
 Repository: `Ayushjaiswal0001/youtube`
 `main` at the start of this mission: `b496b07cf453d98d8ef52400ff53e7753a9ba7ef` (merge of PR #18)
