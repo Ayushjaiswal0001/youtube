@@ -95,6 +95,7 @@ has not been reached by any channel**, and nothing in this report claims it.
 | subtitles | `captions.srt` per build, cue counts 16–21 |
 | QC | 25/25 on every produced Short |
 | upload + scheduling | proven privately (§E); scheduling decision unit-tested and resolver-verified on a runner |
+| new step order on a runner | **hosted run 45647513378** on this branch: `Content availability` → `Resolve the plan` (`nexus-eval-problem`) → render → QC → manifest → gate → package, all green; summary `content \| available`, `publishing policy \| scheduled (ready 1)`, `release scheduled \| 2026-11-25T15:55:26Z (late_run_shifted …)`, upload steps `skipped` ×3 |
 
 ### D.2 Long-form (all three channels)
 
@@ -140,6 +141,10 @@ env:
 * schedule authorization is separate (`release: auto` **and** channel policy **and** the step-local flag);
 * a render-only run cannot reach the upload step, and a day with no content cannot reach a credential;
 * `--schedule` is passed only when `release == 'auto'`.
+
+That order was executed on GitHub-hosted hardware (run 45647513378, this branch): the new availability step passed
+on a runner, the plan resolved, and all three upload steps reported `skipped` because `upload=false`, even though
+a release instant had been resolved. A render-only run still cannot upload.
 
 ### E.2 Release-time behaviour (resolver, measured)
 
