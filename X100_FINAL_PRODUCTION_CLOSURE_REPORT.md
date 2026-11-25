@@ -28,7 +28,7 @@ The candidate is **ready for owner review with documented limitations**. PR #22'
 - Security run `45655992820` passed. It ran the repository's secret, history, dependency, and workflow-permission checks.
 - The test now pins the resolver to a time before the intended release while still calling the real resolver. The focused test passed locally.
 - PR [#22](https://github.com/Ayushjaiswal0001/youtube/pull/22) remains open and unmerged. The final documentation refresh received its own CI and security runs, and all checks are green; GitHub reports merge state `CLEAN`. Owner review remains pending.
-- Final PR CI run `45685498369`: factory tests **1,375 passed, 2 skipped** in 449.80 seconds; uploader unit tests **77 passed** on both Python 3.11 and 3.12. Security run `45685498495` passed all four jobs: secret/history scanning, Gitleaks, dependency audit, and workflow permissions/pinning. Duplicate push-triggered CI run `45685484629` passed the factory tests (**1,375 passed, 2 skipped** in 441.34 seconds); its security run `45685484719` also passed all four jobs.
+- Latest completed documentation-head validation (commit `890608e`): PR CI run `45687543345` passed factory tests (**1,375 passed, 2 skipped** in 333.23 seconds); uploader unit tests **77 passed** on both Python 3.11 and 3.12. Security run `45687543124` passed all four jobs: secret/history scanning, Gitleaks, dependency audit, and workflow permissions/pinning. Duplicate push-triggered CI run `45687529459` passed the factory tests (**1,375 passed, 2 skipped** in 386.49 seconds); its security run `45687529524` also passed all four jobs. The subsequent closure wording correction is documentation-only and does not alter executable files.
 
 ## D. Test results
 

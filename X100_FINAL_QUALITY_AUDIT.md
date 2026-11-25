@@ -10,7 +10,7 @@ Audit window: 2026-11-25–26. Repository: `Ayushjaiswal0001/youtube`; base `mai
 - The same local regression run exposed `os.kill(pid, 0)` interrupting Windows when the lock check examined a live process. `factory/reliability.py` now checks a waitable Win32 process handle and treats uncertain access as live. `tests/factory/test_reliability.py`: 38 passed in 2.06s after the fix.
 - A second publishing-policy test failed near midnight because it used the wall clock and represented the previous day's time as an ambiguous time-only value. It now pins the real resolver to 20:05 IST and passed with the full file: 36 passed in 3.01s.
 - Original exhaustive local suite: 1,451 passed, 0 failed, 0 skipped, and 5 successful subtests across six disjoint module batches; cumulative runtime 1,009.88 seconds. The final collection is 1,454 tests across 82 modules; the 3 added workflow-auditor tests passed separately.
-- PR #22's latest CI and security runs passed after the documentation refresh. Factory tests reported 1,375 passed and 2 skipped in 449.80 seconds on the PR run and 441.34 seconds on the duplicate push run. Uploader unit tests passed all 77 tests on Python 3.11 and 3.12. Both security runs passed all four jobs.
+- PR #22's latest completed documentation-head CI and security runs passed. Factory tests reported 1,375 passed and 2 skipped in 333.23 seconds on the PR run and 386.49 seconds on the duplicate push run. Uploader unit tests passed all 77 tests on Python 3.11 and 3.12. Both security runs passed all four jobs. A subsequent closure wording correction is documentation-only and does not alter executable files.
 
 ## Security workflow review
 
