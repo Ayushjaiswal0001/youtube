@@ -28,6 +28,7 @@ from .orchestrator import (
     render_episode,
 )
 from .publisher import analytics_for, publish_episode
+from .publishing import latest_scheduled_release, resolve_release, scheduled_plan_at
 from .qa.validator import validate_episode
 from .util import IST, publish_at_utc, read_json
 
@@ -111,12 +112,16 @@ def _rendered_plan(spec: ChannelSpec, plan_id: str | None) -> dict[str, Any]:
 
 
 def _next_ist_date(spec: ChannelSpec) -> str:
-    now_ist = datetime.now(timezone.utc) + IST
-    hour, minute = (int(part) for part in (spec.publish_time_ist or "12:00").split(":")[:2])
-    target = now_ist.replace(hour=hour, minute=minute, second=0, microsecond=0)
-    if target <= now_ist:
-        target = target + timedelta(days=1)
-    return target.date().isoformat()
+    """Kept for callers that only need the date, now derived from the release resolver.
+
+    The old body rolled to tomorrow whenever the release time had already passed, so a run that started at
+    20:00:00 and reached this line at 20:00:04 scheduled the episode 24 hours late. The resolver decides
+    whether a late run publishes today or refuses; this helper only reports the date it lands on.
+    """
+
+    release = resolve_release(spec)
+    moment = release.publish_at or datetime.now(timezone.utc)
+    return (moment + IST).date().isoformat()
 
 
 def cmd_plans(args: argparse.Namespace) -> int:
@@ -479,23 +484,93 @@ def cmd_publish(args: argparse.Namespace) -> int:
         script = _script_for(spec, plan)
         out_dir = episode_out_dir(spec, plan)
         publish_at = None
+        release = None
         if args.schedule:
-            date = args.publish_date or _next_ist_date(spec)
-            publish_at = publish_at_utc(date, spec.publish_time_ist or "12:00")
-        results.append(
-            publish_episode(
-                spec,
-                script,
-                out_dir / "video.mp4",
-                execute=args.execute,
-                confirm_channel=args.confirm_channel,
-                publish_at=publish_at,
-                thumbnail=out_dir / "thumbnail.jpg",
-                allow_public=args.allow_public,
-                skip_gate=bool(getattr(args, "skip_gate", False)),
-            )
+            if args.publish_date:
+                publish_at = publish_at_utc(args.publish_date, spec.publish_time_ist or "12:00")
+                when = datetime.fromisoformat(publish_at.replace("Z", "+00:00"))
+                if when <= datetime.now(timezone.utc):
+                    results.append({
+                        "channel": spec.slug,
+                        "plan_id": plan_identifier(plan),
+                        "status": "not_scheduled",
+                        "reason": f"requested release {publish_at} is not in the future",
+                    })
+                    continue
+            else:
+                release = resolve_release(
+                    spec, existing_scheduled=latest_scheduled_release(spec))
+                if not release.scheduled:
+                    # Fail closed: no upload, no silent reschedule, and the reason travels with the result.
+                    results.append({
+                        "channel": spec.slug,
+                        "plan_id": plan_identifier(plan),
+                        "status": "not_scheduled",
+                        "reason": release.reason,
+                        "release": release.describe(),
+                    })
+                    continue
+                duplicate = scheduled_plan_at(spec, plan_identifier(plan), release.publish_at)
+                if duplicate is not None:
+                    # A retry of the same job must not upload the same episode twice.
+                    results.append({
+                        "channel": spec.slug,
+                        "plan_id": plan_identifier(plan),
+                        "status": "not_scheduled",
+                        "reason": "already_released_this_plan_today "
+                                  f"(recorded {duplicate.isoformat()})",
+                        "release": release.describe(),
+                    })
+                    continue
+                publish_at = release.iso()
+        result = publish_episode(
+            spec,
+            script,
+            out_dir / "video.mp4",
+            execute=args.execute,
+            confirm_channel=args.confirm_channel,
+            publish_at=publish_at,
+            thumbnail=out_dir / "thumbnail.jpg",
+            allow_public=args.allow_public,
+            skip_gate=bool(getattr(args, "skip_gate", False)),
         )
+        if release is not None:
+            result["release"] = release.describe()
+        results.append(result)
+    failed = [item for item in results if item.get("status") == "not_scheduled"]
     _print(results if args.json else [json.dumps(item, ensure_ascii=False, indent=2) for item in results], args.json)
+    return 2 if failed else 0
+
+
+def cmd_publishing(args: argparse.Namespace) -> int:
+    """What each channel is allowed to do automatically, and what release it would schedule right now.
+
+    The workflow calls this before it decides whether a scheduled run may upload, so the per-channel policy
+    lives in one place the workflow reads rather than in a global switch.
+    """
+
+    results = []
+    for spec in _specs(args.channel):
+        release = resolve_release(spec, existing_scheduled=latest_scheduled_release(spec))
+        results.append({
+            "channel": spec.slug,
+            "release_time_ist": spec.publish_time_ist,
+            "policy": spec.publishing.as_dict(),
+            "may_upload_on_schedule": spec.publishing.may_schedule,
+            "next_release": release.describe(),
+            "ready": spec.publishing.may_schedule and release.scheduled,
+        })
+    if args.json:
+        _print(results, True)
+    else:
+        for item in results:
+            policy = item["policy"]
+            release = item["next_release"]
+            _print(
+                f"{item['channel']:20s} {policy['mode']:9s} upload_on_schedule={policy['scheduled_upload']} "
+                f"release={item['release_time_ist']} next={release['publish_at']} ({release['reason']})",
+                False,
+            )
     return 0
 
 
@@ -783,6 +858,11 @@ def build_parser() -> argparse.ArgumentParser:
     publish.add_argument("--allow-public", action="store_true")
     publish.add_argument("--json", action="store_true", help=argparse.SUPPRESS)
     publish.set_defaults(func=cmd_publish)
+    publishing = subparsers.add_parser(
+        "publishing", help="per-channel publishing policy and the release it would schedule now")
+    publishing.add_argument("--channel", default="all")
+    publishing.add_argument("--json", action="store_true", help=argparse.SUPPRESS)
+    publishing.set_defaults(func=cmd_publishing)
 
     pause = subparsers.add_parser("pause", help="stop all production, or one channel")
     pause.add_argument("--channel", default="")

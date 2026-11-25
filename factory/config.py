@@ -9,6 +9,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterator, Mapping
 
+from .publishing import PublishingPolicy, parse_publishing_policy
+
 LOGGER = logging.getLogger(__name__)
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -262,6 +264,9 @@ class ChannelSpec:
     # bounds the visual jobs it may plan (a channel with no imagery supplied can never claim a photo).
     # Parsed into :class:`VisualPolicy`, which is also a Mapping, so ``.get()`` callers keep working.
     visual_policy: VisualPolicy = field(default_factory=VisualPolicy)
+    # May this channel upload and set a release time without an operator? Parsed into PublishingPolicy,
+    # which fails closed: an unknown mode means manual, an unknown late-run policy means skip.
+    publishing: PublishingPolicy = field(default_factory=PublishingPolicy)
 
     @property
     def is_hindi(self) -> bool:
@@ -354,6 +359,11 @@ def load_channel_specs(channels_dir: Path | str | None = None) -> dict[str, Chan
             description_footer=str(defaults.get("description_footer", "")),
             made_for_kids=defaults.get("made_for_kids", False),
             visual_policy=parse_visual_policy(factory.get("visual_policy"), slug=slug),
+            publishing=parse_publishing_policy(
+                raw.get("publishing"),
+                slug=slug,
+                release_time_ist=str(factory.get("publish_time_ist", "")),
+            ),
         )
         specs[slug] = spec
     if not specs:

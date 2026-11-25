@@ -6,6 +6,13 @@
   "requires_made_for_kids_confirmation": true,
   "force_made_for_kids": true,
   "allow_public_upload": false,
+  "publishing": {
+    "mode": "scheduled",
+    "scheduled_upload": true,
+    "late_run_policy": "shift",
+    "late_grace_minutes": 90,
+    "minimum_lead_minutes": 15
+  },
   "factory": {
     "language": "hi",
     "format": "shorts",
