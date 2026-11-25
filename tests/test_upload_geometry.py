@@ -34,7 +34,9 @@ def probe_in(directory: Path, payload: dict) -> UploadRequest:
     video = make_video(directory)
     request = UploadRequest.from_data(make_channel(), video, {"title": "T", "description": "D"})
     completed = subprocess.CompletedProcess(args=[], returncode=0, stdout=json.dumps(payload))
-    with mock.patch("uploader.metadata.subprocess.run", return_value=completed):
+    # The uploader CI job installs no system packages, so ffprobe is absent there. Both the availability
+    # check and the probe itself are stubbed: what is under test is the geometry rule, not the tool.
+    with mock.patch("uploader.metadata._find_ffprobe", return_value="ffprobe"),             mock.patch("uploader.metadata.subprocess.run", return_value=completed):
         request.probe_media()
     return request
 
