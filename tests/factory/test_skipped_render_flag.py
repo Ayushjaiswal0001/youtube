@@ -55,8 +55,11 @@ class TestSkippedRenderFlag:
         assert '"skipped_render": reused_build' in source
         assert '"skipped_render": bool(timeline' not in source
         assert source.index("reused_build = ") < source.index('job.transition("GENERATING"')
-        # It must be derived from the build directory and `force`, not from a post-render fact.
-        assert '(expected_out_dir / "video.mp4").is_file() and not force' in source
+        # It must be derived from the build directory and `force`, not from a post-render fact, and it must
+        # ask whether the build is *complete*: a truncated video from an interrupted encode is not a build
+        # to skip (see tests/factory/test_interrupted_render_recovery.py).
+        assert "reused_build = build_is_complete(expected_out_dir) and not force" in source
+        assert 'reused_build = (expected_out_dir / "video.mp4").is_file() and not force' not in source
 
     def test_a_real_idempotent_rerun_reports_the_second_run_as_skipped(self, scratch) -> None:
         """End to end on the cheapest real episode: render once, then render again without force."""
