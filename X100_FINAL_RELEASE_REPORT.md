@@ -155,17 +155,26 @@ Two defects were found by running it, and both are fixed in this branch:
 
 ```
 python -m pytest tests -q
-1389 passed in 1049.75s (0:17:29)
+1387 passed, 5 subtests passed in 1034.56s (0:17:14)
 ```
 
 ### 8.1 Test suite
 
-1,389 tests on `75e8484`. Grown by 33 in this branch: `test_production_workflow_shape.py` (35),
+1,387 tests on `fcce00b`. Grown by 31 in this branch: `test_production_workflow_shape.py` (35),
 `test_longform_planning.py` (17), `test_skipped_render_flag.py` (2), `test_housekeeping.py` (12),
-`test_read_side_formats.py` (7), `test_upload_geometry.py` (6), plus the framing report split (2) — minus
-one test rewritten for the two-bank plan walk. No test was deleted, skipped or loosened; the two tests that
-changed expectations changed because the behaviour they pinned was the bug
+`test_read_side_formats.py` (7), `test_upload_geometry.py` (6 unittest cases, 5 sub-cases), plus the framing
+report split (2) — minus one test rewritten for the two-bank plan walk. No test was deleted, skipped or
+loosened; the two tests that changed expectations changed because the behaviour they pinned was the bug
 (`test_a_plan_walk_without_a_request_covers_every_plan` now expects both banks).
+
+Two of these tests were only made to *run* in CI after CI rejected them — reported here rather than
+quietly fixed, because the first push was red:
+
+| CI finding | fix |
+|---|---|
+| the uploader job runs `python -m unittest discover -s tests` with no third-party packages, so importing `pytest` failed the job at collection | `test_upload_geometry.py` rewritten as `unittest` |
+| that job installs no system packages, so `ffprobe` is absent and `probe_media` refused before reaching the geometry rule | the availability check and the probe are both stubbed |
+| the factory job installs `requirements.txt` plus `pytest` only, so the workflow-shape tests could not `import yaml` | `pyyaml==6.0.2` installed alongside `pytest` — the alternative was replacing a YAML parser with regexes, which is a weaker test, not a smaller one |
 
 ## 9. CI
 
@@ -174,9 +183,23 @@ Branch protection requires `uploader (py3.11)`, `uploader (py3.12)` and
 
 ### 9.1 Check runs
 
-Measured from `gh api repos/Ayushjaiswal0001/youtube/commits/<sha>/check-runs` after the push; the result
-is recorded in the PR and in the merge checklist rather than in this file, because a report cannot contain
-the check-runs of the commit that contains it. The state at the time of writing: **see the PR**.
+Read from `gh api repos/Ayushjaiswal0001/youtube/commits/fcce00b/check-runs` — the code commit, since a
+report cannot contain the check-runs of the commit that contains it:
+
+| check | result |
+|---|---|
+| `uploader (py3.11)` | completed success |
+| `uploader (py3.12)` | completed success |
+| `secret scan (tree, staged, history)` | completed success |
+| `gitleaks (independent scanner)` | completed success |
+| `factory (plan + publish gates)` | completed success |
+| `dependency audit` | completed success |
+| `workflow permissions and pinning` | completed success |
+
+7 of 7 green. The first two pushes were red — the uploader job caught a `pytest` import and then a missing
+`ffprobe` in a job that installs neither, and the factory job caught a missing `yaml`. Those are the only
+CI iterations; the fixes are in §8.1. PR #17 is `MERGEABLE` / `CLEAN`, with no auto-merge and no review
+decision, and `main` is unchanged at `5e330d5`.
 
 ## 10. Batch throughput against the target
 
@@ -259,8 +282,9 @@ match the channel configuration exactly (20:00, 12:00 and 18:00 IST).
 ### 14.1 Security results
 
 All four sweeps clean on the final commit. The diff introduces no network call on any render path, no new
-dependency (`requirements.txt` untouched), and no new credential read. `python tools/workflow_audit.py`
-was re-run after every workflow edit and reported 0 findings each time.
+runtime dependency (`requirements.txt` untouched), and no new credential read. `python
+tools/workflow_audit.py` was re-run after every workflow edit and reported 0 findings each time — including
+after the one-line CI change that installs `pyyaml==6.0.2` for the workflow-shape tests.
 
 ## 15. Cost
 
