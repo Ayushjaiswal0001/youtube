@@ -1197,10 +1197,12 @@ def render_english(
         "20",
         "-pix_fmt",
         "yuv420p",
+        # Copy, do not re-encode. `mix_narration` measures the true peak of the AAC file it wrote and
+        # tightens its limiter until that file passes the -1.0 dBTP gate; encoding it a second time added
+        # inter-sample overshoot after the measurement, so an episode could pass the guard and still
+        # arrive at QC at -0.23 dBTP. Copying makes the measured file the delivered file.
         "-c:a",
-        "aac",
-        "-b:a",
-        "192k",
+        "copy",
         "-shortest",
         "-movflags",
         "+faststart",

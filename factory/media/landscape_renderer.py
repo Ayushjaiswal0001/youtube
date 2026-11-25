@@ -626,7 +626,9 @@ def render_landscape(
         "-i", str(mixed_audio),
         "-c:v", "libx264", "-preset", "veryfast", "-crf", "20",
         "-pix_fmt", "yuv420p",
-        "-c:a", "aac", "-b:a", "192k",
+        # Copied, not re-encoded: `mix_narration` measured this AAC file's true peak and made it pass the
+        # gate, and a second encode added overshoot after that measurement (see english_renderer).
+        "-c:a", "copy",
         "-shortest", "-movflags", "+faststart",
         str(output_path),
     ]
