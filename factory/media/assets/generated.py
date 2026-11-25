@@ -40,11 +40,32 @@ LEXICON: dict[str, tuple[str, tuple[str, ...]]] = {
     "grid": ("grid", ("grid", "interconnection", "interconnect", "substation", "transmission")),
     "queue": ("queue", ("queue", "backlog", "waiting", "timeline", "timelines", "approval")),
     "energy": ("power", ("power", "electricity", "megawatt", "load", "demand", "solar", "wind")),
-    "cost": ("cost", ("cost", "expensive", "cheaper", "price", "slow", "costly", "budget")),
+    # "slow" is not a cost: it made "longer slow exhales" draw a COST pill. "costly" carries the same
+    # meaning and is unambiguous, which is the word the original sentence actually used.
+    "cost": ("cost", ("cost", "costs", "expensive", "cheaper", "cheap", "price", "costly", "budget")),
     "time": ("time", ("year", "years", "month", "months", "decade", "future", "later", "next")),
     # Deliberately excludes generic verbs like "learning": they matched sentences that had nothing to do
     # with study and produced a plate labelled STUDY for a sentence about videos.
-    "study": ("study", ("study", "sleep", "focus", "memory", "recall", "students")),
+    "study": ("study", ("study", "focus", "memory", "recall", "students", "trials", "trial")),
+    # Academic Biohacker's vocabulary. Its topic bank is physiology and evidence, not machinery: without
+    # these the channel could only ever draw an empty statement ring.
+    "breath": ("breath", ("breath", "breaths", "breathing", "breathe", "inhale", "exhale", "exhales",
+                          "lungs", "respiratory", "ventilation")),
+    "heart": ("heart", ("heart", "cardiac", "pulse", "hrv", "circulation", "blood pressure")),
+    "brain": ("brain", ("brain", "neural", "neuron", "neurons", "cognitive", "cognition", "mind",
+                        "hippocampus", "grey matter")),
+    "sleep": ("sleep", ("sleep", "asleep", "bedtime", "melatonin", "drowsy", "insomnia")),
+    "light": ("light", ("light", "sunlight", "daylight", "morning", "sun", "bright", "retinal",
+                        "photons")),
+    "glucose": ("glucose", ("glucose", "sugar", "insulin", "metabolic", "metabolism", "glycemic",
+                            "blood sugar")),
+    "movement": ("movement", ("muscle", "muscles", "exercise", "movement", "moving", "walk", "walking",
+                              "stand", "standing", "stairs", "activity", "active", "contract",
+                              "contraction", "contracting")),
+    "temperature": ("heat", ("temperature", "heat", "cool", "cooling", "cooler", "warm", "warmer",
+                             "cold", "colder", "thermal", "bath")),
+    "meal": ("meal", ("protein", "meal", "meals", "breakfast", "eat", "eating", "food", "carbohydrate",
+                      "digest", "digestion", "hunger", "appetite", "satiety", "glucose load")),
 }
 ENTITY_ORDER = tuple(LEXICON)
 
@@ -254,6 +275,20 @@ _TRAILING_STOPWORDS = frozenset("for on the in and of to a an with at by from".s
 CC_TITLE_CHARS = 30
 
 
+_VARIANT_CUES: dict[str, tuple[str, ...]] = {
+    "components": (" joint ", " gripper ", " motor ", " sensor ", " actuator ", " end effector "),
+    "layers": (" layer ", " layers ", " stack ", " architecture ", " pipeline ", " stage "),
+    "topology": (" grid ", " interconnection ", " substation ", " queue ", " backlog "),
+}
+
+
+def _narration_cued(variant: str, narration: str) -> bool:
+    """True when the sentence itself contains the cue this object-specific drawer needs."""
+
+    lowered = f" {str(narration or '').lower()} ".replace("cannot", " can not ")
+    return any(needle in lowered for needle in _VARIANT_CUES.get(variant, ()))
+
+
 def short_title(text: str, *, max_chars: int = 30) -> str:
     """A plate title that fits: whole words, no mid-word cut, no dangling preposition.
 
@@ -284,7 +319,8 @@ _LADDER: dict[str, tuple[str, ...]] = {
     "layers": ("pipeline", "topology"),
     "timeline": ("pipeline", "topology"),
     "cta": ("cta",),
-    "statement": ("pipeline", "timeline"),
+    "statement": ("focus", "panels"),
+    "focus": ("statement", "panels"),
     "bars": ("ratio", "panels"),
     "ratio": ("bars", "statement"),
 }
@@ -308,36 +344,46 @@ def spec_for(*, concept: str, narration: str, objective: str,
     stageable = [entity for entity in entities if entity not in ATTRIBUTE_ENTITIES]
     attributes = [entity for entity in entities if entity in ATTRIBUTE_ENTITIES]
 
-    # Two identical compositions back to back read as a rendering bug. When the previous scene used
-    # the same one, step down a fixed ladder to the next composition that still explains the sentence -
-    # skipping alternatives that need two subjects when only one is available.
-    if chosen in avoid:
-        for alternative in _LADDER.get(chosen, ()):
-            if alternative in avoid:
-                continue
-            if alternative in NEEDS_TWO and len(stageable) < 2:
-                continue
-            chosen = alternative
-            break
-
-    # A property is not a stage, and one thing cannot be compared with itself. Fall back to the
-    # simplest composition that is still true: a single pictured subject, plus its stated properties.
-    if chosen in NEEDS_TWO and len(stageable) < 2:
-        chosen = "statement" if attributes else "pipeline"
-    elif chosen == "pipeline" and len(stageable) < 2 and attributes:
-        chosen = "statement"
     # A stated property (cost, time) with no comparison in the sentence is a statement about its
-    # subject, not an ordering and not a contest between two things.
+    # subject, not a contest between two things. `pipeline` is deliberately absent: it drops the
+    # property from its stages (`_draw_pipeline` keeps only drawable stages), so it can show the order
+    # the sentence states instead of collapsing to a statement and losing it.
     comparative = sentence_pair is not None
-    if attributes and not comparative and chosen in {"pipeline", "comparison", "gap",
-                                                     "topology", "panels"}:
-        chosen = "statement"
-    # Comparison or co-mention? A sentence that never compares anything gets panels, so the plate
-    # cannot claim a contest the narration does not make.
-    if chosen == "comparison" and not comparative and len(stageable) >= 2:
-        chosen = "panels"
-    if chosen in {"pipeline", "timeline"} and not has_sequence_cue(f"{concept} {narration}"):
-        chosen = "panels" if len(stageable) >= 2 else "statement"
+
+    def settle(candidate: str) -> str:
+        """The composition a candidate becomes once every honesty rule has had its say.
+
+        These rules are applied to any candidate, including the ones the ladder proposes, so the
+        ladder can never step onto a composition a later rule would move back to its predecessor.
+        """
+
+        nonlocal note
+        result = candidate
+        # A property is not a stage, and one thing cannot be compared with itself. Fall back to the
+        # simplest composition that is still true: a single pictured subject, plus its properties.
+        if result in NEEDS_TWO and len(stageable) < 2:
+            result = "statement" if attributes else "pipeline"
+        elif result == "pipeline" and len(stageable) < 2 and attributes:
+            result = "statement"
+        if attributes and not comparative and result in {"comparison", "gap", "topology", "panels"}:
+            result = "statement"
+        # Comparison or co-mention? A sentence that never compares anything gets panels, so the plate
+        # cannot claim a contest the narration does not make.
+        if result == "comparison" and not comparative and len(stageable) >= 2:
+            result = "panels"
+        # Some drawers draw a specific object - a robot-arm cutaway, a layered stack, a switching grid,
+        # a time axis - and an arrow chain asserts an order. A headline can summarise a sentence
+        # loosely enough to name a cue the sentence never states ("A light sensor" is not a hardware
+        # breakdown), so these require the cue in the narration itself.
+        if result in {"pipeline", "timeline"} and not has_sequence_cue(narration):
+            result = "panels" if len(stageable) >= 2 else "statement"
+        elif result in {"components", "layers", "topology"} and not _narration_cued(result, narration):
+            result = "panels" if len(stageable) >= 2 else "statement"
+        # A closing card is not a claim about the episode, so it does not need a subject.
+        if not entities and result != "cta":
+            result = "statement"
+            note = note or "no subject named in the sentence: statement plate, no invented subject"
+        return result
 
     # A stated figure earns a chart. A vague quantifier, a mixed-unit sentence, a single count, a
     # percentage of change, or a scene the plan did not ask to be a chart does not: those would need a
@@ -349,14 +395,24 @@ def spec_for(*, concept: str, narration: str, objective: str,
         charted = None
     if charted:
         chosen = charted
-    elif chosen in {"bars", "ratio"}:
-        # A variant forced by a caller still has to be true: a filled track for a percentage of change
-        # would assert a whole the sentence never names.
-        if chosen == "ratio" and not share_framed(narration):
+    else:
+        chosen = settle(chosen)
+        if chosen in {"bars", "ratio"} and chosen == "ratio" and not share_framed(narration):
+            # A variant forced by a caller still has to be true: a filled track for a percentage of a
+            # change would assert a whole the sentence never names.
             chosen = "statement"
-            note = note or (f"a ratio was requested for a share of a change, not of a whole: "
-                            f"the plate states the figure as text instead")
-    elif category == "dataviz" and not note:
+            note = note or ("a ratio was requested for a share of a change, not of a whole: "
+                            "the plate states the figure as text instead")
+        # Two identical compositions back to back read as a rendering bug. Step down the ladder to a
+        # composition that still explains the sentence *and* survives the rules above.
+        if chosen in avoid and chosen != "cta":
+            for alternative in _LADDER.get(chosen, ()):
+                settled = settle(alternative)
+                if settled == chosen or settled in avoid:
+                    continue
+                chosen = settled
+                break
+    if not charted and category == "dataviz" and not note:
         numeric = [figure for figure in figures if figure[1] is not None]
         if not figures:
             note = "no stated figure: a chart would need a number the narration does not say"
@@ -369,7 +425,7 @@ def spec_for(*, concept: str, narration: str, objective: str,
         else:
             note = (f"stated figures {[figure[0] for figure in figures]} cannot share one scale: "
                     f"no chart drawn")
-    elif figures and category and category != "dataviz" and chart_kind(
+    elif not charted and figures and category and category != "dataviz" and chart_kind(
             figures, narration=narration, category=""):
         # The sentence states a chartable figure but the plan asked for another kind of visual.
         note = (f"planned as {category!r}: the stated figure {figures[0][0]!r} stays as text rather "
@@ -380,17 +436,11 @@ def spec_for(*, concept: str, narration: str, objective: str,
         colors.get("accent", "#4FD1E8"), colors.get("accent2", "#FFB84D"),
         colors.get("text", "#F5F9FF"),
     )
-    title = short_title(on_screen or concept)
     if chosen == "comparison":
         # Draw exactly the pair the sentence contrasts, in the order it says them, so a plate cannot
         # pair two nouns that merely appear in the same sentence.
-        if sentence_pair is not None:
-            entities = [sentence_pair[0], sentence_pair[1]]
-        else:
-            chosen = "panels" if len(stageable) >= 2 else "statement"
-    if not entities and not charted:
-        chosen = "statement"
-        note = note or "no subject named in the sentence: statement plate, no invented subject"
+        entities = [sentence_pair[0], sentence_pair[1]]
+    title = short_title(on_screen or concept)
     return DiagramSpec(variant=chosen, title=title,
                        entities=tuple(entities), emphasis=entities[0] if entities else "idea",
                        palette=palette, figures=tuple(figures),
@@ -645,6 +695,123 @@ def icon_demo(canvas: Canvas, cx: float, cy: float, size: float) -> None:
                 fill=canvas.accent2)
 
 
+def icon_breath(canvas: Canvas, cx: float, cy: float, size: float) -> None:
+    """Lungs: a stem, two lobes and the airflow lines that make the point about breathing."""
+
+    canvas.line([(cx, cy - size * 0.34), (cx, cy - size * 0.10)], fill=canvas.accent, width=7)
+    for side in (-1, 1):
+        canvas.circle(cx + side * size * 0.19, cy + size * 0.10, size * 0.19,
+                      outline=canvas.accent, width=5)
+        canvas.line([(cx + side * size * 0.03, cy - size * 0.06),
+                     (cx + side * size * 0.19, cy + size * 0.10)], fill=canvas.accent, width=5)
+        for ring in range(2):
+            canvas.line([(cx + side * (size * 0.34 + ring * size * 0.07), cy - size * 0.16 + ring * size * 0.22),
+                         (cx + side * (size * 0.46 + ring * size * 0.07), cy - size * 0.16 + ring * size * 0.22)],
+                        fill=canvas.accent2, width=3)
+
+
+def icon_heart(canvas: Canvas, cx: float, cy: float, size: float) -> None:
+    """A pulse trace through a heart outline: the measurement, not a valentine."""
+
+    canvas.circle(cx - size * 0.11, cy - size * 0.06, size * 0.13, fill=canvas.accent)
+    canvas.circle(cx + size * 0.11, cy - size * 0.06, size * 0.13, fill=canvas.accent)
+    canvas.polygon([(cx - size * 0.23, cy - size * 0.02), (cx + size * 0.23, cy - size * 0.02),
+                    (cx, cy + size * 0.30)], fill=canvas.accent)
+    canvas.line([(cx - size * 0.44, cy + size * 0.10), (cx - size * 0.20, cy + size * 0.10),
+                 (cx - size * 0.10, cy - size * 0.04), (cx + size * 0.02, cy + size * 0.26),
+                 (cx + size * 0.14, cy + size * 0.10), (cx + size * 0.44, cy + size * 0.10)],
+                fill=canvas.accent2, width=4)
+
+
+def icon_brain(canvas: Canvas, cx: float, cy: float, size: float) -> None:
+    """A head profile with the neural nodes the sentence is describing."""
+
+    canvas.circle(cx, cy, size * 0.30, outline=canvas.accent, width=5)
+    for index, (dx, dy) in enumerate(((-0.12, -0.08), (0.10, -0.10), (0.00, 0.12), (0.18, 0.06))):
+        canvas.circle(cx + dx * size, cy + dy * size, size * 0.045,
+                      fill=canvas.accent2 if index % 2 else canvas.accent)
+    canvas.line([(cx - size * 0.12, cy - size * 0.08), (cx, cy + size * 0.12),
+                 (cx + size * 0.18, cy + size * 0.06)], fill=canvas.accent, width=3, alpha=170)
+    canvas.line([(cx + size * 0.10, cy - size * 0.10), (cx + size * 0.18, cy + size * 0.06)],
+                fill=canvas.accent, width=3, alpha=170)
+
+
+def icon_sleep(canvas: Canvas, cx: float, cy: float, size: float) -> None:
+    """A crescent moon with the two stars that read as night at any size."""
+
+    canvas.circle(cx - size * 0.04, cy + size * 0.02, size * 0.30, fill=canvas.accent)
+    canvas.circle(cx + size * 0.12, cy - size * 0.06, size * 0.26, fill=canvas.bg)
+    for dx, dy, radius in ((0.24, 0.16, 0.04), (0.30, 0.00, 0.025)):
+        canvas.circle(cx + dx * size, cy + dy * size, radius * size, fill=canvas.accent2)
+
+
+def icon_light(canvas: Canvas, cx: float, cy: float, size: float) -> None:
+    """A sun: one disc and eight rays, the way the topic bank talks about morning light."""
+
+    canvas.circle(cx, cy, size * 0.17, fill=canvas.accent2)
+    for step in range(8):
+        angle = step * 3.14159 / 4
+        import math as _math
+
+        inner, outer = size * 0.26, size * 0.38
+        canvas.line([(cx + _math.cos(angle) * inner, cy + _math.sin(angle) * inner),
+                     (cx + _math.cos(angle) * outer, cy + _math.sin(angle) * outer)],
+                    fill=canvas.accent, width=4)
+
+
+def icon_glucose(canvas: Canvas, cx: float, cy: float, size: float) -> None:
+    """A droplet over a rising trace: glucose is measured, so it is drawn as a measurement."""
+
+    canvas.polygon([(cx, cy - size * 0.34), (cx - size * 0.20, cy + size * 0.02),
+                    (cx + size * 0.20, cy + size * 0.02)], fill=canvas.accent)
+    canvas.circle(cx, cy + size * 0.02, size * 0.20, fill=canvas.accent)
+    canvas.line([(cx - size * 0.40, cy + size * 0.30), (cx - size * 0.10, cy + size * 0.30),
+                 (cx + size * 0.10, cy + size * 0.18), (cx + size * 0.40, cy + size * 0.18)],
+                fill=canvas.accent2, width=4)
+
+
+def icon_movement(canvas: Canvas, cx: float, cy: float, size: float) -> None:
+    """A walking figure with motion ticks: the intervention the studies actually test."""
+
+    canvas.circle(cx, cy - size * 0.26, size * 0.08, fill=canvas.accent)
+    canvas.line([(cx, cy - size * 0.18), (cx - size * 0.02, cy + size * 0.06)],
+                fill=canvas.accent, width=8)
+    canvas.line([(cx - size * 0.02, cy + size * 0.06), (cx - size * 0.16, cy + size * 0.30)],
+                fill=canvas.accent, width=7)
+    canvas.line([(cx - size * 0.02, cy + size * 0.06), (cx + size * 0.16, cy + size * 0.30)],
+                fill=canvas.accent, width=7)
+    canvas.line([(cx, cy - size * 0.10), (cx + size * 0.20, cy + size * 0.00)],
+                fill=canvas.accent2, width=6)
+    canvas.line([(cx, cy - size * 0.10), (cx - size * 0.18, cy - size * 0.02)],
+                fill=canvas.accent2, width=6)
+    for index in range(2):
+        canvas.line([(cx + size * (0.30 + index * 0.10), cy - size * 0.16),
+                     (cx + size * (0.34 + index * 0.10), cy - size * 0.16)],
+                    fill=canvas.accent2, width=3)
+
+
+def icon_temperature(canvas: Canvas, cx: float, cy: float, size: float) -> None:
+    """A thermometer: the bulb, the column and the scale ticks."""
+
+    canvas.rect(cx - size * 0.06, cy - size * 0.34, cx + size * 0.06, cy + size * 0.12,
+                radius=size * 0.06, fill=canvas.bg, outline=canvas.accent, width=4)
+    canvas.circle(cx, cy + size * 0.20, size * 0.13, fill=canvas.accent)
+    canvas.rect(cx - size * 0.03, cy - size * 0.02, cx + size * 0.03, cy + size * 0.18,
+                radius=size * 0.03, fill=canvas.accent)
+    for row in range(3):
+        y = cy - size * 0.22 + row * size * 0.10
+        canvas.line([(cx + size * 0.10, y), (cx + size * 0.20, y)], fill=canvas.accent2, width=3)
+
+
+def icon_meal(canvas: Canvas, cx: float, cy: float, size: float) -> None:
+    """A plate seen from above: the meal the protein and glucose sentences are about."""
+
+    canvas.circle(cx, cy, size * 0.32, outline=canvas.accent, width=4)
+    canvas.circle(cx, cy, size * 0.18, outline=canvas.accent2, width=3)
+    canvas.circle(cx - size * 0.06, cy - size * 0.05, size * 0.05, fill=canvas.accent2)
+    canvas.circle(cx + size * 0.08, cy + size * 0.04, size * 0.04, fill=canvas.accent)
+
+
 ICONS: dict[str, Callable[[Canvas, float, float, float], None]] = {
     "video": icon_video,
     "model": icon_model,
@@ -658,6 +825,15 @@ ICONS: dict[str, Callable[[Canvas, float, float, float], None]] = {
     "cost": icon_cost,
     "time": icon_time,
     "study": icon_study,
+    "breath": icon_breath,
+    "heart": icon_heart,
+    "brain": icon_brain,
+    "sleep": icon_sleep,
+    "light": icon_light,
+    "glucose": icon_glucose,
+    "movement": icon_movement,
+    "temperature": icon_temperature,
+    "meal": icon_meal,
 }
 
 
@@ -1119,6 +1295,47 @@ def _draw_statement(canvas: Canvas, spec: DiagramSpec, top: float) -> None:
     _footer(canvas, spec, "WHAT THE SENTENCE STATES")
 
 
+def _draw_focus(canvas: Canvas, spec: DiagramSpec, top: float) -> None:
+    """One subject, large, with the properties the sentence states beside it.
+
+    The same claim as `statement`, laid out for a different rhythm: the icon sits left with its label,
+    and the stated properties stack on the right. Nothing here asserts a relationship, an order or a
+    number - it is a subject and its attributes, which is all the sentence gave.
+    """
+
+    entities = list(dict.fromkeys(spec.entities))
+    if not entities:
+        _draw_statement(canvas, spec, top)
+        return
+    subject = next((entity for entity in entities if entity not in ATTRIBUTE_ENTITIES), entities[0])
+    attributes = [entity for entity in entities if entity in ATTRIBUTE_ENTITIES]
+    upper, lower = _band(canvas, top)
+    middle = (upper + lower) / 2
+    if not attributes:
+        cx = canvas.width / 2
+        canvas.circle(cx, middle - 14, 132, outline=canvas.accent, width=3, alpha=190)
+        ICONS[_icon_for(subject)](canvas, cx, middle - 14, 206)
+        canvas.text_at(cx, middle + 122, LEXICON[subject][0].upper(), size=27, anchor="ma")
+        _footer(canvas, spec, "WHAT THE SENTENCE STATES")
+        return
+    icon_x = canvas.width * 0.30
+    canvas.circle(icon_x, middle - 14, 118, outline=canvas.accent, width=3, alpha=190)
+    ICONS[_icon_for(subject)](canvas, icon_x, middle - 14, 196)
+    canvas.text_at(icon_x, middle + 118, LEXICON[subject][0].upper(), size=26, anchor="ma")
+
+    label_x = canvas.width * 0.62
+    canvas.text_at(label_x, middle - 86, "WHAT THE SENTENCE SAYS", size=15, fill=canvas.accent2,
+                   anchor="ma")
+    if attributes:
+        for index, entity in enumerate(attributes[:2]):
+            y = middle - 40 + index * 62
+            canvas.rect(label_x - 92, y, label_x + 92, y + 46, radius=12, fill=canvas.bg,
+                        outline=canvas.accent2, width=2.5)
+            canvas.text_at(label_x, y + 15, LEXICON[entity][0].upper(), size=19, anchor="ma",
+                           fill=canvas.accent2)
+    _footer(canvas, spec, "WHAT THE SENTENCE STATES")
+
+
 _DRAWERS = {
     "pipeline": _draw_pipeline,
     "gap": _draw_gap,
@@ -1130,6 +1347,7 @@ _DRAWERS = {
     "timeline": _draw_timeline,
     "cta": _draw_cta,
     "statement": _draw_statement,
+    "focus": _draw_focus,
     "bars": _draw_bars,
     "ratio": _draw_ratio,
 }
@@ -1152,7 +1370,7 @@ def render_diagram(spec: DiagramSpec, *, size: tuple[int, int] = DEFAULT_SIZE) -
     _backdrop(canvas)
     top = _header(canvas, spec)
     drawer = _DRAWERS.get(spec.variant, _draw_pipeline)
-    needs_subject = spec.variant not in {"statement", "cta", "bars", "ratio"}
+    needs_subject = spec.variant not in {"statement", "focus", "cta", "bars", "ratio"}
     if needs_subject and not list(dict.fromkeys(spec.entities)):
         # Belt and braces: a forced variant with no subject draws a statement rather than raising or
         # inventing the subject v1.0 used to append.
@@ -1178,7 +1396,7 @@ def motion_plan(spec: DiagramSpec, duration_s: float) -> dict[str, Any]:
 
     return {
         "variant": spec.variant,
-        "treatment": "push_in" if spec.variant not in {"timeline", "topology"} else "drift",
+        "treatment": "push_in" if spec.variant not in {"timeline", "topology", "focus"} else "drift",
         "enter_s": round(min(0.45, max(0.2, duration_s * 0.12)), 3),
         "asset_id": spec.asset_id,
     }
