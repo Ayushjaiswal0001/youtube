@@ -13,6 +13,11 @@ name: academic-biohacker daily
 # Uploads stay off unless `upload` is passed, and are private regardless: the reusable workflow checks the
 # publishing gate and `UPLOAD_ENABLED` inside the code, not just here.
 
+# A scheduled run cannot pass dispatch inputs, so `upload` and `release: auto` are derived from the event
+# name here, and `produce.yml` then consults channels/<slug>.json before it exports credentials. A channel
+# whose publishing policy is `manual` renders and skips the upload; only a channel that opted into
+# `mode: scheduled` uploads and receives its release time. Nothing uploads because a render succeeded.
+
 on:
   schedule:
     - cron: "30 6 * * *"
@@ -40,7 +45,10 @@ jobs:
       secret_prefix: ACADEMIC_BIOHACKER
       format: shorts
       timeout_minutes: 60
-      upload: ${{ inputs.upload || false }}
+      # Scheduled runs upload; manual runs upload only when asked. Whether that upload is allowed, and
+      # whether it carries a release time, is decided by the channel config inside produce.yml.
+      upload: ${{ inputs.upload || github.event_name == 'schedule' }}
+      release: ${{ github.event_name == 'schedule' && 'auto' || '' }}
     # Only this channel's credentials. The other channels' tokens are not passed here, so
     # they cannot be reached from this run even by a mistake.
     secrets:
@@ -58,7 +66,10 @@ jobs:
       # Measured: an 11-beat 16:9 episode took 3,008 s here. 120 minutes leaves room for a slower
       # runner plus TTS, mixing, QC and the gate without ever timing out a render that is progressing.
       timeout_minutes: 120
-      upload: ${{ inputs.upload || false }}
+      # Scheduled runs upload; manual runs upload only when asked. Whether that upload is allowed, and
+      # whether it carries a release time, is decided by the channel config inside produce.yml.
+      upload: ${{ inputs.upload || github.event_name == 'schedule' }}
+      release: ${{ github.event_name == 'schedule' && 'auto' || '' }}
     secrets:
       YT_ACADEMIC_BIOHACKER_CLIENT_ID: ${{ secrets.YT_ACADEMIC_BIOHACKER_CLIENT_ID }}
       YT_ACADEMIC_BIOHACKER_CLIENT_SECRET: ${{ secrets.YT_ACADEMIC_BIOHACKER_CLIENT_SECRET }}

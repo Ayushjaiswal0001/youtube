@@ -7,9 +7,20 @@ name: produce
 #
 #   PLAN -> RENDER -> QC -> PACKAGE (manifest) -> GATE -> [APPROVAL] -> UPLOAD -> ARTIFACT
 #
+# Three authorizations, each of which can stop a publication on its own:
+#
+#   render    - `factory.controls` (a paused channel produces nothing)
+#   upload    - `inputs.upload` here, `FACTORY_ALLOW_UPLOAD=1` inside the CLI, and a passing gate
+#   schedule  - `inputs.release: auto` AND the channel's `publishing` block in channels/<slug>.json,
+#               read by the "Publishing policy" step; only then is `--schedule` passed at all
+#
 # `upload` defaults to false everywhere; a render-only run cannot reach the upload steps even if a
 # later step fails in a surprising way. Real uploads additionally need FACTORY_ALLOW_UPLOAD=1 *and*
 # a passing publishing gate, both of which are checked inside the code, not just in YAML.
+#
+# A scheduled release is not "whatever time the job finished": `factory.publishing` resolves the
+# channel's release time from the run's IST date, shifts a late run by a minimum lead instead of
+# jumping to tomorrow, and refuses to schedule at all once the grace window has passed.
 #
 # Required repository secrets for uploads (upload: true):
 #   YT_<PREFIX>_CLIENT_ID / YT_<PREFIX>_CLIENT_SECRET / YT_<PREFIX>_REFRESH_TOKEN
@@ -36,6 +47,15 @@ on:
         required: false
         type: boolean
         default: false
+      release:
+        description: >-
+          auto sets the channel's release time (scheduled publication) on the upload; empty leaves the
+          upload private with no publishAt. A `schedule` event can never supply `upload`, so the daily
+          workflows pass release: auto and this file asks the channel's publishing policy whether an
+          automatic upload is allowed at all.
+        required: false
+        type: string
+        default: ""
       mode:
         description: "render | validate | render+validate"
         required: false
@@ -340,9 +360,21 @@ jobs:
             *) echo "::error::unknown channel '$CHANNEL'"; exit 1 ;;
           esac
 
+      - name: Publishing policy (per channel)
+        # Three separate authorizations: rendering, uploading, scheduling. This step answers the third one
+        # from the channel config, so a scheduled run never uploads merely because it rendered, and a
+        # channel that has not opted in stays manual. The gate below distinguishes the two kinds of upload:
+        # `release: auto` (a scheduled publication, which needs the channel's consent) from an explicit
+        # `upload: true` with no release (a human asking for a private upload, which does not).
+        id: policy
+        run: |
+          python -m factory.cli publishing --channel "$CHANNEL" --json > publishing.json
+          python tools/publishing_outputs.py publishing.json >> "$GITHUB_OUTPUT"
+          cat publishing.json
+
       - name: Export channel credentials
         id: creds
-        if: ${{ inputs.upload }}
+        if: ${{ inputs.upload && (inputs.release != 'auto' || steps.policy.outputs.ready == '1') }}
         env:
           # Passed through the environment: interpolating a dispatch input straight into a shell
           # command is how `$(...)` typed into an input becomes a command on the runner.
@@ -369,31 +401,53 @@ jobs:
           echo "ready=1" >> "$GITHUB_OUTPUT"
 
       - name: Verify channel identity before upload
-        if: ${{ inputs.upload && steps.creds.outputs.ready == '1' }}
+        if: ${{ inputs.upload && (inputs.release != 'auto' || steps.policy.outputs.ready == '1') && steps.creds.outputs.ready == '1' }}
         run: python -m uploader.cli verify --channel "$CHANNEL"
 
       - name: Upload (private, gated)
-        if: ${{ inputs.upload && steps.creds.outputs.ready == '1' && steps.gate.outputs.ok == '1' }}
+        if: ${{ inputs.upload && (inputs.release != 'auto' || steps.policy.outputs.ready == '1') && steps.creds.outputs.ready == '1' && steps.gate.outputs.ok == '1' }}
         env:
           FACTORY_ALLOW_UPLOAD: "1"
           UPLOAD_ENABLED: "true"
+          # Only a run that asked for the channel's release time may schedule one, and only here.
+          FACTORY_ALLOW_SCHEDULE: ${{ inputs.release == 'auto' && '1' || '0' }}
+          RELEASE_MODE: ${{ inputs.release }}
         run: |
-          python -m factory.cli publish \
-            --channel "$CHANNEL" \
-            --plan-id "${{ steps.resolve.outputs.plan_id }}" \
-            --execute \
-            --confirm-channel "$CHANNEL" \
-            --json | tee publish.json
+          ARGS=(--channel "$CHANNEL" --plan-id "${{ steps.resolve.outputs.plan_id }}"
+                --execute --confirm-channel "$CHANNEL" --json)
+          if [ "$RELEASE_MODE" = "auto" ]; then
+            ARGS+=(--schedule)
+          fi
+          python -m factory.cli publish "${ARGS[@]}" | tee publish.json
 
       - name: Notify on failure
-        # Provider-independent: silently a no-op unless FACTORY_NOTIFY_WEBHOOK is configured.
+        # Provider-independent: silently a no-op unless FACTORY_NOTIFY_WEBHOOK is configured, and the
+        # summary below is written either way. The message names the channel, the format, the release mode
+        # and the run URL, because "production failed" without a run id costs the reader a search.
         if: failure()
         continue-on-error: true
         env:
           FACTORY_NOTIFY_WEBHOOK: ${{ secrets.FACTORY_NOTIFY_WEBHOOK }}
         run: |
-          python -m factory.cli notify --subject "production failed: $CHANNEL" \
-            --message "run ${{ github.run_id }} on ${{ github.ref_name }} failed; see the job log" || true
+          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          python -m factory.cli notify \
+            --subject "production failed: $CHANNEL (${{ inputs.format || 'native' }})" \
+            --message "run ${{ github.run_id }} on ${{ github.ref_name }} failed; upload=${{ inputs.upload }} release=${{ inputs.release || 'none' }}; $RUN_URL" || true
+          {
+            echo "## production failure"
+            echo ""
+            echo "| item | value |"
+            echo "| --- | --- |"
+            echo "| channel | \`$CHANNEL\` |"
+            echo "| format | \`${{ inputs.format || 'native' }}\` |"
+            echo "| upload requested | ${{ inputs.upload }} |"
+            echo "| release mode | ${{ inputs.release || 'none' }} |"
+            echo "| release scheduled | ${{ steps.policy.outputs.next_release }} |"
+            echo "| run | $RUN_URL |"
+            echo ""
+            echo "A refusal to schedule is a failure on purpose: a release window that was missed must be seen,"
+            echo "not silently skipped."
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Operational summary
         if: always()
@@ -409,6 +463,9 @@ jobs:
             echo "| publishing gate | ${{ steps.gate.outputs.ok }} |"
             echo "| video sha256 | \`${{ steps.package.outputs.sha256 }}\` |"
             echo "| upload requested | ${{ inputs.upload }} |"
+            echo "| publishing policy | ${{ steps.policy.outputs.mode }} (ready ${{ steps.policy.outputs.ready }}) |"
+            echo "| release mode | ${{ inputs.release || '(private, no release time)' }} |"
+            echo "| release scheduled | ${{ steps.policy.outputs.next_release }} (${{ steps.policy.outputs.release_reason }}) |"
             echo "| upload performed | ${{ steps.creds.outputs.ready == '1' && inputs.upload }} |"
             echo ""
             echo '```'

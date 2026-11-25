@@ -100,8 +100,12 @@ class TestChannelWorkflows:
     def test_uploads_default_to_off(self, channel: str) -> None:
         workflow = load(f"produce-{channel}.yml")
         assert trigger(workflow)["workflow_dispatch"]["inputs"]["upload"]["default"] is False
+        # A manual run uploads only when asked; a scheduled run asks, and `produce.yml` then requires the
+        # channel's publishing policy to agree before it exports a credential. The conjunction is longer,
+        # not looser: `produce.yml` gates every upload step on that policy output as well.
         for job in workflow["jobs"].values():
-            assert "inputs.upload || false" in str(job["with"]["upload"])
+            assert str(job["with"]["upload"]) == (
+                "${{ inputs.upload || github.event_name == 'schedule' }}")
 
     def test_no_workflow_inherits_every_secret(self) -> None:
         for path in sorted(WORKFLOWS.glob("*.yml")):
@@ -146,8 +150,9 @@ class TestProduceWorkflow:
     def test_the_upload_step_is_gated_on_the_gate_and_credentials(self) -> None:
         job = load("produce.yml")["jobs"]["produce"]
         upload = next(step for step in job["steps"] if step.get("name") == "Upload (private, gated)")
-        assert upload["if"] == ("${{ inputs.upload && steps.creds.outputs.ready == '1' && "
-                               "steps.gate.outputs.ok == '1' }}")
+        assert upload["if"] == (
+            "${{ inputs.upload && (inputs.release != 'auto' || steps.policy.outputs.ready == '1') && "
+            "steps.creds.outputs.ready == '1' && steps.gate.outputs.ok == '1' }}")
 
     def test_the_manifest_is_rebuilt_after_qc(self) -> None:
         job = load("produce.yml")["jobs"]["produce"]

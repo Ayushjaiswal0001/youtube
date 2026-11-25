@@ -158,6 +158,38 @@ class PublishGateTests(unittest.TestCase):
         self.assertEqual(data["channel_slug"], "natkhat-toons")
         self.assertNotIn("publishAt", data)
 
+    def test_a_scheduled_upload_of_a_kids_channel_stays_private_and_kids_only(self) -> None:
+        """Scheduling must not become a back door around either the privacy rule or made-for-kids."""
+
+        spec = load_channel_specs()["natkhat-toons"]
+        data = build_upload_data(
+            spec, self.script, publish_at="2026-11-25T12:30:00Z")
+        self.assertEqual(data["privacyStatus"], "private")
+        self.assertEqual(data["publishAt"], "2026-11-25T12:30:00Z")
+        self.assertTrue(data["madeForKids"])
+
+        # and the scheduled upload reaches the client with the same three properties
+        os.environ["FACTORY_ALLOW_UPLOAD"] = "1"
+        os.environ["FACTORY_ALLOW_SCHEDULE"] = "1"
+        router = FakeRouter()
+        result = publish_episode(
+            spec,
+            self.script,
+            self.video,
+            execute=True,
+            confirm_channel=spec.slug,
+            publish_at="2026-11-25T12:30:00Z",
+            router=router,
+            skip_gate=True,
+        )
+        sent = router.calls[0]["data"]
+        self.assertEqual(sent["channel_slug"], "natkhat-toons")
+        self.assertEqual(sent["privacyStatus"], "private")
+        self.assertEqual(sent["publishAt"], "2026-11-25T12:30:00Z")
+        self.assertTrue(sent["madeForKids"])
+        self.assertTrue(result["scheduled"])
+        self.assertEqual(result["requested_privacy"], "private")
+
 
 class StudioPathBindingTests(unittest.TestCase):
     def test_two_renders_bind_different_studio_directories(self) -> None:
