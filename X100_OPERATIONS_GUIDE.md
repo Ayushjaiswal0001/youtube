@@ -41,6 +41,16 @@ python -m factory.cli render --channel nexus-node --plan-id nexus-small-models
 # the same plan in 16:9 as well
 python -m factory.cli render --channel nexus-node --plan-id nexus-small-models --formats shorts,long
 
+# the next authored long-form episode for a channel (selection only, writes nothing)
+python -m factory.cli plan new --channel academic-biohacker --format long --no-write
+
+# render the long-form episode that selection returns
+python -m factory.cli resume --channel academic-biohacker   --plan-id long-academic-study-protocol --format long
+
+# storage report; deletion needs --apply and only ever touches released, valid, idle, old builds
+python -m factory.cli cleanup --channel all
+python -m factory.cli cleanup --channel all --apply --keep-days 14
+
 # QC only, on an existing build
 python -m factory.cli qc --channel nexus-node --plan-id nexus-small-models
 
@@ -128,15 +138,34 @@ Guards that hold regardless of flags:
 
 ## 7. Schedules and cloud runs
 
-| workflow | trigger | state |
-|---|---|---|
-| `ci.yml` | push, PR | active |
-| `security.yml` | push, PR, weekly | active |
-| `produce.yml` | called by the three daily workflows | active |
-| `production (manual)` | `workflow_dispatch` | active |
-| `academic-biohacker daily` | cron `30 6 * * *` | **disabled_manually** |
-| `natkhat-toons daily` | cron `30 12 * * *` | **disabled_manually** |
-| `nexus-node daily` | cron `30 14 * * *` | **disabled_manually** |
+| workflow | trigger | jobs | state |
+|---|---|---|---|
+| `ci.yml` | push, PR | `uploader`, `factory` | active |
+| `security.yml` | push, PR, weekly | `secrets`, `gitleaks`, `dependencies`, `workflow-audit` | active |
+| `produce.yml` | called by the others | `produce` (one episode) | active |
+| `production (manual)` | `workflow_dispatch` | one job per channel | active |
+| `academic-biohacker daily` | cron `30 6 * * *` | `short` (60 min), `long` (120 min) | **disabled_manually** |
+| `natkhat-toons daily` | cron `30 12 * * *` | `short` (60 min), `long` (120 min) | **disabled_manually** |
+| `nexus-node daily` | cron `30 14 * * *` | `short` (60 min), `long` (120 min) | **disabled_manually** |
+
+Each channel's nightly workflow runs **two independent jobs**: a Short (format `shorts`, 60-minute budget)
+and a long-form episode (format `long`, 120-minute budget). They share nothing but the channel: separate
+concurrency groups (`produce-<channel>-<format>`), separate state-cache keys, no `needs:` between them, so
+a slow or failing long-form render never blocks the Short. Measured on the development machine:
+Short ≈166 s; long-form 3,090 s (51 min 30 s) for `long-academic-study-protocol` and 3,008 s
+(50 min 8 s) for `long-nexus-power-grid`. That is why the two budgets differ, and the 120-minute
+budget is 2.3× the measured render.
+
+A long-form run picks its episode from `content/longform/<channel>.json` through
+`plan new --format long`: file order, skipping anything already uploaded, re-selecting a rendered but
+unpublished episode so a failed upload resumes the validated video instead of rendering another.
+
+For a manual run that may upload (owner-authorized only), the manual workflow is one job per channel, so
+each job receives only that channel's three secrets:
+
+```bash
+env -u GITHUB_TOKEN gh workflow run "production (manual)"   --repo Ayushjaiswal0001/youtube   -f channel=natkhat-toons -f format=long -f mode=render+validate -f upload=true
+```
 
 To run one channel in the cloud without waiting for the cron:
 
