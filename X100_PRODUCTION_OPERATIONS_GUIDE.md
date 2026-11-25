@@ -48,6 +48,9 @@ python -m factory.cli ops      --channel all
 python -m factory.cli publishing --channel all
 python -m factory.cli publishing --channel nexus-node --json
 
+# is there anything to produce today? (no render, no write; "exhausted" is a content gap, not a fault)
+python -m factory.cli plan available --channel nexus-node --format long --json
+
 # publish (dry run by default; --execute needs FACTORY_ALLOW_UPLOAD=1 and a matching --confirm-channel)
 python -m factory.cli publish --channel nexus-node --plan-id nexus-small-models
 # a scheduled release additionally needs FACTORY_ALLOW_SCHEDULE=1 and resolves the time itself:
@@ -100,6 +103,13 @@ and publishing inside the code and leaves the schedule in place (so the next run
 `gh workflow disable "<slug> daily"` stops the trigger. Disabling the workflow is required if the render itself
 must not run; pausing the channel is required if the release must not happen.
 
+### Cron offset
+
+Each cron fires **two hours before** its channel's release time (`30 12`, `30 4`, `30 10` UTC). A cron at the
+release instant can only ever be late: the resolver would shift it to `now + 15 min` and the declared IST
+release would never be met. Two hours is the measured long-form render (50 min locally, 18 min hosted) plus the
+15-minute lead, leaving the rest as slack for GitHub's dispatch delay.
+
 ### Late runs
 
 `late_run_policy` in the channel JSON decides what a run that finishes after its release time does:
@@ -137,13 +147,16 @@ prints the same values. The reasons are the whole contract:
 | `too_close_to_release` | under 15 minutes away, so pushed out | yes, 15 minutes from now |
 | `late_run_shifted (late by Ns …)` | the instant passed, inside the grace window | yes, 15 minutes from now |
 | `release_window_missed (…)` | past the grace window, or policy `skip` | **no**, run fails |
-| `release_already_scheduled (…)` | a release at or after this instant already exists for the channel | **no**, run fails |
+| `release_already_scheduled (…)` | **this plan** already has a release at or after this instant | **no**, run fails |
 | `already_released_this_plan_today (…)` | this plan already has a release today | **no**, run fails |
 | `refused_past_release` | defensive; would have been a past instant | **no**, run fails |
 
-Two of those deserve a sentence. `release_already_scheduled` protects a *newer* release from being overwritten
-by a delayed older job. `already_released_this_plan_today` is per **plan**, not per day, because a channel
-publishes a Short and a long-form episode on the same day: two plans may both release, one plan may not.
+Two of those deserve a sentence, and both are **per plan**. `release_already_scheduled` protects a newer
+release from being overwritten by a delayed older job of the same plan. `already_released_this_plan_today` stops
+a retried job uploading the same episode twice. They are not per channel: a channel publishes a Short and a
+long-form at the same declared instant, and a channel-wide guard made the Short's release block the
+long-form's - measured on the merged code, the long-form returned `release_already_scheduled` and the channel
+produced one video a day instead of two.
 
 ## 4. State machine
 
@@ -156,6 +169,9 @@ PREFLIGHT → GENERATING → PACKAGING → READY_TO_PUBLISH → UPLOADED
 - `resume` reads the job file and continues from the last completed stage; completed scenes inside a
   render are reused, so an interrupted 50-minute long-form does not restart from zero.
 - A stale lock (`pipeline_state/locks/<job>.lock` from a killed process) is reclaimed on the next run.
+- A run with no content stops before rendering: `Content availability` reports `available=0`, everything that
+  would produce, gate or upload is skipped, and the run finishes green with `content | none (content gap)` in
+  its summary. A *blocked* run (episode out of order, missing bank) still fails.
 - `--force` re-renders from scratch; without it an existing `video.mp4` is reused and reported as
   `skipped_render: true`.
 - The state cache in Actions is keyed `state-<channel>-<format>-<run_id>` and is saved with `if: always()`,
@@ -163,6 +179,19 @@ PREFLIGHT → GENERATING → PACKAGING → READY_TO_PUBLISH → UPLOADED
 
 Measured this session: killed 25 s into a Short, then `resume` → `READY_TO_PUBLISH`, 181 s, QC 25/25,
 stale lock reclaimed.
+
+## 4.1 How to verify a release actually happened
+
+The factory reads the video back after every scheduled upload and fails the run if `publishAt` is missing or
+different, so a green run with `release scheduled` in its log is evidence. To check by hand:
+
+```bash
+python -c "from factory.publisher import make_router; api=make_router().refresh_api('<channel>'); s=api.get_video('<video_id>', parts='status')['status']; print(s['privacyStatus'], s.get('publishAt'), s['uploadStatus'])"
+```
+
+`private` + a `publishAt` means scheduled, not yet released; `public` after that instant means released. A video
+that is `private` with no `publishAt` is an upload whose schedule did not take - fix it in Studio, because the
+current OAuth grant cannot set a release time after the fact (`videos.update` returns 403 insufficientPermissions).
 
 ## 5. Quality gates
 

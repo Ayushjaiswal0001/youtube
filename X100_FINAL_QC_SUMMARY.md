@@ -20,8 +20,14 @@ what those artifacts prove.
 | Academic Biohacker | `long-academic-study-protocol` | 1920×1080 | 218.926 s | 43,558,437 | h264/aac | 25/25 | n/a (card engine) | 24/24 |
 | Academic Biohacker | `academic-cool-to-sleep` | 1080×1920 | 36.586 s | 7,831,550 | h264/aac | 25/25 | ok, 1 warning | recovered |
 | Natkhat Toons | `natkhat-haveli-e2` | 1080×1920 | 33.989 s | 5,273,414 | h264/aac | 25/25 | n/a | recovered |
+| Natkhat Toons | `natkhat-haveli-stage-e1` | **1920×1080** | **64.501 s** | 8,351,725 | h264/aac | **27/27** | n/a (stage engine) | 25/25 |
 
-Frame rate is 30/1 on all seven. Every episode has one audio stream and one video stream.
+Frame rate is 30/1 on all eight. Every episode has one audio stream and one video stream.
+
+The eighth row is the first **16:9 Hindi** episode this project has produced, rendered on 2026-11-25 after PR #20
+merged: `natkhat-haveli-stage-e1`, 12 authored scenes, 64.5 s, −14.0 LUFS / −1.44 dBTP, 21 subtitle cues, gate
+25/25. It proves the third channel's long-form path end to end. It also shows the content gap plainly: 64.5 s is
+a 16:9 episode, not a long-form, because the bank holds 12 short scenes (Nexus is 214 s, Academic 219 s).
 
 ## 2. Audio, subtitles, thumbnails
 

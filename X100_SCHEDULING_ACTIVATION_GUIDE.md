@@ -24,6 +24,21 @@ three places, and each can refuse on its own:
 | **upload** | `produce.yml` `upload` input + `FACTORY_ALLOW_UPLOAD=1` in the CLI + a passing publishing gate | a render-only run, a missing credential, a blocked gate |
 | **schedule** | `channels/<slug>.json` → `publishing` → read by the `Publishing policy` step → `--schedule` + `FACTORY_ALLOW_SCHEDULE=1` | a channel whose policy is `manual` |
 
+**The cron starts two hours before the release time, not at it.** A run that starts at the release instant is
+late by definition: the resolver shifts it to `now + 15 min`, so the declared 20:00 / 12:00 / 18:00 IST release
+would never be met and every video would publish late. Measured on the merged code before this change,
+`resolve_release` with `now == release` returns `late_run_shifted` every time; two hours of lead turns it into
+`on_time` at the declared instant.
+
+| channel | cron (UTC) | starts (IST) | release (IST) |
+| --- | --- | --- | --- |
+| Nexus Node | `30 12 * * *` | 18:00 | 20:00 |
+| Academic Biohacker | `30 4 * * *` | 10:00 | 12:00 |
+| Natkhat Toons | `30 10 * * *` | 16:00 | 18:00 |
+
+Two hours covers the measured long-form render (18 min on a hosted runner, 50 min on a developer machine) plus
+the 15-minute minimum lead, with the rest as slack for GitHub's dispatch delay.
+
 A `schedule` event cannot supply `workflow_dispatch` inputs, which is why the old design could never upload.
 The daily workflows now derive the request from the event:
 
@@ -99,8 +114,8 @@ The release belongs to the **production run's IST date**, not to the moment the 
 | release has passed, within `late_grace_minutes` (90), policy `shift` | schedule `now + 15 min` (today) | `late_run_shifted (late by Ns …)` |
 | release has passed beyond the grace window | **refuse**, no upload | `release_window_missed (late by Ns …)` |
 | policy `skip` and the release has passed | **refuse**, no upload | `release_window_missed` |
-| the channel already has a release at or after this instant | **refuse** | `release_already_scheduled` |
-| this plan already has a release today (any state but failed) | **refuse** | `already_released_this_plan_today` |
+| **this plan** already has a release at or after this instant | **refuse** | `release_already_scheduled` |
+| **this plan** already has a release today (any state but failed) | **refuse** | `already_released_this_plan_today` |
 | anything that would produce a past instant | **refuse** | `refused_past_release` |
 
 The defect this removes: the old `_next_ist_date` returned **tomorrow** as soon as the release time had
@@ -146,6 +161,34 @@ API call is tested; the API call itself is the activation event, because it cann
 scope.
 
 ---
+
+## 3.1 A release is verified, not assumed
+
+`result["scheduled"]` records what the factory *asked* YouTube for. After every real scheduled upload the
+factory reads the video back (`videos.list`, `part=status`) and requires `status.publishAt` to equal the
+requested instant within a second, retrying for up to ~12 s while the API catches up. If it does not match the
+run **fails** with `uploaded <id> but the release was not applied: ... The video is private; set the release
+time in Studio.` There is deliberately no retry on an API *error*: a permission failure is not transient.
+
+## 3.2 A day with no content is a warning, not a failure
+
+When a bank is empty, `plan new` raises `PlanGenerationError(kind="exhausted")`. The reusable workflow asks
+first:
+
+```bash
+python -m factory.cli plan available --channel <slug> [--format long] --json
+```
+
+- `available: true` - a plan exists; production runs as normal.
+- `available: false, kind: exhausted` - nothing authored. `::warning::no content available: ...`, the summary
+  shows `content | none (content gap)`, every production step is skipped, **no credential is exported, nothing
+  is uploaded**, and the run is green.
+- `available: false, kind: blocked` - an episode out of order, or a missing/empty bank. The step exits 2 and the
+  run fails. That is a fault, not a quiet day.
+
+Horizon, measured: Nexus and Academic Shorts come from a research-fed topic bank (no fixed horizon); Natkhat
+Shorts come from six authored series episodes; each channel has **one** long-form plan, so the long-form half of
+the cadence stops after one day per channel until more episodes are authored.
 
 ## 4. Activation order (strict)
 
