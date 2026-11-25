@@ -3,8 +3,11 @@ name: production (manual)
 # The manual interface: pick a channel, a mode and (optionally) a plan. Rendering, validation and
 # upload are separate inputs, so "produce a video" and "publish a video" are different decisions.
 #
-# UPLOAD_ENABLED and SCHEDULED_PUBLISHING_ENABLED stay false unless this run sets `upload`, and even
-# then the workflow's publish step is additionally gated on the publishing gate passing.
+# Two upload inputs, because an upload and a release are different decisions: `upload` sends a private
+# video, `release: auto` additionally sets the channel's release time and is honoured only when the channel's
+# publishing policy allows it. Both are additionally gated on the publishing gate passing, and the enforced
+# switches live in the code (`FACTORY_ALLOW_UPLOAD`, `FACTORY_ALLOW_SCHEDULE`), not in the `UPLOAD_ENABLED`
+# variable, which nothing reads.
 #
 # One job per channel, each passing only its own three secrets. A single job that receives all nine would
 # hand every channel's refresh token to a run that can only ever use one; the daily workflows already work
