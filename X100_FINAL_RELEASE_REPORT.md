@@ -183,7 +183,7 @@ The nine repository secrets remain unexercised: the pilots used `YT_SECRETS_ROOT
 | schedule dry run, three channels | `dry_run_ok`, `scheduled: true`, `upload_performed: false`, publishAt `14:30Z` / `06:30Z` / `12:30Z` |
 | roll-forward | **fixed**: a release time already past used to roll to tomorrow, which published a cron that ran four minutes late a day late. It now resolves against the run's IST date, shifts within a 15-minute lead, and refuses beyond a 90-minute grace window (`factory/publishing.py`) |
 | can a `schedule` event reach an upload at all? | **yes, now**: the daily workflows pass `upload: ${{ inputs.upload \|\| github.event_name == 'schedule' }}` and `release: auto`; before this mission a scheduled run could never upload |
-| does a channel decide, or the workflow? | **the channel**: `produce.yml` runs `factory.cli publishing` and gates credential export, identity verification and upload on `steps.policy.outputs.ready == '1'`, so a `manual` channel renders and stops |
+| does a channel decide, or the workflow? | **the channel**: `produce.yml` runs `factory.cli publishing` and gates credential export, identity verification and upload on `inputs.release != 'auto' \|\| steps.policy.outputs.ready == '1'`, so a scheduled release needs consent while a manual private upload does not |
 | scheduled authorization | `--schedule` is passed only when `release: auto`, and `FACTORY_ALLOW_SCHEDULE=1` is set only inside that step |
 | Short and long separated | two independent jobs, separate concurrency groups and state-cache keys, no `needs:` |
 | production→upload dependency | the upload step is gated on `inputs.upload && policy.ready && creds.ready && gate.ok`, plus `FACTORY_ALLOW_UPLOAD` inside the CLI |

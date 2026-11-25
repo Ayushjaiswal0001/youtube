@@ -42,8 +42,15 @@ and `produce.yml` then asks the channel whether it agrees:
     python tools/publishing_outputs.py publishing.json >> "$GITHUB_OUTPUT"
 ```
 
-The credential export, the identity verification and the upload step all require `steps.policy.outputs.ready
-== '1'`. A channel that has not opted in renders and stops, even when a workflow asks for an upload.
+The credential export, the identity verification and the upload step all require
+
+```yaml
+inputs.upload && (inputs.release != 'auto' || steps.policy.outputs.ready == '1')
+```
+
+so a **release** requires the channel's consent, while an explicit `upload: true` with no release — a human
+asking for a private upload by hand — behaves as it always did. A channel that has not opted in renders and
+stops when a scheduled run asks for a release.
 
 The channel policy shipped today:
 
