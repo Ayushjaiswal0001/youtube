@@ -12,7 +12,7 @@ Candidate branch: `codex/fix-publishing-policy-clock-test`
 
 The merged implementation has working render, QC, gate, and private-upload code paths, and representative GitHub Actions artifacts were inspected for all three channels in both output formats. The merge-commit CI run exposed a clock-dependent test failure; the production resolver correctly rejected the missed release. The local Windows regression run also exposed a real lock-liveness portability bug: `os.kill(pid, 0)` sends a Ctrl+C event on Windows. The lock check now uses a waitable Win32 process handle and fails closed on uncertain access. Security review found a workflow-dispatch command injection in the production upload path; the focused branch now normalizes plan IDs and passes step outputs through environment variables. The available Nexus evaluation Short also had an unsupported absolute claim; it now uses qualified language and direct evidence links.
 
-The candidate is **ready for owner review with documented limitations**. PR #22's code and security checks are green. This does not mean production is activated: all three publishing workflows remain disabled, no workflow was dispatched, no upload or public schedule was created, and no OAuth secret was read. Live YouTube schedule verification and current account-state checks remain owner-dependent.
+The candidate is **ready for owner review with documented limitations**. PR #22's code and security checks are green. This does not mean production is activated: all three daily channel workflows remain disabled, no workflow was dispatched, no upload or public schedule was created, and no OAuth secret was read. Live YouTube schedule verification and current account-state checks remain owner-dependent.
 
 ## B. Repository identity and source of truth
 
@@ -27,14 +27,14 @@ The candidate is **ready for owner review with documented limitations**. PR #22'
 - Merge-commit run `45655992920`: six of seven checks passed. `factory (plan + publish gates)` failed one test after 1,371 passed and 2 skipped. The failure was `test_publish_looks_up_the_release_for_its_own_plan`; its fixed November 25 release had passed the late-grace window because the test used wall-clock time.
 - Security run `45655992820` passed. It ran the repository's secret, history, dependency, and workflow-permission checks.
 - The test now pins the resolver to a time before the intended release while still calling the real resolver. The focused test passed locally.
-- PR [#22](https://github.com/Ayushjaiswal0001/youtube/pull/22) is open. CI and security checks on source commit `f6b24f44984c7224010f255a1fa37012f279d547` are green; GitHub reported the PR merge state as `CLEAN`. This closure-report refresh is documentation-only and will receive its own checks. The PR remains unmerged and awaits owner review.
-- PR CI run `45683044787`: factory tests **1,375 passed, 2 skipped** in 444.21 seconds; uploader unit tests **77 passed** on both Python 3.11 and 3.12. Security run `45683044836` passed all four jobs: secret/history scanning, Gitleaks, dependency audit, and workflow permissions/pinning. Duplicate push-triggered runs `45682960792` and `45682960745` also passed.
+- PR [#22](https://github.com/Ayushjaiswal0001/youtube/pull/22) remains open and unmerged. The final documentation refresh received its own CI and security runs, and all checks are green; GitHub reports merge state `CLEAN`. Owner review remains pending.
+- Final PR CI run `45685498369`: factory tests **1,375 passed, 2 skipped** in 449.80 seconds; uploader unit tests **77 passed** on both Python 3.11 and 3.12. Security run `45685498495` passed all four jobs: secret/history scanning, Gitleaks, dependency audit, and workflow permissions/pinning. Duplicate push-triggered CI run `45685484629` passed the factory tests (**1,375 passed, 2 skipped** in 441.34 seconds); its security run `45685484719` also passed all four jobs.
 
 ## D. Test results
 
 Before the security-auditor regression tests were added, `python -m pytest --collect-only -q` collected **1,451 tests across 81 modules**. Six disjoint, exhaustive file batches passed: **1,451 passed, 0 failed, 0 skipped, 5 successful subtests**; cumulative pytest runtime **1,009.88 s (16:49.88)**, excluding collection. After the audit fix, the current collection is **1,454 tests across 82 modules** and the added workflow-auditor tests passed **3/3** locally. The green PR CI covers the current suite through 1,375 factory pytest cases (2 skipped) and 77 uploader unit tests on each supported Python version.
 
-Environment: Windows 11, Python 3.12.7. `python -m compileall -q factory studio tools` passed after the workflow-audit change. The current collection is 1,454 tests across 82 modules; the new workflow-audit tests passed 3/3. On source commit `f6b24f4`, CI covered 1,375 factory tests (2 skipped) plus all 77 uploader unit tests on Python 3.11 and 3.12.
+Environment: Windows 11, Python 3.12.7. `python -m compileall -q factory studio tools` passed after the workflow-audit change. The current collection is 1,454 tests across 82 modules; the new workflow-audit tests passed 3/3. Final PR CI covered 1,375 factory tests (2 skipped) plus all 77 uploader unit tests on Python 3.11 and 3.12.
 
 Batch 1: 243 tests — 188.71 s
 ```powershell
@@ -214,4 +214,4 @@ Do not manually dispatch the publishing workflow as a substitute for the schedul
 
 ## T. Final verdict
 
-**RELEASE CANDIDATE WITH DOCUMENTED LIMITATIONS** — PR #22 is open with all CI and security checks green; owner review and merge remain pending. Production workflows remain disabled pending merge, separate account preflight, and explicit activation approval described above.
+**RELEASE CANDIDATE WITH DOCUMENTED LIMITATIONS** — PR #22 is open with all CI and security checks green; owner review and merge remain pending. The three daily channel workflows remain disabled. Publishing is not activated; a separate account preflight and explicit activation approval described above are still required.

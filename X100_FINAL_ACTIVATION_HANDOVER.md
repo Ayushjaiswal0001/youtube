@@ -7,7 +7,7 @@ Date: 2026-11-26 (IST)
 - Repository: `Ayushjaiswal0001/youtube`, cloned in isolation to `D:\X100-youtube` because `D:\animated` is an unrelated working tree with user changes.
 - Current `main`: `01f3abd4078abca30eabbd6822139130121a72d7`, merge commit for PR #21.
 - PR #21 is merged. Its checks were green before merge. A new CI run on the merge commit failed one factory test; the security workflow passed.
-- Focused branch: `codex/fix-publishing-policy-clock-test`, commit `f6b24f44984c7224010f255a1fa37012f279d547`. [PR #22 is open](https://github.com/Ayushjaiswal0001/youtube/pull/22), merge state `CLEAN`, awaiting owner review. PR CI passed: 1,375 factory tests passed, 2 skipped; uploader's 77 tests passed on both Python 3.11 and 3.12. All four security jobs passed. The original exhaustive local suite also passed 1,451 tests with 5 successful subtests; the 3 added auditor tests passed separately.
+- Focused branch: `codex/fix-publishing-policy-clock-test`. [PR #22 is open](https://github.com/Ayushjaiswal0001/youtube/pull/22), merge state `CLEAN`, awaiting owner review. Latest PR CI and security checks passed after the documentation refresh: 1,375 factory tests passed, 2 skipped; uploader's 77 tests passed on both Python 3.11 and 3.12; all four security jobs passed. The duplicate push-triggered runs also passed. The original exhaustive local suite passed 1,451 tests with 5 successful subtests; the 3 added auditor tests passed separately.
 - All three publishing workflows were freshly checked with `gh workflow list --all`: `nexus-node daily`, `academic-biohacker daily`, and `natkhat-toons daily` are `disabled_manually`.
 
 ## B. Defect and fix status
