@@ -37,10 +37,18 @@ on:
         options: ["", shorts, long]
         default: ""
       upload:
-        description: Upload after QC and the publishing gate both pass (private)
+        description: Upload after QC and the publishing gate both pass (private, no release time)
         required: false
         type: boolean
         default: false
+      release:
+        description: >-
+          auto sets the channel's release time on the upload (scheduled publication). Needs upload: true and
+          a channel whose publishing policy is `scheduled`.
+        required: false
+        type: choice
+        options: ["", auto]
+        default: ""
 
 permissions:
   contents: read
@@ -60,6 +68,7 @@ jobs:
       plan_id: ${{ inputs.plan_id }}
       format: ${{ inputs.format }}
       upload: ${{ inputs.upload }}
+      release: ${{ inputs.release }}
       # A long-form episode took 3,008 s measured; 120 minutes is the budget for one, 60 for a Short.
       timeout_minutes: ${{ inputs.format == 'long' && 120 || 60 }}
     secrets:
@@ -77,6 +86,7 @@ jobs:
       plan_id: ${{ inputs.plan_id }}
       format: ${{ inputs.format }}
       upload: ${{ inputs.upload }}
+      release: ${{ inputs.release }}
       timeout_minutes: ${{ inputs.format == 'long' && 120 || 60 }}
     secrets:
       YT_ACADEMIC_BIOHACKER_CLIENT_ID: ${{ secrets.YT_ACADEMIC_BIOHACKER_CLIENT_ID }}
@@ -93,6 +103,7 @@ jobs:
       plan_id: ${{ inputs.plan_id }}
       format: ${{ inputs.format }}
       upload: ${{ inputs.upload }}
+      release: ${{ inputs.release }}
       timeout_minutes: ${{ inputs.format == 'long' && 120 || 60 }}
     secrets:
       YT_NATKHAT_TOONS_CLIENT_ID: ${{ secrets.YT_NATKHAT_TOONS_CLIENT_ID }}
