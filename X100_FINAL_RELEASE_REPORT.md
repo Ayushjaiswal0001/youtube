@@ -1,13 +1,14 @@
 # X100 final release report
 
-Date: 2026-11-25
+Date: 2026-11-25 (evening, IST)
 Repository: `Ayushjaiswal0001/youtube`
-`main` at the start of this mission: `b53a647fc159ef760591efa4183b43c83dc51ef4` (merge of PR #17)
-`main` at the end: unchanged — this mission merged nothing.
-Engineering changes: **two** (PR #18), both for defects found by running production; everything else is
-verification and documentation.
+`main` at the start of this mission: `b496b07cf453d98d8ef52400ff53e7753a9ba7ef` (merge of PR #18)
+`main` at the end: unchanged — this mission merged nothing; the work is on
+`feature/x100-scheduled-publishing` behind a pull request.
+Engineering changes this mission: **one** change set, for the one thing that made automatic publishing
+impossible; everything else is verification, live pilots and documentation.
 
-**Verdict: `FULLY OPERATIONAL — AWAITING OWNER AUTHORIZATION`** (§18).
+**Verdict: `ACTIVATION-READY — THREE PRIVATE PILOTS LIVE, ONE API CALL UNPROVEN`** (§14).
 
 ---
 
@@ -125,10 +126,39 @@ The retry, idempotency and recovery behaviour of that cadence is verified in §6
 | are retries safe? | a lost response marks the entry `unknown`, which blocks a blind retry; only `failed` is retryable | covered by `uploader` tests |
 | is private mode supported? | `privacy: private` on all three dry runs; `--allow-public` refused by channel config | verified |
 | are failures reported? | `WrongChannelError`, `DuplicateUploadError`, `UploadStateUnknown`, gate blockers, `PermissionError` for each disabled switch | verified by triggering four of them |
+| does a real upload work, end to end, per channel? | **three live private uploads this mission** (§5.1) | **verified**: `UuQKJ3jspKE`, `O2YiFi0f_Ts`, `derJO8hBnjo`, all `processed` |
 
-Nothing was uploaded. The upload path has still never run against YouTube, and the nine repository secrets
-have never been used — the live identity check above used the local credential files, which is a different
-store from the secrets the workflow exports.
+### 5.1 The three pilots, measured
+
+One private upload per channel, from artifacts rendered by the code in this mission (all QC 25/25, gate
+25/25, 25/25, 24/24). The local credential files were used; the nine repository secrets are still untouched.
+
+| channel | video id | title | privacy | `publishAt` | made for kids | geometry | duration | thumbnail | status |
+|---|---|---|---|---|---|---|---|---|---|
+| Nexus Node | `UuQKJ3jspKE` | AI Is Leaving the Chat | private | none | false | 1080×1920 @30, h264/aac | 39 s, 8,016,077 B | applied | processed |
+| Academic Biohacker | `O2YiFi0f_Ts` | Your Brain's Night Shift | private | none | false | 1080×1920 @30, h264/aac | 39 s, 8,170,704 B | **refused (403)** | processed |
+| Natkhat Toons | `derJO8hBnjo` | चीकू और गप्पू: हवेली की पहली रात | private | none | **true** | 1080×1920 @30, h264/aac | 33 s, 4,996,009 B | applied | processed |
+
+Each upload result also carried `identity.verified: true` with `token_channel_id` equal to the channel's
+`expected_channel_id`, `duplicate_check: clear`, `upload_performed: true` and
+`credential_source: secret_file`. Nothing was made public; no `publishAt` was set on any of them.
+
+Three findings came out of doing this rather than asserting it:
+
+1. **Custom thumbnails are refused on Academic Biohacker** — `HTTP 403 forbidden: The authenticated user
+   doesn't have permissions to upload and set custom video thumbnails`, with `thumbnail_applied: false` and the
+   upload still succeeding. Nexus Node and Natkhat Toons accepted theirs with the same scope, so this is
+   channel eligibility (phone verification), not a factory defect. Owner action; the channel needs
+   <https://www.youtube.com/verify>.
+2. **Captions cannot be attached.** All three report `contentDetails.caption: false`. The factory writes
+   `captions.srt` for every episode, but `captions.insert` needs the `youtube` (force-ssl) scope, which the
+   grant does not have.
+3. **A scheduled release cannot be corrected** with the current grant: `videos.update` returns
+   `403 insufficientPermissions`. The grant can insert a video with a `publishAt`, but cannot move or remove
+   that time afterwards. Recorded as a one-way door in the activation guide, with the re-consent that fixes it.
+
+The nine repository secrets remain unexercised: the pilots used `YT_SECRETS_ROOT`, the workflow exports
+`YT_<PREFIX>_*` secrets into the same loader, so the code path is shared but the secret store is not.
 
 ## 6. Recovery, idempotency, duplicate prevention
 
@@ -151,12 +181,16 @@ store from the secrets the workflow exports.
 | three crons configured and correct | yes, and equal to the three IST release times minus 5 h 30 min |
 | timezone | IST is UTC+5:30 with no DST; `publish_at_utc` is a constant offset |
 | schedule dry run, three channels | `dry_run_ok`, `scheduled: true`, `upload_performed: false`, publishAt `14:30Z` / `06:30Z` / `12:30Z` |
-| roll-forward | a release time already past rolls to the next day (`academic` returned `2026-11-26T06:30:00Z`) |
+| roll-forward | **fixed**: a release time already past used to roll to tomorrow, which published a cron that ran four minutes late a day late. It now resolves against the run's IST date, shifts within a 15-minute lead, and refuses beyond a 90-minute grace window (`factory/publishing.py`) |
+| can a `schedule` event reach an upload at all? | **yes, now**: the daily workflows pass `upload: ${{ inputs.upload \|\| github.event_name == 'schedule' }}` and `release: auto`; before this mission a scheduled run could never upload |
+| does a channel decide, or the workflow? | **the channel**: `produce.yml` runs `factory.cli publishing` and gates credential export, identity verification and upload on `steps.policy.outputs.ready == '1'`, so a `manual` channel renders and stops |
+| scheduled authorization | `--schedule` is passed only when `release: auto`, and `FACTORY_ALLOW_SCHEDULE=1` is set only inside that step |
 | Short and long separated | two independent jobs, separate concurrency groups and state-cache keys, no `needs:` |
-| production→upload dependency | the upload step is gated on `inputs.upload && creds.ready && gate.ok`, plus `FACTORY_ALLOW_UPLOAD` inside the CLI |
-| duplicate prevention across days | the plan selector skips uploaded episodes; the ledger refuses a repeated sha256 |
-| failure notification | `factory.cli notify` reports `delivered: false` (`NullNotifier`) until `FACTORY_NOTIFY_WEBHOOK` is set |
-| activation | not performed; one command per channel documented in `X100_SCHEDULING_ACTIVATION_GUIDE.md` |
+| production→upload dependency | the upload step is gated on `inputs.upload && policy.ready && creds.ready && gate.ok`, plus `FACTORY_ALLOW_UPLOAD` inside the CLI |
+| duplicate prevention across days | the plan selector skips uploaded episodes; the ledger refuses a repeated sha256; the resolver refuses a second release for the same plan on the same IST day and a second release behind an existing one |
+| a missed window | **refused, loudly**: `publish` exits 2, the step fails, the notification fires, and the summary names the window and the lateness |
+| failure notification | the failure step now writes channel, format, upload flag, release mode, scheduled instant and run URL to the job summary, and still posts to `FACTORY_NOTIFY_WEBHOOK` when it is set |
+| activation | not performed; staged order in `X100_SCHEDULING_ACTIVATION_GUIDE.md` §4 |
 
 ## 8. Monitoring
 
@@ -187,7 +221,8 @@ for the state of the run that produced them.
 | workflow audit | `python tools/workflow_audit.py` | 7 workflows, 0 findings |
 | secrets printed | — | none; only names were read (`gh secret list`) |
 | OAuth configuration | — | unchanged; no consent flow started, no secret written or rotated |
-| unintended workflow changes | `git diff` | none; `.github/workflows/` untouched in this mission |
+| workflow changes | `git diff` | three daily workflows, `produce.yml` and `production.yml` touched **deliberately**, in one reviewed change set, all documented in `X100_SCHEDULING_ACTIVATION_GUIDE.md`. The upload gate gained a conjunct; nothing was loosened |
+| dispatch inputs trusted as code? | `produce.yml` | no new input reaches a shell unquoted; `release` is compared to a literal, `upload` is boolean |
 | unsafe artifact deletion | `cleanup` | dry run only, 0 of 3 entries deletable |
 | accidental publishing | — | no upload, no schedule, no public request; all switches off |
 | cost | — | ₹0: public repo, standard runners, local rendering, no paid API, no GPU |
@@ -198,6 +233,12 @@ for the state of the run that produced them.
 |---|---|
 | full test suite, `main` (`b53a647`) | **1,387 passed, 5 subtests**, 29 min 24 s (run while two long-form renders and a batch competed for four cores) |
 | full test suite, fix branch (PR #18) | **1,394 passed, 5 subtests** in 18 min (the final run is recorded in the PR) |
+| full test suite, this branch | recorded in the pull request; the new file alone is 33 passed |
+| publishing-policy tests | `tests/factory/test_publishing_policy.py` — 33 passed: policy parsing, late-run policy, no past instant, duplicate slots, CLI wiring, workflow shape |
+| scheduled kids upload | `tests/factory/test_publish_gates.py` — `privacyStatus=private`, `publishAt` set, `selfDeclaredMadeForKids=true` |
+| hosted render, Short | run 45623621859 on `main @ b496b07`: all steps green, artifact 7,964,585 B, `nexus-open-weights` 35.2 s, three upload steps `skipped` |
+| hosted render, long-form | run 45625058307 on `main @ b496b07`: 18 min wall clock, artifact 45,593,259 B, 214.067 s @ 1920×1080, upload steps `skipped` |
+| live private uploads | 3/3 processed, one per channel (§5.1) |
 | recovery tests | `tests/factory/test_interrupted_render_recovery.py` (5) |
 | delivered-audio tests | `tests/factory/test_delivered_audio.py` (2) |
 | pose goldens | 3 passed |
@@ -211,17 +252,22 @@ for the state of the run that produced them.
 | scheduling dry run | 3 channels, correct publishAt |
 | security scans | 4 sweeps clean |
 
-No test was weakened, skipped or deleted. Two fixtures were corrected to describe a real artifact (a
-"verified" build always carries its timeline), and one source assertion was updated where it pinned the
-expression that *was* the defect — both recorded in PR #18.
+No test was weakened, skipped or deleted. In PR #18 two fixtures were corrected to describe a real artifact
+(a "verified" build always carries its timeline) and one assertion was updated where it pinned the expression
+that *was* the defect. In this change set two workflow-shape assertions were **tightened**: the upload
+condition now names the policy output as well, and the daily workflows' `upload` expression is asserted
+literally. Both are recorded in the pull request body.
 
 ## 11. Authorization boundary
 
 Performed: inspection, local production, workflow validation, one confirmed-defect fix, documentation, a
-pull request, dry runs.
+pull request, dry runs, two hosted production runs with `upload=false`, **three private pilot uploads** (one
+per channel, authorised by the owner in this mission's brief), and read-only API verification of what YouTube
+stored.
 
-Not performed: no push to `main`, no merge, no OAuth flow, no secret read or change, no upload, no
-scheduled release, no public publishing, no cron activation, no spend, no branch-protection change.
+Not performed: no push to `main`, no merge, no OAuth flow or re-consent, no secret read or change (only names
+were ever listed), no public publishing, no `publishAt` set on any upload, no cron activation, no workflow
+enabled or disabled, no spend, no branch-protection change, no force-push.
 
 ## 12. Handover documents
 
@@ -252,17 +298,26 @@ scheduled release, no public publishing, no cron activation, no spend, no branch
 
 ## 14. Verdict
 
-**`FULLY OPERATIONAL — AWAITING OWNER AUTHORIZATION`.**
+**`ACTIVATION-READY — THREE PRIVATE PILOTS LIVE, ONE API CALL UNPROVEN`.**
 
-The system produces, verifies, gates and packages episodes for all three channels in both configured
-formats, on a cadence whose cost is measured and whose failure modes were exercised rather than assumed.
-What remains is exactly the set of actions that require the owner: a real private upload, the consent
-screen, the nine repository secrets (never used), and turning the three crons on.
+The rendering, verification, gating and packaging half is proven, locally and on hosted runners, in both
+formats and both languages. The uploading half is now proven against the live API on all three channels,
+privately. The scheduled-publication half is implemented, unit- and workflow-tested, and wired so that a cron
+can actually reach it — but an insert whose `publishAt` YouTube honours has not been executed, because with the
+current OAuth grant that call is one-way: it cannot be moved or removed.
 
-Owner actions, in the order they matter:
+What is left is the owner's:
 
-1. **Private upload test** — `X100_PRIVATE_UPLOAD_CHECKLIST.md` §0.1–§0.4, then one channel.
-2. **Scheduling activation** — `X100_SCHEDULING_ACTIVATION_GUIDE.md` §4–§5, one channel first.
-3. Set `FACTORY_NOTIFY_WEBHOOK` if a silent failure is unacceptable.
-4. Author the next long-form episodes; Nexus and Academic each have one, Natkhat has none.
-5. Decide whether the topic banks should state figures — that is what would make charts appear.
+1. **Merge the pull request.** Scheduled production runs the default branch; a cron enabled before the merge
+   runs the old workflow, which cannot upload at all.
+2. **Enable one channel — Nexus Node — and watch its first run.** That run is simultaneously the first test of
+   the two-job daily workflow and the first scheduled publication. The 20:00 IST slot gives the most headroom;
+   `gh workflow disable "nexus-node daily"` and `factory.cli pause --channel all` are the stops, and both must
+   be ready *before* the release instant because the schedule itself cannot be recalled from here.
+3. **Verify the channel eligibility gaps.** Academic Biohacker needs <https://www.youtube.com/verify> for
+   custom thumbnails; if you want captions attached, or a scheduled release you can move, re-consent with the
+   `https://www.googleapis.com/auth/youtube` scope.
+4. **Then Academic Biohacker, then Natkhat Toons**, one successful scheduled release apart.
+5. Set `FACTORY_NOTIFY_WEBHOOK` if a silent failure is unacceptable; author the next long-form episodes (Nexus
+   and Academic have one each, Natkhat none); decide whether topic banks should state figures, which is what
+   would make charts appear.

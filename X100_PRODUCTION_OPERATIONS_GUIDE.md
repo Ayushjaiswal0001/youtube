@@ -44,9 +44,15 @@ python -m factory.cli validate --channel all
 python -m factory.cli gate     --channel all
 python -m factory.cli ops      --channel all
 
+# publishing policy: what each channel may do automatically, and the release it would use right now
+python -m factory.cli publishing --channel all
+python -m factory.cli publishing --channel nexus-node --json
+
 # publish (dry run by default; --execute needs FACTORY_ALLOW_UPLOAD=1 and a matching --confirm-channel)
 python -m factory.cli publish --channel nexus-node --plan-id nexus-small-models
-python -m factory.cli publish --channel nexus-node --schedule
+# a scheduled release additionally needs FACTORY_ALLOW_SCHEDULE=1 and resolves the time itself:
+FACTORY_ALLOW_SCHEDULE=1 python -m factory.cli publish --channel nexus-node --schedule --execute \
+    --confirm-channel nexus-node
 
 # storage: report, then optionally delete only released, valid, idle builds
 python -m factory.cli cleanup --channel all
@@ -58,6 +64,52 @@ python -m factory.cli pause --channel nexus-node --clear
 ```
 
 Every verb accepts `--json` and writes its machine-readable output where the workflow can archive it.
+
+## 2.1 Publishing, and the three switches that are not switches
+
+`produce.yml` sets `UPLOAD_ENABLED=false`, `SCHEDULED_PUBLISHING_ENABLED=false` and
+`PUBLICATION_APPROVAL_REQUIRED=true`. Those three are **documentation**: no Python module reads them. The two
+variables that are actually enforced are `FACTORY_ALLOW_UPLOAD` and `FACTORY_ALLOW_SCHEDULE`, and the third
+enforcement point is the publishing gate. Read them together, but do not believe a switch that nothing reads —
+this file says so explicitly rather than implying a guarantee.
+
+What decides whether a video can be published automatically:
+
+| decision | input | default |
+| --- | --- | --- |
+| may this channel upload without an operator? | `channels/<slug>.json` → `publishing.mode` (`manual`/`scheduled`) + `publishing.scheduled_upload` | `manual` |
+| may this particular run upload? | `produce.yml` `upload` input, derived from the event by the daily workflows | `false` |
+| may this run set a release time? | `produce.yml` `release` input (`auto`) **and** the channel policy, then `FACTORY_ALLOW_SCHEDULE=1` inside that step only | no |
+| where does the release time come from? | `publish_time_ist` in the channel JSON, resolved by `factory/publishing.py` | channel's own |
+
+Turning one channel off, without touching another:
+
+```bash
+python - <<'PY'
+import json, pathlib
+p = pathlib.Path("channels/natkhat-toons.json")
+d = json.loads(p.read_text(encoding="utf-8"))
+d["publishing"]["mode"] = "manual"          # or set scheduled_upload = false
+p.write_text(json.dumps(d, indent=2) + "\n", encoding="utf-8")
+PY
+python -m factory.cli publishing --channel natkhat-toons     # must print mode=manual
+```
+
+Least destructive interpretation of "pause production": `factory.cli pause --channel <slug>` stops rendering
+and publishing inside the code and leaves the schedule in place (so the next run is a fast no-op), while
+`gh workflow disable "<slug> daily"` stops the trigger. Disabling the workflow is required if the render itself
+must not run; pausing the channel is required if the release must not happen.
+
+### Late runs
+
+`late_run_policy` in the channel JSON decides what a run that finishes after its release time does:
+
+- `shift` (default) — publish today, `minimum_lead_minutes` (15) from now, provided it is within
+  `late_grace_minutes` (90);
+- `skip` — refuse, leave the episode private, fail the run so it is seen.
+
+Beyond the grace window both policies refuse: a seven-hour-late "today's video" is not today's video. Raise
+the grace per channel if GitHub's dispatch delay turns out to be routinely longer than the window.
 
 ## 3. Where things live
 
@@ -74,7 +126,26 @@ Every verb accepts `--json` and writes its machine-readable output where the wor
 job counts and one line per artifact with QC, gate and upload state. In Actions the same information is in
 the run summary (the `Operational summary` step) and in the uploaded artifacts (14-day retention).
 
-## 4. Job state machine and recovery
+## 3.1 Release resolution, in one table
+
+`python -m factory.cli publishing --channel <slug>` prints `next_release` and its reason; the run summary
+prints the same values. The reasons are the whole contract:
+
+| reason | meaning | published? |
+| --- | --- | --- |
+| `on_time` | the channel's release instant on the run's IST date | yes, at that instant |
+| `too_close_to_release` | under 15 minutes away, so pushed out | yes, 15 minutes from now |
+| `late_run_shifted (late by Ns …)` | the instant passed, inside the grace window | yes, 15 minutes from now |
+| `release_window_missed (…)` | past the grace window, or policy `skip` | **no**, run fails |
+| `release_already_scheduled (…)` | a release at or after this instant already exists for the channel | **no**, run fails |
+| `already_released_this_plan_today (…)` | this plan already has a release today | **no**, run fails |
+| `refused_past_release` | defensive; would have been a past instant | **no**, run fails |
+
+Two of those deserve a sentence. `release_already_scheduled` protects a *newer* release from being overwritten
+by a delayed older job. `already_released_this_plan_today` is per **plan**, not per day, because a channel
+publishes a Short and a long-form episode on the same day: two plans may both release, one plan may not.
+
+## 4. State machine
 
 ```
 PREFLIGHT → GENERATING → PACKAGING → READY_TO_PUBLISH → UPLOADED

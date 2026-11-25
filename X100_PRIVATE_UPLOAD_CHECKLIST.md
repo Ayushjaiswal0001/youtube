@@ -1,8 +1,16 @@
 # X100 private upload checklist
 
-One private video per channel, validated by the owner, with nothing published and nothing scheduled.
-Every step here has been exercised in a dry run or a mocked test; the only step this document cannot
-promise is the one it exists for, which is the real upload.
+**Executed on 2026-11-25.** One private video per channel was uploaded, verified through the API, and left
+private with no release time. Three of them exist now:
+
+| channel | video id | title | privacy | `publishAt` | made for kids | thumbnail | processed |
+|---|---|---|---|---|---|---|---|
+| Nexus Node | `UuQKJ3jspKE` | AI Is Leaving the Chat | private | none | false | applied | yes, 39 s, 1080×1920 |
+| Academic Biohacker | `O2YiFi0f_Ts` | Your Brain's Night Shift | private | none | false | **refused 403** | yes, 39 s, 1080×1920 |
+| Natkhat Toons | `derJO8hBnjo` | चीकू और गप्पू: हवेली की पहली रात | private | none | **true** | applied | yes, 33 s, 1080×1920 |
+
+What that proved, and what it exposed, is in §4.1–§4.3 and §8. This document is kept because the *next*
+upload — the first scheduled one — needs the same checklist, plus §9.
 
 Read §0 before touching anything.
 
@@ -12,10 +20,10 @@ Read §0 before touching anything.
 
 | # | precondition | how to confirm | state today |
 |---|---|---|---|
-| 0.1 | OAuth consent screen is **In production** (not "Testing") | Google Cloud console → APIs & Services → OAuth consent screen | **OWNER-BLOCKED** — not verifiable from here |
-| 0.2 | The Desktop OAuth client is the one in use | `python -m uploader.cli consent --check-only --channel nexus-node` | not run — needs the client JSON |
-| 0.3 | Nine repository secrets exist | `gh secret list` (names only) | 9 present: `YT_{NEXUS_NODE,ACADEMIC_BIOHACKER,NATKHAT_TOONS}_{CLIENT_ID,CLIENT_SECRET,REFRESH_TOKEN}` |
-| 0.4 | Each refresh token is bound to exactly one channel | `python tools/check_oauth_identity.py --channel all` | **NOT VERIFIED** — requires a live token exchange |
+| 0.1 | OAuth consent screen is **In production** (not "Testing") | Google Cloud console → APIs & Services → OAuth consent screen | **still OWNER-BLOCKED**: three refreshes succeeded without a re-consent prompt, which is consistent with a production screen and does not prove it |
+| 0.2 | The Desktop OAuth client is the one in use | `python -m uploader.cli consent --check-only --channel nexus-node` | **verified**: all three pilots refreshed offline; `credential_source: secret_file` |
+| 0.3 | Nine repository secrets exist | `gh secret list` (names only) | 9 present, and **still never used** — the pilots read `YT_SECRETS_ROOT`, the local files |
+| 0.4 | Each refresh token is bound to exactly one channel | `python tools/check_oauth_identity.py --channel all` | **verified live**: each upload result reports `identity.verified: true` with `token_channel_id` equal to `expected_channel_id`, and the API read-back shows the video on that channel |
 | 0.5 | `FACTORY_ALLOW_UPLOAD=1` is set only by the upload step | `produce.yml` sets it in the upload step's `env:` | verified: `produce.yml:378` |
 | 0.6 | Repository variables | `gh variable list` | 0 variables — the workflow passes everything explicitly, so none are needed |
 | 0.7 | Upload switches | `produce.yml:115-117` | `UPLOAD_ENABLED=false`, `SCHEDULED_PUBLISHING_ENABLED=false`, `PUBLICATION_APPROVAL_REQUIRED=true` |
@@ -90,7 +98,53 @@ FACTORY_ALLOW_UPLOAD=1 python -m factory.cli publish --channel nexus-node \
   --plan-id <plan> --execute --confirm-channel nexus-node                      # real, private
 ```
 
-## 4. What the API should return
+## 4. What the API returned
+
+### 4.1 The three pilots
+
+Every upload result carried the same shape, and these are the measured values:
+
+| field | Nexus Node | Academic Biohacker | Natkhat Toons |
+|---|---|---|---|
+| `status` | `uploaded` | `uploaded` | `uploaded` |
+| `upload_performed` | true | true | true |
+| `video_id` | `UuQKJ3jspKE` | `O2YiFi0f_Ts` | `derJO8hBnjo` |
+| `requested_privacy` | private | private | private |
+| `scheduled` | false | false | false |
+| `identity.verified` | true | true | true |
+| `duplicate_check` | clear | clear | clear |
+| `thumbnail_applied` | true | **false — 403** | true |
+| `made_for_kids` | false | false | **true** |
+| `scopes` | readonly, upload | readonly, upload | readonly, upload |
+
+Read back with `videos.list` (`snippet,status,processingDetails,fileDetails,contentDetails`):
+`uploadStatus: processed`, `processingStatus: succeeded`, `duration: PT39S` / `PT39S` / `PT33S`,
+`definition: hd`, `1080×1920 @ 30`, `h264` + `aac` stereo, `categoryId` 27 / 27 / 1,
+`defaultLanguage` en / en / hi, `privacyStatus: private`, `publishAt` absent, `madeForKids` false / false / true.
+
+### 4.2 Thumbnails are a per-channel eligibility, not a code path
+
+The Academic upload returned:
+
+```
+ApiError: HTTP 403 forbidden: The authenticated user doesn't have permissions to upload and set custom video thumbnails.
+```
+
+`thumbnail_applied: false`, `thumbnail_error` set, and **the upload itself succeeded** — a thumbnail failure is
+deliberately non-fatal, because losing the video over a poster frame is worse than the automatic frame. The
+same scope applied the thumbnail on Nexus Node and Natkhat Toons in the same minute. This is YouTube's channel
+verification requirement, not a factory defect: the channel needs <https://www.youtube.com/verify>.
+
+### 4.3 Two things the grant cannot do
+
+- **Captions.** All three videos report `contentDetails.caption: false`. `captions.srt` is written for every
+  episode and never attached, because `captions.insert` needs `https://www.googleapis.com/auth/youtube`
+  (force-ssl). Measured, not assumed.
+- **Moving a release.** `videos.update` with the same token returns `403 insufficientPermissions`. So a
+  scheduled release is a one-way door: the grant can insert a video with a `publishAt`, but cannot change or
+  clear it afterwards. See `X100_SCHEDULING_ACTIVATION_GUIDE.md` §2 and §6.3.
+
+### 4.4 The expected shape, for the next run
 
 A successful private upload returns a `PreparedUpload` public dict plus the ledger entry:
 
@@ -137,7 +191,10 @@ Failure shapes that are safe and expected:
 - [ ] `gh run view <run-id> --log` shows `Export channel credentials` succeeded and
       `Verify channel identity before upload` matched the configured channel id.
 - [ ] `publish.json` (artifact) has `"upload_performed": true` and `"status": "uploaded"`.
-- [ ] The ledger has exactly one new `uploaded` line:
+- [x] `uploadStatus: processed` and `processingStatus: succeeded` within two minutes — measured on all three
+- [x] `publishAt` absent and `privacyStatus: private` — measured on all three
+- [x] `madeForKids` correct per channel — measured, including `true` on Natkhat Toons
+- [x] The ledger has exactly one new `uploaded` line:
       `.state/youtube/<channel>/ledger.jsonl` (workflow) or `$YT_STATE_ROOT/<channel>/ledger.jsonl`.
 - [ ] The video id in the ledger equals the video id in Studio.
 - [ ] Studio shows Private, correct title, correct thumbnail, correct made-for-kids.
@@ -159,11 +216,29 @@ Failure shapes that are safe and expected:
 
 ## 8. What is still not verified, and cannot be, from here
 
-- That the consent screen is in production.
-- That the nine secrets work (they have never been used).
-- That the token is bound to the right channel (unit tests cover the logic, not the live token).
-- That YouTube accepts the metadata (title/description/tags/category/kids flag).
-- Caption attachment, because the implementation does not attempt it.
+- That the consent screen is in production (three refreshes say nothing about the screen's publishing status).
+- That the nine **repository secrets** work: they have still never been used. The pilots used the local
+  credential files, which share the loader but not the store.
+- **An insert whose `publishAt` YouTube honours.** This is the activation event; §9 is the checklist for it.
+- Caption attachment and post-upload correction — both blocked by scope, see §4.3.
+- Custom thumbnails on Academic Biohacker until the channel is verified.
 
-Everything else in this checklist was executed on 2026-11-25 against real encoded artifacts, with
-`upload_performed: false` every time.
+Verified on 2026-11-25 against real encoded artifacts: everything else in this document, including three real
+uploads (`upload_performed: true`).
+
+## 9. Before the first *scheduled* upload
+
+The pilot set `publishAt` on nothing. The first scheduled upload is different in three ways, and each has a
+step:
+
+1. **It is one-way.** Confirm the intended instant twice:
+   `python -m factory.cli publishing --channel <slug> --json` prints `next_release.publish_at` and
+   `next_release.reason`. If the reason is not `on_time`, decide whether you want a shifted release today or
+   none at all, and set `late_run_policy` in `channels/<slug>.json` accordingly *before* the run.
+2. **The stops must be ready before the instant, not after.** `gh workflow disable "<channel> daily"` and
+   `python -m factory.cli pause --channel all` stop future runs; neither can recall a `publishAt` that has
+   already been set. Removing one means Studio, or a re-consented token.
+3. **Read the read-back, not the plan.** After the run, `videos.list` on the new id must show
+   `privacyStatus: private` with `publishAt` equal to the intended instant *before* that instant, and
+   `privacyStatus: public` after it. If `publishAt` is missing, the schedule did not happen and the video is a
+   private upload — fail loudly rather than assuming the time passed.
