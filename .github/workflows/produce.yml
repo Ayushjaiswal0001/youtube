@@ -56,6 +56,14 @@ on:
         required: false
         type: boolean
         default: false
+      timeout_minutes:
+        # Shorts render in ~3 minutes, long-form in ~50. A single number for both meant the only way to
+        # fit long-form was to raise the Short's timeout too, which hides a hung Short behind an hour of
+        # nothing. The caller states the budget for the episode it is asking for.
+        description: Wall-clock budget for this job, in minutes
+        required: false
+        type: number
+        default: 60
 
     # Declared explicitly so a caller passes only the three secrets that channel needs. With
     # `secrets: inherit` every repository secret - including the other two channels' refresh tokens -
@@ -84,9 +92,10 @@ permissions:
   contents: read
 
 concurrency:
-  # One production run per channel, and never cancel a render in progress: a half-written episode is
-  # worse than a queued one.
-  group: produce-${{ inputs.channel }}
+  # One production run per channel *and format*, and never cancel a render in progress: a half-written
+  # episode is worse than a queued one. Keying on the format is what lets a 50-minute long-form render
+  # and a 3-minute Short run side by side instead of queueing behind each other.
+  group: produce-${{ inputs.channel }}-${{ inputs.format || 'native' }}
   cancel-in-progress: false
 
 env:
@@ -110,7 +119,10 @@ env:
 jobs:
   produce:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    # Measured on a developer machine: a Short takes 166 s, an 11-beat 16:9 episode takes 3,008 s. The
+    # Short keeps 60 minutes of headroom; long-form asks for 120 so a slower runner cannot time out a
+    # render that is progressing.
+    timeout-minutes: ${{ inputs.timeout_minutes }}
     outputs:
       plan_id: ${{ steps.resolve.outputs.plan_id }}
       qc_ok: ${{ steps.qc.outputs.ok }}
@@ -155,8 +167,11 @@ jobs:
           path: |
             pipeline_state
             .state/youtube
-          key: state-${{ inputs.channel }}-${{ github.run_id }}
+          # The format is part of the key because two jobs of the same run (Short and long-form) share
+          # `github.run_id`: without it the second save would overwrite the first job's state.
+          key: state-${{ inputs.channel }}-${{ inputs.format || 'native' }}-${{ github.run_id }}
           restore-keys: |
+            state-${{ inputs.channel }}-${{ inputs.format || 'native' }}-
             state-${{ inputs.channel }}-
 
       - name: Preflight
@@ -196,9 +211,11 @@ jobs:
             RESOLVED="$PLAN_ID"
             echo "using requested plan: $RESOLVED"
           else
-            EXTRA=""
-            if [ "$ALLOW_UNPUBLISHED" = "true" ]; then EXTRA="--allow-unpublished"; fi
-            python -m factory.cli plan new --channel "$CHANNEL" --json $EXTRA > plan.json
+            EXTRA=()
+            if [ "$ALLOW_UNPUBLISHED" = "true" ]; then EXTRA+=(--allow-unpublished); fi
+            # An empty FORMAT means "the channel's native format", which is what the Short job wants.
+            if [ -n "$FORMAT" ]; then EXTRA+=(--format "$FORMAT"); fi
+            python -m factory.cli plan new --channel "$CHANNEL" --json "${EXTRA[@]}" > plan.json
             RESOLVED=$(python - <<'PY'
           import json
           data = json.load(open("plan.json", encoding="utf-8"))
@@ -441,4 +458,4 @@ jobs:
           path: |
             pipeline_state
             .state/youtube
-          key: state-${{ inputs.channel }}-${{ github.run_id }}
+          key: state-${{ inputs.channel }}-${{ inputs.format || 'native' }}-${{ github.run_id }}

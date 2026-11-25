@@ -1,15 +1,30 @@
 name: academic-biohacker daily
 
-# Academic Biohacker: evidence-first health science. Publishes 12:00 IST = 06:30 UTC.
-# Not yet executed on Actions - see TASKS.md T12.
+# Academic Biohacker: evidence-first health: Evidence-first health and neuroscience.
+# Publishes 12:00 IST = 06:30 UTC.
+# Cron is UTC and GitHub may delay scheduled runs, so the video is published through
+# `publishAt` rather than relying on the trigger time itself.
+#
+# Two independent jobs, because the two formats have different costs: a Short renders in about three
+# minutes, a long-form episode in about fifty. Sharing one job meant the Short queued behind the long
+# render, and one timeout had to cover both. They now run side by side with their own budgets, and either
+# can fail without stopping the other.
+#
+# Uploads stay off unless `upload` is passed, and are private regardless: the reusable workflow checks the
+# publishing gate and `UPLOAD_ENABLED` inside the code, not just here.
 
 on:
   schedule:
     - cron: "30 6 * * *"
   workflow_dispatch:
     inputs:
+      episode:
+        description: Which episode to produce
+        type: choice
+        options: [both, short, long]
+        default: both
       upload:
-        description: Perform a real (private) upload after QC passes
+        description: Perform a real (private) upload after QC and the gate pass
         type: boolean
         default: false
 
@@ -17,14 +32,33 @@ permissions:
   contents: read
 
 jobs:
-  produce:
+  short:
+    if: ${{ inputs.episode == '' || inputs.episode == 'both' || inputs.episode == 'short' }}
     uses: ./.github/workflows/produce.yml
     with:
       channel: academic-biohacker
       secret_prefix: ACADEMIC_BIOHACKER
+      format: shorts
+      timeout_minutes: 60
       upload: ${{ inputs.upload || false }}
     # Only this channel's credentials. The other channels' tokens are not passed here, so
     # they cannot be reached from this run even by a mistake.
+    secrets:
+      YT_ACADEMIC_BIOHACKER_CLIENT_ID: ${{ secrets.YT_ACADEMIC_BIOHACKER_CLIENT_ID }}
+      YT_ACADEMIC_BIOHACKER_CLIENT_SECRET: ${{ secrets.YT_ACADEMIC_BIOHACKER_CLIENT_SECRET }}
+      YT_ACADEMIC_BIOHACKER_REFRESH_TOKEN: ${{ secrets.YT_ACADEMIC_BIOHACKER_REFRESH_TOKEN }}
+
+  long:
+    if: ${{ inputs.episode == '' || inputs.episode == 'both' || inputs.episode == 'long' }}
+    uses: ./.github/workflows/produce.yml
+    with:
+      channel: academic-biohacker
+      secret_prefix: ACADEMIC_BIOHACKER
+      format: long
+      # Measured: an 11-beat 16:9 episode took 3,008 s here. 120 minutes leaves room for a slower
+      # runner plus TTS, mixing, QC and the gate without ever timing out a render that is progressing.
+      timeout_minutes: 120
+      upload: ${{ inputs.upload || false }}
     secrets:
       YT_ACADEMIC_BIOHACKER_CLIENT_ID: ${{ secrets.YT_ACADEMIC_BIOHACKER_CLIENT_ID }}
       YT_ACADEMIC_BIOHACKER_CLIENT_SECRET: ${{ secrets.YT_ACADEMIC_BIOHACKER_CLIENT_SECRET }}

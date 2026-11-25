@@ -584,6 +584,7 @@ def cmd_plan_new(args: argparse.Namespace) -> int:
                 spec,
                 allow_unpublished=args.allow_unpublished,
                 write=not args.no_write,
+                format=getattr(args, "format", None),
             )
         )
     _print(
@@ -762,6 +763,10 @@ def build_parser() -> argparse.ArgumentParser:
         help="Natkhat: plan the next episode even if the previous one has not been uploaded",
     )
     plan_new.add_argument("--no-write", action="store_true", help="preview without touching the batch")
+    plan_new.add_argument(
+        "--format", choices=("shorts", "long"), default=None,
+        help="which bank to select from; long-form plans are authored, never generated",
+    )
     plan_new.add_argument("--json", action="store_true", help=argparse.SUPPRESS)
     plan_new.set_defaults(func=cmd_plan_new)
 
