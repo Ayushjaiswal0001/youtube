@@ -1,5 +1,12 @@
 # X100 post-merge production readiness report
 
+> **Historical snapshot, not the current closure verdict.** PR #21 was later merged as
+> `01f3abd4078abca30eabbd6822139130121a72d7`. A merge-commit CI run then failed one clock-dependent test;
+> the current investigation, artifact audit, and final scorecard are in
+> `X100_FINAL_PRODUCTION_CLOSURE_REPORT.md`. Its test and operational results supersede this report's
+> “7/7 green” and “ready” statements. Current cron values are verified in
+> `X100_PRODUCTION_OPERATIONS_GUIDE.md`.
+
 Date: 2026-11-25 (late evening IST)
 Repository: `Ayushjaiswal0001/youtube`
 `main` verified: `f252ef687b48135cfa59fbefec9aac3fd3791a25` — merge of PR #20, 2026-11-25T14:44:06Z
@@ -324,8 +331,8 @@ gh run view <run-id> --repo Ayushjaiswal0001/youtube
 
 # STOPS - both must be ready before the release instant
 gh workflow disable "nexus-node daily" --repo Ayushjaiswal0001/youtube   # no new runs
-python -m factory.cli pause --channel all --reason "owner stop"           # nothing renders or publishes
-python -m factory.cli pause --channel nexus-node --clear                  # resume afterwards
+python -m factory.cli pause                                               # global pause; no channel argument
+python -m factory.cli pause --channel nexus-node --resume                # resume this channel
 ```
 
 `gh workflow disable` stops the trigger; `factory.cli pause` stops the run. Neither can recall a `publishAt`

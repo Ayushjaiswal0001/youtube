@@ -1,5 +1,9 @@
 # X100 final completion audit
 
+> **Historical snapshot:** this audit predates merge commit `01f3abd4078abca30eabbd6822139130121a72d7` and the
+> November 25, 2026 production-artifact review. Use [the current closure report](X100_FINAL_PRODUCTION_CLOSURE_REPORT.md)
+> and [activation handover](X100_FINAL_ACTIVATION_HANDOVER.md) for current test, workflow, and release status.
+
 Date: 2026-11-25
 Repository: `Ayushjaiswal0001/youtube`
 Base: `main` = `8deaf78` (merge of PR #15, the X100 Visual Engine v1.1)

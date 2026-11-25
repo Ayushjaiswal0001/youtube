@@ -1,5 +1,9 @@
 # X100 private upload checklist
 
+> **Historical account evidence:** the private pilot uploads below were documented on November 25, 2026, but
+> their current YouTube metadata was not re-read during the final audit. This checklist records that earlier
+> state; it does not authorize new uploads or schedules.
+
 **Executed on 2026-11-25.** One private video per channel was uploaded, verified through the API, and left
 private with no release time. Three of them exist now:
 
@@ -236,7 +240,7 @@ step:
    `next_release.reason`. If the reason is not `on_time`, decide whether you want a shifted release today or
    none at all, and set `late_run_policy` in `channels/<slug>.json` accordingly *before* the run.
 2. **The stops must be ready before the instant, not after.** `gh workflow disable "<channel> daily"` and
-   `python -m factory.cli pause --channel all` stop future runs; neither can recall a `publishAt` that has
+   `python -m factory.cli pause` for a global factory stop; neither can recall a `publishAt` that has
    already been set. Removing one means Studio, or a re-consented token.
 3. **Read the read-back, not the plan.** After the run, `videos.list` on the new id must show
    `privacyStatus: private` with `publishAt` equal to the intended instant *before* that instant, and

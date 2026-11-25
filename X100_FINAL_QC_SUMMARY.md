@@ -1,5 +1,10 @@
 # X100 final QC summary
 
+> **Historical artifact and upload summary:** the episode measurements and three private pilot uploads below
+> come from earlier runs and are retained as historical evidence. They were not re-generated or independently
+> read back during the latest audit. See [the current quality audit](X100_FINAL_QUALITY_AUDIT.md) and
+> [closure report](X100_FINAL_PRODUCTION_CLOSURE_REPORT.md) for current findings.
+
 Every number here was read from an artifact, not from a configuration. The first seven episodes were
 produced from `main` (`b53a647`/`b496b07`, plus the recovery and delivered-audio fixes in PR #18 where
 marked); the three pilot uploads in §8 were produced from `feature/x100-scheduled-publishing` and are the

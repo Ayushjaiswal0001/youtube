@@ -1,5 +1,9 @@
 # X100 per-episode QC reports
 
+> These rows describe the named production artifacts and their state when the report was generated. “Never
+> uploaded” is scoped to those artifact records and does not describe later private pilot uploads documented in
+> [the separate checklist](X100_PRIVATE_UPLOAD_CHECKLIST.md).
+
 Generated from the artifacts in the acceptance build directory. Values are read from `render.json`, `qc.json`, `creative.json` and `manifest.json`; nothing here is transcribed by hand.
 
 ## academic-biohacker / academic-brain-wash

@@ -144,9 +144,9 @@ Guards that hold regardless of flags:
 | `security.yml` | push, PR, weekly | `secrets`, `gitleaks`, `dependencies`, `workflow-audit` | active |
 | `produce.yml` | called by the others | `produce` (one episode) | active |
 | `production (manual)` | `workflow_dispatch` | one job per channel | active |
-| `academic-biohacker daily` | cron `30 6 * * *` | `short` (60 min), `long` (120 min) | **disabled_manually** |
-| `natkhat-toons daily` | cron `30 12 * * *` | `short` (60 min), `long` (120 min) | **disabled_manually** |
-| `nexus-node daily` | cron `30 14 * * *` | `short` (60 min), `long` (120 min) | **disabled_manually** |
+| `academic-biohacker daily` | cron `30 4 * * *` (10:00 IST start, 12:00 release) | `short` (60 min), `long` (120 min) | **disabled_manually** |
+| `natkhat-toons daily` | cron `30 10 * * *` (16:00 IST start, 18:00 release) | `short` (60 min), `long` (120 min) | **disabled_manually** |
+| `nexus-node daily` | cron `30 12 * * *` (18:00 IST start, 20:00 release) | `short` (60 min), `long` (120 min) | **disabled_manually** |
 
 Each channel's nightly workflow runs **two independent jobs**: a Short (format `shorts`, 60-minute budget)
 and a long-form episode (format `long`, 120-minute budget). They share nothing but the channel: separate

@@ -234,7 +234,6 @@ jobs:
           if [ -n "$PLAN_ID" ]; then
             echo "available=1" >> "$GITHUB_OUTPUT"
             echo "kind=explicit" >> "$GITHUB_OUTPUT"
-            echo "plan_id=$PLAN_ID" >> "$GITHUB_OUTPUT"
             echo "reason=an explicit plan id was requested" >> "$GITHUB_OUTPUT"
             exit 0
           fi
@@ -260,7 +259,14 @@ jobs:
           ALLOW_UNPUBLISHED: ${{ inputs.allow_unpublished }}
         run: |
           if [ -n "$PLAN_ID" ]; then
-            RESOLVED="$PLAN_ID"
+            # `plan_id` is a manual-dispatch string. Normalize it before writing to GITHUB_OUTPUT so
+            # newlines cannot forge outputs and shell metacharacters cannot reach later run steps.
+            RESOLVED=$(python - <<'PY'
+          import os
+          from factory.util import slugify
+          print(slugify(os.environ["PLAN_ID"]))
+          PY
+          )
             echo "using requested plan: $RESOLVED"
           else
             EXTRA=()
@@ -282,8 +288,10 @@ jobs:
 
       - name: Resume or render
         if: ${{ inputs.mode != 'validate' && steps.content.outputs.available == '1' }}
+        env:
+          RESOLVED_PLAN: ${{ steps.resolve.outputs.plan_id }}
         run: |
-          ARGS=(--channel "$CHANNEL" --plan-id "${{ steps.resolve.outputs.plan_id }}")
+          ARGS=(--channel "$CHANNEL" --plan-id "$RESOLVED_PLAN")
           if [ -n "$FORMAT" ]; then ARGS+=(--format "$FORMAT"); fi
           # `resume` re-renders only missing or stale scenes and never touches a verified artifact;
           # `--force` is deliberately not used here.
@@ -295,8 +303,10 @@ jobs:
       - name: Quality assurance
         if: ${{ steps.content.outputs.available == '1' }}
         id: qc
+        env:
+          RESOLVED_PLAN: ${{ steps.resolve.outputs.plan_id }}
         run: |
-          ARGS=(--channel "$CHANNEL" --plan-id "${{ steps.resolve.outputs.plan_id }}")
+          ARGS=(--channel "$CHANNEL" --plan-id "$RESOLVED_PLAN")
           if [ -n "$FORMAT" ]; then ARGS+=(--format "$FORMAT"); fi
           # A plan id that is not in the repository is an error now, not an empty report.
           set -o pipefail
@@ -326,8 +336,10 @@ jobs:
         # The render writes a manifest, then this workflow's own QC step rewrites qc.json. The first cloud run
         # failed here: the manifest still hashed the pre-QC report, same size, different bytes. The manifest is
         # now rebuilt from the bytes that are final, and the gate verifies against those.
+        env:
+          RESOLVED_PLAN: ${{ steps.resolve.outputs.plan_id }}
         run: |
-          ARGS=(--channel "$CHANNEL" --plan-id "${{ steps.resolve.outputs.plan_id }}")
+          ARGS=(--channel "$CHANNEL" --plan-id "$RESOLVED_PLAN")
           if [ -n "$FORMAT" ]; then ARGS+=(--format "$FORMAT"); fi
           set -o pipefail
           python -m factory.cli manifest "${ARGS[@]}" --json | tee manifest-step.json
@@ -335,8 +347,10 @@ jobs:
       - name: Publishing gate
         if: ${{ steps.content.outputs.available == '1' }}
         id: gate
+        env:
+          RESOLVED_PLAN: ${{ steps.resolve.outputs.plan_id }}
         run: |
-          ARGS=(--channel "$CHANNEL" --plan-id "${{ steps.resolve.outputs.plan_id }}")
+          ARGS=(--channel "$CHANNEL" --plan-id "$RESOLVED_PLAN")
           set -o pipefail
           python -m factory.cli gate "${ARGS[@]}" --json | tee gate.json
           python - <<'PY'
@@ -385,7 +399,7 @@ jobs:
           FACTORY_PAUSED: ${{ vars.FACTORY_PAUSED }}
           FACTORY_PAUSED_CHANNELS: ${{ vars.FACTORY_PAUSED_CHANNELS }}
         run: |
-          python -c "import sys; from factory.controls import pause_state; s = pause_state('${{ inputs.channel }}'); print(s.reason) if s.paused else None; sys.exit(1 if s.paused else 0)"
+          python -c "import os,sys; from factory.controls import pause_state; s = pause_state(os.environ['CHANNEL']); print(s.reason) if s.paused else None; sys.exit(1 if s.paused else 0)"
 
       - name: Validate channel slug
         # The slug becomes a directory name and a command argument, so it is checked to be one of the
@@ -448,8 +462,9 @@ jobs:
           # Only a run that asked for the channel's release time may schedule one, and only here.
           FACTORY_ALLOW_SCHEDULE: ${{ inputs.release == 'auto' && '1' || '0' }}
           RELEASE_MODE: ${{ inputs.release }}
+          RESOLVED_PLAN: ${{ steps.resolve.outputs.plan_id }}
         run: |
-          ARGS=(--channel "$CHANNEL" --plan-id "${{ steps.resolve.outputs.plan_id }}"
+          ARGS=(--channel "$CHANNEL" --plan-id "$RESOLVED_PLAN"
                 --execute --confirm-channel "$CHANNEL" --json)
           if [ "$RELEASE_MODE" = "auto" ]; then
             ARGS+=(--schedule)
@@ -464,21 +479,25 @@ jobs:
         continue-on-error: true
         env:
           FACTORY_NOTIFY_WEBHOOK: ${{ secrets.FACTORY_NOTIFY_WEBHOOK }}
+          FORMAT_LABEL: ${{ inputs.format || 'native' }}
+          UPLOAD_REQUESTED: ${{ inputs.upload }}
+          RELEASE_LABEL: ${{ inputs.release || 'none' }}
+          RELEASE_SCHEDULED: ${{ steps.policy.outputs.next_release }}
         run: |
-          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          RUN_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
           python -m factory.cli notify \
-            --subject "production failed: $CHANNEL (${{ inputs.format || 'native' }})" \
-            --message "run ${{ github.run_id }} on ${{ github.ref_name }} failed; upload=${{ inputs.upload }} release=${{ inputs.release || 'none' }}; $RUN_URL" || true
+            --subject "production failed: $CHANNEL ($FORMAT_LABEL)" \
+            --message "run $GITHUB_RUN_ID on $GITHUB_REF_NAME failed; upload=$UPLOAD_REQUESTED release=$RELEASE_LABEL; $RUN_URL" || true
           {
             echo "## production failure"
             echo ""
             echo "| item | value |"
             echo "| --- | --- |"
             echo "| channel | \`$CHANNEL\` |"
-            echo "| format | \`${{ inputs.format || 'native' }}\` |"
-            echo "| upload requested | ${{ inputs.upload }} |"
-            echo "| release mode | ${{ inputs.release || 'none' }} |"
-            echo "| release scheduled | ${{ steps.policy.outputs.next_release }} |"
+            echo "| format | \`$FORMAT_LABEL\` |"
+            echo "| upload requested | $UPLOAD_REQUESTED |"
+            echo "| release mode | $RELEASE_LABEL |"
+            echo "| release scheduled | $RELEASE_SCHEDULED |"
             echo "| run | $RUN_URL |"
             echo ""
             echo "A refusal to schedule is a failure on purpose: a release window that was missed must be seen,"
@@ -487,6 +506,20 @@ jobs:
 
       - name: Operational summary
         if: always()
+        env:
+          RESOLVED_PLAN: ${{ steps.resolve.outputs.plan_id }}
+          CONTENT_STATUS: ${{ steps.content.outputs.available == '1' && 'available' || 'none (content gap)' }}
+          QC_STATUS: ${{ steps.qc.outputs.ok }}
+          GATE_STATUS: ${{ steps.gate.outputs.ok }}
+          VIDEO_SHA256: ${{ steps.package.outputs.sha256 }}
+          POLICY_MODE: ${{ steps.policy.outputs.mode }}
+          POLICY_READY: ${{ steps.policy.outputs.ready }}
+          RELEASE_LABEL: ${{ inputs.release || '(private, no release time)' }}
+          RELEASE_SCHEDULED: ${{ steps.policy.outputs.next_release }}
+          RELEASE_REASON: ${{ steps.policy.outputs.release_reason }}
+          PENDING_RELEASE: ${{ steps.policy.outputs.pending_release || 'none' }}
+          UPLOAD_PERFORMED: ${{ steps.creds.outputs.ready == '1' && inputs.upload }}
+          UPLOAD_REQUESTED: ${{ inputs.upload }}
         run: |
           python -m factory.cli ops --channel "$CHANNEL" | tee ops.txt || true
           {
@@ -494,17 +527,17 @@ jobs:
             echo ""
             echo "| item | value |"
             echo "| --- | --- |"
-            echo "| content | ${{ steps.content.outputs.available == '1' && 'available' || 'none (content gap)' }} |"
-            echo "| plan | \`${{ steps.resolve.outputs.plan_id }}\` |"
-            echo "| QC | ${{ steps.qc.outputs.ok }} |"
-            echo "| publishing gate | ${{ steps.gate.outputs.ok }} |"
-            echo "| video sha256 | \`${{ steps.package.outputs.sha256 }}\` |"
-            echo "| upload requested | ${{ inputs.upload }} |"
-            echo "| publishing policy | ${{ steps.policy.outputs.mode }} (ready ${{ steps.policy.outputs.ready }}) |"
-            echo "| release mode | ${{ inputs.release || '(private, no release time)' }} |"
-            echo "| release scheduled | ${{ steps.policy.outputs.next_release }} (${{ steps.policy.outputs.release_reason }}) |"
-            echo "| another release pending | ${{ steps.policy.outputs.pending_release || 'none' }} |"
-            echo "| upload performed | ${{ steps.creds.outputs.ready == '1' && inputs.upload }} |"
+            echo "| content | $CONTENT_STATUS |"
+            echo "| plan | \`$RESOLVED_PLAN\` |"
+            echo "| QC | $QC_STATUS |"
+            echo "| publishing gate | $GATE_STATUS |"
+            echo "| video sha256 | \`$VIDEO_SHA256\` |"
+            echo "| upload requested | $UPLOAD_REQUESTED |"
+            echo "| publishing policy | $POLICY_MODE (ready $POLICY_READY) |"
+            echo "| release mode | $RELEASE_LABEL |"
+            echo "| release scheduled | $RELEASE_SCHEDULED ($RELEASE_REASON) |"
+            echo "| another release pending | $PENDING_RELEASE |"
+            echo "| upload performed | $UPLOAD_PERFORMED |"
             echo ""
             echo '```'
             cat ops.txt 2>/dev/null || true

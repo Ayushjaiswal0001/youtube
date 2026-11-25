@@ -1,5 +1,10 @@
 # Operations runbook
 
+> **Historical runbook:** the daily-workflow instructions below predate the current release review. All three
+> publishing workflows were `disabled_manually` during the November 25, 2026 audit. Use
+> [the current production operations guide](X100_PRODUCTION_OPERATIONS_GUIDE.md) and
+> [activation handover](X100_FINAL_ACTIVATION_HANDOVER.md); this page does not authorize workflow activation.
+
 ## Daily, hands-off (once the crons are re-enabled)
 
 Nothing to do. Each channel's workflow runs preflight, resumes or renders, validates, gates and

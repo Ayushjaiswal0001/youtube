@@ -1,5 +1,10 @@
 # X100 production readiness report
 
+> **Historical snapshot:** this report describes branch `feature/x100-academic-visual-integration` before PR #21
+> merged. Its readiness verdict and account/runtime observations are not current. Use
+> [the final closure report](X100_FINAL_PRODUCTION_CLOSURE_REPORT.md) and
+> [activation handover](X100_FINAL_ACTIVATION_HANDOVER.md) for the current release decision.
+
 Date: 2026-11-25
 Branch: `feature/x100-academic-visual-integration` @ `239bea4` (base `main` = `8deaf78`)
 Machine: Windows 11, Python 3.12.7, FFmpeg 8.0.1, numpy 2.4.6, pillow 13.0.0, pycairo 1.29.0, CPU-only

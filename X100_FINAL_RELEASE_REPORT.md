@@ -1,6 +1,7 @@
 # X100 final release report
 
 > **Superseded for production timing by `X100_POST_MERGE_PRODUCTION_READINESS_REPORT.md`.**
+> **This report is also superseded as a current release verdict by `X100_FINAL_PRODUCTION_CLOSURE_REPORT.md`.**
 > After PR #20 merged, an audit found the crons fired *at* their release instants, so `on_time` was unreachable
 > and every video published late; the crons now start two hours earlier. Everything else here still describes
 > the merged system.
@@ -32,7 +33,7 @@ Read from GitHub during this mission, not from earlier reports.
 | check-runs on `b53a647` | 7 workflows green (the `factory` job was still finishing when read, and went green) |
 | workflows active | `ci`, `produce`, `production (manual)`, `security` |
 | workflows disabled | `academic-biohacker daily`, `natkhat-toons daily`, `nexus-node daily` — all `disabled_manually` |
-| crons as configured | nexus `30 14 * * *` (20:00 IST), academic `30 6 * * *` (12:00 IST), natkhat `30 12 * * *` (18:00 IST) |
+| crons as configured at final review | nexus `30 12 * * *` (18:00 IST start), academic `30 4 * * *` (10:00 IST start), natkhat `30 10 * * *` (16:00 IST start) |
 | upload switches | `UPLOAD_ENABLED=false`, `SCHEDULED_PUBLISHING_ENABLED=false`, `PUBLICATION_APPROVAL_REQUIRED=true` in `produce.yml` |
 | OAuth structure | Desktop client; `uploader/{oauth,credentials,identity,ledger,router,metadata,youtube}.py`; per-channel credential files at `YT_SECRETS_ROOT`, per-channel ledger at `YT_STATE_ROOT`; 9 repository secrets, 0 variables |
 
@@ -87,7 +88,7 @@ Seven episodes were produced on this machine from the merged code. Full per-epis
 |---|---|---|---|---|---|---|---|---|---|
 | Nexus Node | `nexus-agents-leave-chat` 38.6 s, QC 25/25 | `long-nexus-power-grid` 214.1 s @1920×1080, QC 25/25 | six distinct compositions, captions legible, brand band correct | 0 frozen runs, 0 identical frames, mean Δ 2.01 | −14.0 LUFS, −2.4 dBTP | 1,228 B / 17 cues, English | title ≤100 chars, category 27, tags `shorts` | 1280×720 | 25/25 (render), 23/23 (publish) |
 | Academic Biohacker | `academic-brain-wash` 38.2 s, QC 25/25 | `long-academic-study-protocol` 218.9 s @1920×1080, QC 25/25 | paper palette, pictograms, `panels → stacked → panels → statement → statement → gap → cta`, 7/7 distinct plates | 0 frozen runs, mean Δ 1.95 | −14.4 LUFS, −2.3 dBTP | 1,119 B / 16 cues, English | as above | 1280×720 | 25/25, 23/23 |
-| Natkhat Toons | `natkhat-haveli-e1` 32.1 s, QC 25/25 | **not configured**: the long-form bank holds a stage plan with 0 beats | two rigged characters, haveli continuity across 5 scenes, one close-up | 0 frozen runs, mean Δ 3.27 in the character zone, changing mouths and arms | −14.1 LUFS, −1.4 dBTP | 1,081 B / 15 cues, **Devanagari** | category 1, tags `shorts`, `kids`, `made_for_kids: true` forced | 1280×720 | 24/24 |
+| Natkhat Toons | `natkhat-haveli-e1` 32.1 s, QC 25/25 | a 16:9 stage plan exists; latest inspected sample is 64.5 s, so substantive long-form coverage remains limited | two rigged characters, haveli continuity across 5 scenes, one close-up | 0 frozen runs, mean Δ 3.27 in the character zone, changing mouths and arms | −14.1 LUFS, −1.4 dBTP | 1,081 B / 15 cues, **Devanagari** | category 1, tags `shorts`, `kids`, `made_for_kids: true` forced | 1280×720 | 24/24 |
 
 A second, independent Short per channel was produced during recovery testing
 (`academic-cool-to-sleep`, `natkhat-haveli-e2`), both reaching `READY_TO_PUBLISH` with QC 25/25.
@@ -317,7 +318,7 @@ What is left is the owner's:
    runs the old workflow, which cannot upload at all.
 2. **Enable one channel — Nexus Node — and watch its first run.** That run is simultaneously the first test of
    the two-job daily workflow and the first scheduled publication. The 20:00 IST slot gives the most headroom;
-   `gh workflow disable "nexus-node daily"` and `factory.cli pause --channel all` are the stops, and both must
+   `gh workflow disable "nexus-node daily"` and `python -m factory.cli pause` are the stops, and both must
    be ready *before* the release instant because the schedule itself cannot be recalled from here.
 3. **Verify the channel eligibility gaps.** Academic Biohacker needs <https://www.youtube.com/verify> for
    custom thumbnails; if you want captions attached, or a scheduled release you can move, re-consent with the
