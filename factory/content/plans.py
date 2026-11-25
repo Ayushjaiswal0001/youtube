@@ -36,7 +36,21 @@ LONGFORM_DIR = CONTENT_DIR / "longform"
 
 
 class PlanGenerationError(RuntimeError):
-    """Raised when no new plan can be produced without human input."""
+    """Raised when no new plan can be produced without human input.
+
+    ``kind`` separates the two situations that used to look identical to a workflow:
+
+    * ``exhausted`` - there is no content left to produce. Nothing is broken; the day simply has no
+      episode, and an operator has to author the next batch.
+    * ``blocked`` - content exists but this run may not use it (an episode out of order, a missing or
+      empty bank file). That is a production fault and must stay loud.
+
+    The reusable workflow skips the first with a ``::warning::`` and fails on the second.
+    """
+
+    def __init__(self, message: str, *, kind: str = "blocked") -> None:
+        super().__init__(message)
+        self.kind = kind
 
 
 # --------------------------------------------------------------------------- banks
@@ -185,7 +199,8 @@ def next_english_plan(spec: ChannelSpec, state: ChannelState) -> dict[str, Any]:
     fresh = _claimable_topics(spec, state)
     if not fresh:
         raise PlanGenerationError(
-            f"{spec.slug}: topic bank exhausted; add entries to {topic_bank_path(spec)}"
+            f"{spec.slug}: topic bank exhausted; add entries to {topic_bank_path(spec)}",
+            kind="exhausted",
         )
     return plan_from_topic(fresh[0])
 
@@ -233,7 +248,8 @@ def _resolve_slot(
             )
             if candidate is None:
                 raise PlanGenerationError(
-                    "every series in the bible is finished; write the next series"
+                    "every series in the bible is finished; write the next series",
+                    kind="exhausted",
                 )
             entry = candidate
             key = entry["series"]
@@ -251,7 +267,8 @@ def _resolve_slot(
         episode = 0
         payload = {**payload, "completed": sorted(completed)}
 
-    raise PlanGenerationError("could not resolve a playable series episode")
+    raise PlanGenerationError(
+        "could not resolve a playable series episode", kind="exhausted")
 
 
 def _history_status(state: ChannelState, plan_id: str) -> str | None:
@@ -274,9 +291,15 @@ def next_natkhat_plan(
     if episode > 1 and not allow_unpublished:
         previous = _episode_plan_id(entry["series"], episode - 1)
         status = _history_status(state, previous)
-        if status != "uploaded":
+        # An episode the factory has no record of at all is not an episode it produced: `start_episode` says
+        # the ones before it belong to an earlier batch, published outside the factory. Demanding them made a
+        # brand-new channel permanently blocked - measured: `natkhat-haveli` starts at episode 4 and requires episode 3,
+        # which this repository has never produced, so `plan new --channel natkhat-toons` failed on a channel
+        # with nothing uploaded. What the guard must still catch is an episode the factory *did* produce and
+        # has not published yet.
+        if status is not None and status != "uploaded":
             raise PlanGenerationError(
-                f"episode {previous} is {status or 'not in history'}, not uploaded; "
+                f"episode {previous} is {status}, not uploaded; "
                 "publishing out of order is blocked (use --allow-unpublished for a dry run)"
             )
 
@@ -335,7 +358,8 @@ def next_longform_plan(spec: ChannelSpec, state: ChannelState) -> dict[str, Any]
         return plan
     raise PlanGenerationError(
         f"{spec.slug}: every long-form plan in {LONGFORM_DIR / f'{spec.slug}.json'} has been uploaded; "
-        "author the next long-form episode before the nightly long-form job runs"
+        "author the next long-form episode before the nightly long-form job runs",
+        kind="exhausted",
     )
 
 
