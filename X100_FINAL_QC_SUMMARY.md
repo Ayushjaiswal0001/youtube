@@ -1,0 +1,100 @@
+# X100 final QC summary
+
+Every number here was read from an artifact produced on this machine on 2026-11-25 from `main`
+(`b53a647`, plus the one-line recovery fix in PR #18 where marked). The per-episode tables are generated
+by `tools/report_episode_qc.py` into `X100_EPISODE_QC_REPORTS.md`; this file is the mission-level summary
+of what those artifacts prove.
+
+---
+
+## 1. Episodes produced in this mission
+
+| channel | episode | format | duration | bytes | codecs | QC | creative | gate |
+|---|---|---|---|---|---|---|---|---|
+| Academic Biohacker | `academic-brain-wash` | 1080×1920 | 38.230 s | 8,173,236 | h264/aac | 25/25 | ok, 0 not-ok | 25/25 |
+| Natkhat Toons | `natkhat-haveli-e1` | 1080×1920 | 32.135 s | 4,980,282 | h264/aac | 25/25 | n/a (no scene plan) | 24/24 |
+| Nexus Node | `nexus-agents-leave-chat` | 1080×1920 | 38.638 s | 8,024,986 | h264/aac | 25/25 | ok, 2 warnings | 25/25 |
+| Nexus Node | `long-nexus-power-grid` | 1920×1080 | 214.054 s | 45,597,213 | h264/aac | 25/25 | n/a (card engine) | 24/24 |
+| Academic Biohacker | `long-academic-study-protocol` | 1920×1080 | 218.926 s | 43,558,437 | h264/aac | 25/25 | n/a (card engine) | 24/24 |
+| Academic Biohacker | `academic-cool-to-sleep` | 1080×1920 | 36.586 s | 7,831,550 | h264/aac | 25/25 | ok, 1 warning | recovered |
+| Natkhat Toons | `natkhat-haveli-e2` | 1080×1920 | 33.989 s | 5,273,414 | h264/aac | 25/25 | n/a | recovered |
+
+Frame rate is 30/1 on all seven. Every episode has one audio stream and one video stream.
+
+## 2. Audio, subtitles, thumbnails
+
+| episode | integrated | true peak | captions | cues | thumbnail |
+|---|---|---|---|---|---|
+| `academic-brain-wash` | −14.4 LUFS | −2.3 dBTP | 1,119 B | 16 | 1280×720, 100,519 B |
+| `natkhat-haveli-e1` | −14.1 LUFS | −1.4 dBTP | 1,081 B | 15 | 1280×720 |
+| `nexus-agents-leave-chat` | −14.0 LUFS | −2.4 dBTP | 1,228 B | 17 | 1280×720 |
+| `long-nexus-power-grid` | −14.1 LUFS | −2.2 dBTP | 7,354 B | 97 | 1280×720, 144,285 B |
+| `long-academic-study-protocol` | −14.3 LUFS | −1.8 dBTP | 7,054 B | 91 | 1280×720, 155,002 B |
+| `academic-cool-to-sleep` | −14.4 LUFS | −2.5 dBTP | 1,172 B | 17 | 1280×720 |
+
+Targets: −14 LUFS integrated, gate at −1.0 dBTP. Every episode is inside both. Natkhat's −1.4 dBTP is the
+closest to the ceiling and is 0.4 dB clear of the gate that would block it.
+
+Subtitle language follows the channel: Devanagari for Natkhat, English for the other two. Verified by
+reading the `captions.srt` files, not by trusting the configuration.
+
+## 3. Animation, measured rather than asserted
+
+Frames were decoded from the encoded videos and read; then motion was measured.
+
+| channel | what the frames show | frozen runs ≥1.5 s at −50 dB | mean frame-to-frame difference | identical consecutive frames |
+|---|---|---|---|---|
+| Nexus Node | diagram plates, six different compositions, captions legible, camera push-in | 0 | 2.01 | 0 of 232 |
+| Academic Biohacker | paper plates with pictograms (sleep, brain, glucose, movement), `panels → stacked → panels → statement → statement → gap → cta` | 0 | 1.95 | 0 of 229 |
+| Natkhat Toons | two rigged characters, haveli background, changing mouth and arm poses, Hindi captions | 0 | 3.27 | 0 of 193 |
+
+Natkhat's character zone carries roughly twice the motion energy of the other two channels' plates, which
+is what "genuinely animated characters" looks like as a number rather than as a claim.
+
+## 4. Gates
+
+| gate | coverage | result |
+|---|---|---|
+| technical QC | 25 checks: geometry, frame rate, duration, audio, loudness, true peak, A/V sync, frozen and black frames, captions, thumbnail, manifest hashes, title, placeholders, framing, caption collision, shot continuity, pickup contact | 25/25 on all seven episodes, 0 failures |
+| creative QC (shorts engine only) | 21 checks, including `visual_diversity_pixels`, `no_repeated_composition_runs`, `figure_is_stated` | ok on all four English Shorts; 7 distinct pictures over 7 plates on `academic-brain-wash` and `academic-cool-to-sleep` |
+| publishing gate | 23–25 checks that decide whether a file may be uploaded | 25/25, 24/24, 25/25 on the three Shorts; 24/24 on both long-form renders; 23/23 and 22/23→23/23 on the publish-level recomputation |
+
+Creative warnings that remain (never suppressed):
+
+| episode | warning | judgement |
+|---|---|---|
+| `nexus-agents-leave-chat` | `title_matches_narration`, `dataviz_delivered` | the on-screen title shares no content word with the narration; no chart because no sentence states a number |
+| `academic-cool-to-sleep` | `dataviz_delivered` | same |
+
+## 5. Framing, as the owner would judge it
+
+| episode | required subjects | cropped | near the margin | note |
+|---|---|---|---|---|
+| `natkhat-haveli-e1` | chiku, gappu | 0 | 0 | the close-up excludes the listener by design (154 frames, warning only) |
+| `natkhat-haveli-e2` | chiku, gappu | 0 | 140 | inside the picture on every frame; staging is tight |
+| `nexus-*`, `academic-*` | n/a | 0 | 0 | no cast in the card engine |
+
+The `natkhat-haveli-e2` margin case was settled by measuring drawn pixels: over all 204 frames at 6 fps,
+the mouse's colour never reaches the frame edge and the monkey's does on 2 frames (its raised arm, still
+inside the picture).
+
+## 6. Recovery and idempotency
+
+| experiment | result |
+|---|---|
+| re-render a completed episode | 10 s, `skipped_render: true`, identical sha256, no re-encode |
+| kill 40 s in during the encode, then `resume` | **failed before PR #18** ("missing timeline"), 169 s to `READY_TO_PUBLISH` after it |
+| kill 55 s in during scene rendering (Hindi), then `resume` | 125 s to `READY_TO_PUBLISH`, scenes reused |
+| stale lock after a kill | reclaimed on the next run, both engines |
+| duplicate upload of the same sha256 | refused with `DuplicateUploadError` before any network call |
+| cleanup with unreleased episodes present | 3 entries, 0 deletable, every one kept with a reason |
+
+## 7. What is not covered by any gate
+
+1. Charts appear only when a sentence states a number, and no topic bank states one — so no real episode
+   has drawn a chart.
+2. Creative QC does not run for Natkhat or the 16:9 card renderer; both are gated on the 25 technical
+   checks alone.
+3. Captions are generated but never attached to an upload.
+4. Object-level animation inside a diagram plate does not exist; plates move by camera only.
+5. Natkhat wide shots are near-static.
