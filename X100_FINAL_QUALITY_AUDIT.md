@@ -3,7 +3,7 @@
 Audit date: 2026-11-26
 Repository: Ayushjaiswal0001/youtube, checkout D:\X100-youtube
 Protected main: b16c4b5fd0d8cd6731d11dde40fc3a7d49b52d8f
-Reliability/content candidate: 7d6ffe0 on codex/fix-joblock-ownership; not merged
+Reliability/content candidate: PR #23 from codex/fix-joblock-ownership; source fix 528ec22943c896a2626b4877ddaaa1f035480534; not merged
 
 This report distinguishes live GitHub evidence from local tests and preserved sample artifacts. The seven original media artifacts under D:\X100-youtube\audit-artifacts remain unmodified. Two corrected local derivatives are stored separately under `audit-artifacts/corrected-2026-11-26/`.
 
@@ -11,7 +11,7 @@ This report distinguishes live GitHub evidence from local tests and preserved sa
 
 PR #22, head 6c52d38ac48963f9a37d1aadd5139e0e3453d768, merged 2026-11-25 into main as b16c4b5fd0d8cd6731d11dde40fc3a7d49b52d8f. Latest main CI run 45705546332 and security run 45705546316 completed successfully on that merge SHA. CI evidence includes factory, uploader Python 3.11/3.12, workflow permission/pinning, dependency audit, Gitleaks, and secret/history scans.
 
-A separate local candidate commit 7d6ffe0 fixes JobLock ownership and corrects authored topic source/copy. CLI push and connected GitHub-app write both returned HTTP 403, so the branch is not remote and no candidate PR/CI exists yet. PR #2 remains open on a stale base and was not modified.
+A focused PR #23 fixes JobLock ownership and corrects authored topic source/copy. The initial CLI push 403 was traced to the injected GITHUB_TOKEN identity Ayushjaiswal001 with repository push=false; the already-authenticated Ayushjaiswal0001 keyring identity has push=true, and the normal push succeeded. PR #23 is published and open. PR #2 remains open on a stale base and was not modified.
 
 ## Local software checks
 
@@ -23,7 +23,7 @@ A separate local candidate commit 7d6ffe0 fixes JobLock ownership and corrects a
 - Secret scanner: 14 rules, 0 findings, none at or above high.
 - Gitleaks redacted working-diff scan: 0 leaks.
 - Dependency audit: 0 blocking, 0 accepted, 0 findings.
-- The local full suite ran before the content-only JSON correction; the focused content suite ran after that correction. Branch CI must validate the final PR tree. POSIX flock coverage is skipped locally on Windows.
+- The full suite ran before the content-only JSON correction and final journal-isolation follow-up; the focused content suite ran after the JSON correction. After the final follow-up, the focused Windows controls/reliability/orchestration run passed 102, with 1 POSIX-only skip. PR #23's Ubuntu CI must validate the final tree. POSIX flock coverage is skipped locally on Windows.
 
 ## Actual video, frame, and audio checks
 
@@ -83,7 +83,7 @@ These are arithmetic minimums for a seven-day bank at one Short plus one horizon
 
 ## Publishing and operational verification
 
-At the time of the audit, all three daily workflows were disabled_manually; the manual production workflow was active but idle. No Actions runs were in progress. Main CI/security evidence is historical to the verified main SHA; the new candidate PR has not yet run. The local pause check returned paused=false, scope=none. A GitHub Actions variables API read returned 403, so runner/account pause state is owner-dependent.
+All three daily workflows are disabled_manually; the manual production workflow is active but idle. PR CI/security on source head 528ec22943c896a2626b4877ddaaa1f035480534 passed: runs 45762197044/45762192360 (CI PR/push) and 45762198015/45762192359 (security PR/push). No production run is active. Main CI/security evidence is green on the verified main SHA. Final documentation-only commits trigger new checks. The local pause check returned paused=false, scope=none. The owner CLI Actions variables query returned an empty repository variable list; live YouTube identity, pending schedule, and account-wide pause remain unverified.
 
 Historical manual production run 45625058307 completed render/resume in about 16m31 and the full job in about 17m56; its upload steps were skipped. A separate prior measurement recorded 3,008 seconds for an 11-beat horizontal render. These are different measurements. Configured job budgets are 60 minutes for Shorts and 120 minutes for horizontal videos. No video was uploaded or scheduled in this audit. No YouTube live channel identity, stored publishAt, or pending-release read-back was performed.
 

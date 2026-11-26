@@ -1,6 +1,6 @@
 # X100 final system architecture
 
-Status reviewed 2026-11-26. Verified repository: Ayushjaiswal0001/youtube at D:\X100-youtube. Protected main is b16c4b5fd0d8cd6731d11dde40fc3a7d49b52d8f. PR #22 is merged. The focused reliability/content candidate is commit 7d6ffe0 on codex/fix-joblock-ownership and is not on main. Both local CLI push and connected GitHub-app write returned HTTP 403, so it remains a local branch with no PR; production readiness remains blocked pending authorized publication, review, and merge.
+Status reviewed 2026-11-26. Verified repository: Ayushjaiswal0001/youtube at D:\X100-youtube. Protected main is b16c4b5fd0d8cd6731d11dde40fc3a7d49b52d8f. PR #22 is merged. The focused reliability/content candidate is on PR #23 from `codex/fix-joblock-ownership`; source commits are 7d6ffe07c59300d52fa6d1d07d221c67d32b6c97 and 528ec22943c896a2626b4877ddaaa1f035480534. The initial CLI 403 was traced to a read-only injected token and recovered using an existing authorized keyring identity. Main remains unchanged; independent review, latest-head CI/security, merge, and owner activation remain pending.
 
 ## System boundary
 

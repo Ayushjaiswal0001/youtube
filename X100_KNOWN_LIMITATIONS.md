@@ -4,9 +4,10 @@ Snapshot date: 2026-11-26. This file supersedes older status snapshots that desc
 
 ## Reliability and release limits
 
-- Main has not yet received the final JobLock single-owner repair. The candidate exists only in the local branch because both CLI and connected GitHub write calls returned HTTP 403. It needs authorized publication, an independent review, POSIX CI, successful final PR CI/security, and a protected merge.
+- Main has not yet received the final JobLock single-owner repair. PR #23 is open from `codex/fix-joblock-ownership`. The prior push 403 was an injected read-only account; an existing owner keyring identity published the branch. Ubuntu `flock` and all CI/security jobs passed on source head 528ec22; the final documentation-head checks and independent review must pass before merge.
 - Local Windows LockFileEx coverage passed. POSIX flock coverage was skipped locally and must run on Ubuntu CI.
 - No physical machine reboot or cross-host shared-filesystem lock test was performed. Network-filesystem correctness depends on its locking semantics.
+- No local Linux runtime was available: `wsl.exe --list --quiet` returned WSL usage with exit 1, and Docker was not installed. Ubuntu GitHub Actions is the POSIX validation path.
 - Corrupt legacy metadata with uncertain owner state fails closed and may require owner investigation.
 - Exact lock contention latency and crash-recovery time were not measured.
 - The current manual production workflow is enabled, although idle. The three daily channel workflows are disabled. No workflow was dispatched in this audit.

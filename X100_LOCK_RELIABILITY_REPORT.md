@@ -3,7 +3,9 @@
 Audit date: 2026-11-26
 Repository: Ayushjaiswal0001/youtube
 Verified main: b16c4b5fd0d8cd6731d11dde40fc3a7d49b52d8f
-Focused candidate: 7d6ffe0 on codex/fix-joblock-ownership; not merged
+Focused source candidate: 7d6ffe07c59300d52fa6d1d07d221c67d32b6c97
+Follow-up journal-isolation fix: 528ec22943c896a2626b4877ddaaa1f035480534
+PR #23: open against main; not merged
 
 ## Previous failure mode
 
@@ -28,14 +30,14 @@ A malformed protocol-2 metadata file does not authorize stealing a live guard. I
 
 ## Test evidence
 
-Focused reliability/control/workflow regression suite on Windows 11, Python 3.12.7: 114 passed, 1 skipped in 18.97 seconds. The full local suite later completed with 1,469 passed, 1 skipped, and 5 subtests passed in 1,054.07 seconds. After editorial JSON updates, the focused content suite passed 78 tests in 6.04 seconds. The candidate was then committed as 7d6ffe0; the executable source in that commit is the source tested by the full suite, and branch CI is still required.
+Focused reliability/control/workflow regression suite on Windows 11, Python 3.12.7: 114 passed, 1 skipped in 18.97 seconds. The full local suite completed on the source candidate with 1,469 passed, 1 skipped, and 5 subtests passed in 1,054.07 seconds. After editorial JSON updates, the focused content suite passed 78 tests in 6.04 seconds. A final audit then found JobJournal's constructor created its directory before lock acquisition. Commit 528ec22 moves construction after successful acquisition and adds a losing-new-job regression. The fresh Windows run `python -m pytest -q tests/factory/test_controls.py tests/factory/test_reliability.py tests/factory/test_orchestration.py` passed 102 tests, 1 skipped, in 10.68 seconds. The earlier full suite did not include this follow-up; final Ubuntu CI must validate it.
 
 Coverage includes active owners with expired heartbeat metadata, the original one-hour TTL, renderer execution beyond a short TTL, dead legacy owners, remote legacy metadata, simultaneous stale reclaimers, replacement during reclamation, former-owner release, identical job IDs in separate processes, heartbeat renewal and failure, normal/abrupt termination, hard process kill, corrupt/missing metadata, missing lock files, and a 12-process acquisition stress test. The stress test observed exactly one owner. The Windows LockFileEx path ran locally. The POSIX flock test is skipped on Windows and must be covered by the branch's Ubuntu CI before merge. Windows process kill is not POSIX SIGKILL; a real SIGKILL test is conditional on POSIX CI.
 
 ## Residual risks and release gate
 
-- This candidate is not on protected main and remains local because both the CLI push and connected GitHub write API returned HTTP 403. Do not characterize main as fixed until the branch is published, reviewed, merged, and main CI passes.
-- POSIX CI and the new pull request's security jobs are not yet evidence in this report.
+- This candidate is not on protected main. PR #23 is open. The initial CLI 403 was caused by an injected read-only GITHUB_TOKEN account; an existing owner keyring identity with push permission was used to publish the branch safely. Do not characterize main as fixed until the branch is independently reviewed, merged, and main CI passes.
+- CI and security passed on PR head c653cfa. The follow-up commit 528ec22 passed new CI runs 45762197044 (PR) and 45762192360 (push) and security runs 45762198015 (PR) and 45762192359 (push), including Ubuntu factory coverage for POSIX `flock` and SIGKILL tests. The final documentation-only branch update triggers new checks that must pass before merge.
 - No physical reboot or shared-network-filesystem lock test was performed.
 - Exact lock acquisition latency and post-crash recovery time were not benchmarked.
 - Legacy corrupt metadata without sufficient owner evidence intentionally fails closed and may require owner recovery.

@@ -3,13 +3,13 @@
 Status date: 2026-11-26
 Verified repository: Ayushjaiswal0001/youtube
 Current main: b16c4b5fd0d8cd6731d11dde40fc3a7d49b52d8f
-Reliability candidate: 7d6ffe0 on local branch codex/fix-joblock-ownership. No PR exists yet: CLI push and GitHub-app write both returned HTTP 403.
+Reliability candidate: 7d6ffe07c59300d52fa6d1d07d221c67d32b6c97 plus follow-up journal-isolation fix 528ec22943c896a2626b4877ddaaa1f035480534 on codex/fix-joblock-ownership. PR #23 is open against main. The branch has been published using the already-authenticated owner keyring identity.
 
 ## Handover state
 
-PR #22 is merged as b16c4b5. Main CI run 45705546332 and security run 45705546316 succeeded. The new JobLock fix is not merged and remains on the local focused branch. Publishing the branch failed with HTTP 403 for both the CLI account and connected GitHub app, so no PR exists yet. It must be published by an authorized identity, receive owner review, Ubuntu POSIX lock coverage, successful PR CI/security, and a protected merge before production readiness can advance. No production workflow was enabled, dispatched, uploaded, or scheduled in this audit.
+PR #22 is merged as b16c4b5. Main CI run 45705546332 and security run 45705546316 succeeded. The candidate is in PR #23; it is not merged. Initial push failed because the injected `GITHUB_TOKEN` authenticated as Ayushjaiswal001, whose repository permission is read-only (`push:false`). A separately authenticated Ayushjaiswal0001 keyring identity has `push:true`; after clearing the injected variable only inside the command process and selecting that existing account, the normal branch push succeeded. No credential was created or exposed. PR and push CI/security all passed on final source head 528ec22943c896a2626b4877ddaaa1f035480534, including Ubuntu factory coverage. Final documentation-only commits trigger new checks which must pass before merge. The repository branch protection API reports zero required approving reviews, and the accessible collaborator list contains only the PR author/owner. No independent reviewer is assigned. No production workflow was enabled or dispatched; no upload or schedule was made.
 
-All three daily workflows are currently disabled_manually. The production (manual) workflow is active but idle. There are no Actions runs in progress. The local pause check reads paused=false; GitHub Actions variables access returned 403, so runner/account pause state is owner-dependent. No OAuth value, live channel identity, or live YouTube pending schedule was checked.
+All three daily workflows are currently disabled_manually. The production (manual) workflow is active but idle. Final-source CI/security checks have completed; no production run is active. The local pause check reads paused=false. The owner CLI query returned an empty repository Actions variable list; the connected-app variables request earlier returned 403. Account-wide pause, live channel identity, and live YouTube pending schedules remain unverified. No OAuth value was read.
 
 ## Nexus Node: owner preflight summary
 
@@ -32,18 +32,18 @@ The local availability result uses isolated temporary state and does not prove p
 
 ## Required owner-controlled steps
 
-1. Publish the local branch codex/fix-joblock-ownership with an authorized GitHub identity; the attempted CLI push and connected GitHub write API both returned HTTP 403. Then open the focused PR.
-2. Review the JobLock/content PR. Confirm required reviewers, security findings, Windows and POSIX CI, and the final changed files.
-3. Merge only through the protected PR process if the owner accepts the change. No merge was performed here.
+1. Open PR #23 and review its final diff. Ensure an independent maintainer with review access is assigned; the accessible collaborator list currently has only the PR author/owner. Add an eligible reviewer through repository Settings → Collaborators and teams if required, then select that person in the PR's Reviewers control. Do not self-approve.
+2. Wait for every check on the latest PR head to finish successfully, especially `factory (plan + publish gates)`, `uploader (py3.11)`, `uploader (py3.12)`, and all four security jobs. Confirm the Ubuntu `tests/factory` run exercises POSIX `flock` and SIGKILL recovery.
+3. Merge only through the normal GitHub PR UI after independent approval and green latest-head checks. The repository allows merge commit, squash, or rebase; use the normal repository policy. No merge was performed here.
 4. Verify main contains the merge and its CI/security checks are green.
 5. Review the corrected local derivatives at `audit-artifacts/corrected-2026-11-26/build/academic-biohacker/academic-post-meal-walk/` and `audit-artifacts/corrected-2026-11-26/build/nexus-node/nexus-data-wall/`. Automated media checks and sampled contact-sheet review passed; owner editorial review remains required. Do not release the preserved older files, which still contain stale copy.
-6. Run a fresh read-only preflight: confirm global and channel pause state, plan availability, duplicate reservations, upload ledger, channel/account identity, policy, and pending YouTube releases. Use only approved non-secret identity/status checks. The current API variable read returned 403.
+6. Run a fresh read-only preflight: confirm global and channel pause state, plan availability, duplicate reservations, upload ledger, channel/account identity, policy, and pending YouTube releases. Use only approved non-secret identity/status checks. Repository Actions variables are empty; account-wide and live YouTube state remain unverified.
 7. Obtain the owner's explicit activation approval. Then enable Nexus alone:
 
     gh workflow enable "nexus-node daily" --repo Ayushjaiswal0001/youtube
 
-7. Observe the actual workflow. Verify each expected format, channel identity, upload outcome, video IDs, schedule_verified result, and the matching publishAt stored by YouTube. Keep private and escalate if verification fails.
-8. Consider Academic only after Nexus has been independently verified. Consider Natkhat only after Academic is independently verified.
+8. Observe the actual workflow. Verify each expected format, channel identity, upload outcome, video IDs, schedule_verified result, and the matching publishAt stored by YouTube. Keep private and escalate if verification fails.
+9. Consider Academic only after Nexus has been independently verified. Consider Natkhat only after Academic is independently verified.
 
 The enable command above is prepared for the owner and was not executed.
 
