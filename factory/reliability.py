@@ -24,7 +24,9 @@ import shutil
 import socket
 import subprocess
 import sys
+import threading
 import time
+import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -183,15 +185,24 @@ class LockInfo:
     acquired_at: str
     job_id: str
     heartbeat: float
+    owner_token: str = ""
+    protocol: int = 1
+
+
+class LockBusy(RuntimeError):
+    """Another job already owns this channel and plan."""
+
+
+class LockOwnershipError(RuntimeError):
+    """The process can no longer prove that it owns the render lock."""
+
+
+class LockHeartbeatError(LockOwnershipError):
+    """The production heartbeat failed while the render lock was held."""
 
 
 def _pid_is_alive(pid: int) -> bool:
-    """Check a local PID without sending a signal to it.
-
-    POSIX commonly uses ``os.kill(pid, 0)`` as an existence probe. On Windows, signal zero maps to
-    ``CTRL_C_EVENT`` and can interrupt this process, so use a waitable process handle instead.
-    Unknown Windows errors are treated as alive to avoid stealing a lock we cannot prove stale.
-    """
+    """Conservatively inspect a local PID for the legacy lock migration path."""
 
     if os.name == "nt":
         import ctypes
@@ -208,16 +219,11 @@ def _pid_is_alive(pid: int) -> bool:
         close_handle.argtypes = (wintypes.HANDLE,)
         close_handle.restype = wintypes.BOOL
 
-        synchronize = 0x00100000
-        handle = open_process(synchronize, False, int(pid))
+        handle = open_process(0x00100000, False, int(pid))
         if not handle:
-            # ERROR_INVALID_PARAMETER / ERROR_NOT_FOUND mean the process no longer exists.
             return ctypes.get_last_error() not in (87, 1168)
         try:
-            result = wait_for_single_object(handle, 0)
-            if result == 0:  # WAIT_OBJECT_0: process has exited.
-                return False
-            return True  # WAIT_TIMEOUT or any uncertain result: fail closed.
+            return wait_for_single_object(handle, 0) != 0
         finally:
             close_handle(handle)
 
@@ -228,134 +234,345 @@ def _pid_is_alive(pid: int) -> bool:
     except PermissionError:
         return True
     except OSError as exc:
-        # Only ESRCH proves absence. Treat other OS errors conservatively as a live process.
         import errno
 
         return exc.errno != errno.ESRCH
     return True
 
 
+def _try_native_lock(fd: int) -> Tuple[bool, Any]:
+    """Acquire one byte of a stable guard file without removing or replacing it."""
+
+    if os.name == "nt":
+        import ctypes
+        import msvcrt
+        from ctypes import wintypes
+
+        class OVERLAPPED(ctypes.Structure):
+            _fields_ = (
+                ("Internal", ctypes.c_size_t),
+                ("InternalHigh", ctypes.c_size_t),
+                ("Offset", wintypes.DWORD),
+                ("OffsetHigh", wintypes.DWORD),
+                ("hEvent", wintypes.HANDLE),
+            )
+
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        lock_file_ex = kernel32.LockFileEx
+        lock_file_ex.argtypes = (
+            wintypes.HANDLE, wintypes.DWORD, wintypes.DWORD,
+            wintypes.DWORD, wintypes.DWORD, ctypes.POINTER(OVERLAPPED),
+        )
+        lock_file_ex.restype = wintypes.BOOL
+        handle = wintypes.HANDLE(msvcrt.get_osfhandle(fd))
+        overlapped = OVERLAPPED()
+        # LOCKFILE_EXCLUSIVE_LOCK | LOCKFILE_FAIL_IMMEDIATELY
+        if lock_file_ex(handle, 0x00000003, 0, 1, 0, ctypes.byref(overlapped)):
+            return True, (kernel32, handle, overlapped)
+        error = ctypes.get_last_error()
+        if error == 33:  # ERROR_LOCK_VIOLATION
+            return False, None
+        raise OSError(error, f"LockFileEx failed with Windows error {error}")
+
+    import errno
+    import fcntl
+
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError as exc:
+        if exc.errno in (errno.EACCES, errno.EAGAIN):
+            return False, None
+        raise
+    return True, None
+
+
+def _release_native_lock(fd: int, state: Any) -> None:
+    if os.name == "nt":
+        import ctypes
+        from ctypes import wintypes
+
+        kernel32, handle, overlapped = state
+        unlock_file_ex = kernel32.UnlockFileEx
+        unlock_file_ex.argtypes = (
+            wintypes.HANDLE, wintypes.DWORD, wintypes.DWORD,
+            wintypes.DWORD, ctypes.POINTER(type(overlapped)),
+        )
+        unlock_file_ex.restype = wintypes.BOOL
+        if not unlock_file_ex(handle, 0, 1, 0, ctypes.byref(overlapped)):
+            error = ctypes.get_last_error()
+            if error not in (158,):  # ERROR_NOT_LOCKED; closing the handle still releases it.
+                raise OSError(error, f"UnlockFileEx failed with Windows error {error}")
+        return
+
+    import fcntl
+
+    fcntl.flock(fd, fcntl.LOCK_UN)
+
+
 class JobLock:
-    """One lock file per channel+plan, safe across processes and across runners.
+    """A process-owned channel/plan lock backed by the operating system.
 
-    Three properties matter and each has a failure it prevents:
-
-    * **exclusive creation** (`O_EXCL`) - two runs starting in the same second cannot both win.
-    * **heartbeat** - a long render keeps its lock alive, so a slow job is not mistaken for a dead
-      one and cannot have its lock stolen mid-encode.
-    * **stale detection** - a lock whose process is gone, or whose heartbeat stopped, is taken over.
-      Without it, one killed run blocks that channel forever, which is how an unattended factory
-      stops producing silently.
+    The stable .guard file is never removed. POSIX flock and Windows LockFileEx release ownership
+    when a process exits or the machine restarts, so stale JSON cannot authorize lock stealing.
+    Heartbeats are diagnostic and renewed during production; they do not determine ownership.
     """
 
-    def __init__(self, path: Path | str, *, job_id: str, ttl: float = 900.0) -> None:
+    PROTOCOL = 2
+
+    def __init__(
+        self,
+        path: Path | str,
+        *,
+        job_id: str,
+        ttl: float = 900.0,
+        heartbeat_interval: Optional[float] = None,
+    ) -> None:
         self.path = Path(path)
+        self.guard_path = self.path.with_name(self.path.name + ".guard")
         self.job_id = job_id
         self.ttl = float(ttl)
+        if self.ttl <= 0:
+            raise ValueError("lock ttl must be positive")
+        self.heartbeat_interval = (
+            float(heartbeat_interval) if heartbeat_interval is not None
+            else min(30.0, max(0.1, self.ttl / 3.0))
+        )
+        if self.heartbeat_interval <= 0:
+            raise ValueError("heartbeat_interval must be positive")
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._held = False
+        self._fd: Optional[int] = None
+        self._native_state: Any = None
+        self._guard_identity: Optional[Tuple[int, int]] = None
+        self.owner_token: Optional[str] = None
+        self.acquired_at: Optional[str] = None
+        self._heartbeat_stop = threading.Event()
+        self._heartbeat_thread: Optional[threading.Thread] = None
+        self._heartbeat_error: Optional[BaseException] = None
+        self._state_lock = threading.RLock()
 
-    # -- inspection ------------------------------------------------------
+    @staticmethod
+    def _decode(payload: bytes) -> Optional[LockInfo]:
+        try:
+            data = json.loads(payload.decode("utf-8"))
+            return LockInfo(
+                pid=int(data["pid"]),
+                host=str(data["host"]),
+                acquired_at=str(data["acquired_at"]),
+                job_id=str(data["job_id"]),
+                heartbeat=float(data.get("heartbeat", 0.0)),
+                owner_token=str(data.get("owner_token", "")),
+                protocol=int(data.get("protocol", 1)),
+            )
+        except (KeyError, TypeError, ValueError, UnicodeDecodeError, json.JSONDecodeError):
+            return None
+
     def read(self) -> Optional[LockInfo]:
         try:
-            data = json.loads(self.path.read_text(encoding="utf-8"))
-        except (FileNotFoundError, json.JSONDecodeError):
-            return None
-        try:
-            return LockInfo(
-                pid=int(data["pid"]), host=str(data["host"]),
-                acquired_at=str(data["acquired_at"]), job_id=str(data["job_id"]),
-                heartbeat=float(data.get("heartbeat", 0.0)),
-            )
-        except (KeyError, TypeError, ValueError):
+            return self._decode(self.path.read_bytes())
+        except OSError:
             return None
 
-    def is_stale(self, info: Optional[LockInfo] = None) -> bool:
-        info = info or self.read()
-        if info is None:
-            # An unreadable lock is not a reason to refuse work; it is a reason to replace it.
-            return self.path.exists()
-        age = time.time() - info.heartbeat
-        if age > self.ttl:
-            return True
-        # A different host cannot be probed; trust the heartbeat. Same host: check the pid, because
-        # a killed process leaves a fresh heartbeat behind for as long as the ttl.
-        if info.host == socket.gethostname():
-            return not _pid_is_alive(info.pid)
-        return False
+    def _legacy_owner_may_be_live(self) -> bool:
+        """Fail closed on pre-protocol lock files until their owner is demonstrably gone."""
 
-    # -- acquisition -----------------------------------------------------
-    def acquire(self, *, blocking: bool = False, poll: float = 1.0,
-                timeout: Optional[float] = None) -> bool:
-        deadline = None if timeout is None else time.time() + timeout
-        while True:
-            try:
-                fd = os.open(str(self.path), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
-            except FileExistsError:
-                if self.is_stale():
-                    # Replace atomically: unlink then retry the exclusive create, so a race between
-                    # two sweepers still leaves exactly one winner.
-                    try:
-                        self.path.unlink()
-                    except FileNotFoundError:
-                        pass
-                    continue
-                if not blocking:
-                    return False
-                if deadline is not None and time.time() > deadline:
-                    return False
-                time.sleep(poll)
-                continue
-            payload = json.dumps({
-                "pid": os.getpid(),
-                "host": socket.gethostname(),
-                "acquired_at": utc_now(),
-                "job_id": self.job_id,
-                "heartbeat": time.time(),
-            }).encode("utf-8")
-            with os.fdopen(fd, "wb") as handle:
-                handle.write(payload)
-            self._held = True
-            return True
-
-    def heartbeat(self) -> None:
-        if not self._held:
-            return
+        if not self.path.exists():
+            return False
         info = self.read()
+        if info is None:
+            # A new-protocol guard makes the kernel lock authoritative even if its JSON is corrupt.
+            # Without that guard, an unreadable legacy file cannot safely be attributed to a dead run.
+            return not self.guard_path.exists()
+        if info.owner_token and info.protocol >= self.PROTOCOL:
+            return False
+        if info.host != socket.gethostname():
+            return True
+        return _pid_is_alive(info.pid)
+
+    def _guard_fd_matches_path(self) -> bool:
+        if self._fd is None:
+            return False
+        try:
+            path_stat = self.guard_path.stat()
+            fd_stat = os.fstat(self._fd)
+        except OSError:
+            return False
+        path_identity = (int(path_stat.st_dev), int(path_stat.st_ino))
+        fd_identity = (int(fd_stat.st_dev), int(fd_stat.st_ino))
+        return path_identity == fd_identity and path_identity[1] != 0
+
+    def _write_metadata(self, *, heartbeat: float) -> None:
+        if self.owner_token is None or self.acquired_at is None:
+            raise LockOwnershipError("lock owner token is not initialized")
         payload = {
+            "protocol": self.PROTOCOL,
+            "owner_token": self.owner_token,
             "pid": os.getpid(),
             "host": socket.gethostname(),
-            "acquired_at": info.acquired_at if info else utc_now(),
+            "acquired_at": self.acquired_at,
             "job_id": self.job_id,
-            "heartbeat": time.time(),
+            "heartbeat": heartbeat,
         }
-        tmp = self.path.with_suffix(".tmp")
-        tmp.write_text(json.dumps(payload), encoding="utf-8")
-        os.replace(tmp, self.path)
-
-    def release(self) -> None:
-        if not self._held:
-            return
-        info = self.read()
-        # Only the owner removes the lock: a stolen lock must not be deleted by its previous owner.
-        if info is None or info.job_id == self.job_id:
+        temporary = self.path.with_name(
+            f".{self.path.name}.{self.owner_token}.tmp"
+        )
+        try:
+            temporary.write_text(json.dumps(payload), encoding="utf-8")
+            os.replace(temporary, self.path)
+        finally:
             try:
-                self.path.unlink()
+                temporary.unlink()
             except FileNotFoundError:
                 pass
-        self._held = False
+
+    def _heartbeat_loop(self) -> None:
+        while not self._heartbeat_stop.wait(self.heartbeat_interval):
+            try:
+                self.heartbeat()
+            except Exception as exc:  # noqa: BLE001 - fail closed and surface at checkpoints
+                with self._state_lock:
+                    self._heartbeat_error = exc
+                self._heartbeat_stop.set()
+                return
+
+    def acquire(
+        self,
+        *,
+        blocking: bool = False,
+        poll: float = 1.0,
+        timeout: Optional[float] = None,
+    ) -> bool:
+        if self._held:
+            raise RuntimeError("this JobLock instance already owns the lock")
+        if blocking and poll <= 0:
+            raise ValueError("poll must be positive when blocking")
+        deadline = None if timeout is None else time.monotonic() + max(0.0, timeout)
+
+        while True:
+            # The metadata path preserves compatibility for old readers. The stable guard path
+            # carries the actual kernel lock and is never deleted, renamed, or atomically replaced.
+            if self._legacy_owner_may_be_live():
+                acquired = False
+                fd = None
+                native_state = None
+            else:
+                fd = os.open(str(self.guard_path), os.O_CREAT | os.O_RDWR, 0o600)
+                try:
+                    acquired, native_state = _try_native_lock(fd)
+                except Exception:
+                    os.close(fd)
+                    raise
+
+            if acquired:
+                with self._state_lock:
+                    self._fd = fd
+                    self._native_state = native_state
+                    stat = os.fstat(fd)
+                    self._guard_identity = (int(stat.st_dev), int(stat.st_ino))
+                    self.owner_token = uuid.uuid4().hex
+                    self.acquired_at = utc_now()
+                    self._heartbeat_error = None
+                    self._heartbeat_stop.clear()
+                    self._held = True
+                    try:
+                        self._write_metadata(heartbeat=time.time())
+                        self._heartbeat_thread = threading.Thread(
+                            target=self._heartbeat_loop,
+                            name=f"x100-lock-heartbeat-{self.owner_token[:8]}",
+                            daemon=True,
+                        )
+                        self._heartbeat_thread.start()
+                    except BaseException:
+                        self._held = False
+                        self._heartbeat_thread = None
+                        self._fd = None
+                        self._native_state = None
+                        try:
+                            _release_native_lock(fd, native_state)
+                        finally:
+                            os.close(fd)
+                        raise
+                return True
+
+            if fd is not None:
+                os.close(fd)
+            if not blocking:
+                return False
+            if deadline is not None and time.monotonic() >= deadline:
+                return False
+            time.sleep(poll)
+
+    def is_stale(self, info: Optional[LockInfo] = None) -> bool:
+        """Whether a kernel lock can be acquired now; heartbeat age never proves staleness."""
+
+        del info  # retained for callers of the previous inspection API
+        if self._legacy_owner_may_be_live():
+            return False
+        fd = os.open(str(self.guard_path), os.O_CREAT | os.O_RDWR, 0o600)
+        try:
+            acquired, native_state = _try_native_lock(fd)
+            if not acquired:
+                return False
+            _release_native_lock(fd, native_state)
+            return True
+        finally:
+            os.close(fd)
+
+    def heartbeat(self) -> None:
+        with self._state_lock:
+            if not self._held:
+                return
+            if not self._guard_fd_matches_path():
+                raise LockOwnershipError("the stable guard file was replaced or removed")
+            info = self.read()
+            if info is None or info.owner_token != self.owner_token:
+                raise LockOwnershipError("lock metadata no longer matches this owner token")
+            self._write_metadata(heartbeat=time.time())
+
+    def assert_healthy(self) -> None:
+        with self._state_lock:
+            if not self._held:
+                raise LockOwnershipError("render lock is not held")
+            if self._heartbeat_error is not None:
+                raise LockHeartbeatError(
+                    f"render lock heartbeat failed: {self._heartbeat_error}"
+                ) from self._heartbeat_error
+            if not self._guard_fd_matches_path():
+                raise LockOwnershipError("the stable guard file was replaced or removed")
+            info = self.read()
+            if info is None or info.owner_token != self.owner_token:
+                raise LockOwnershipError("lock metadata no longer matches this owner token")
+
+    def release(self) -> None:
+        self._heartbeat_stop.set()
+        thread = self._heartbeat_thread
+        if thread is not None and thread is not threading.current_thread():
+            thread.join()
+        with self._state_lock:
+            fd = self._fd
+            native_state = self._native_state
+            self._held = False
+            self._fd = None
+            self._native_state = None
+            self._heartbeat_thread = None
+            if fd is None:
+                return
+            try:
+                _release_native_lock(fd, native_state)
+            finally:
+                os.close(fd)
 
     def __enter__(self) -> "JobLock":
         if not self.acquire():
             raise LockBusy(f"{self.path.name} is held by another job")
         return self
 
-    def __exit__(self, *exc: Any) -> None:
-        self.release()
-
-
-class LockBusy(RuntimeError):
-    """Another job already owns this channel and plan."""
+    def __exit__(self, exc_type: Any, exc: Any, traceback: Any) -> None:
+        try:
+            if exc_type is None:
+                self.assert_healthy()
+        finally:
+            self.release()
 
 
 # ---------------------------------------------------------------------------

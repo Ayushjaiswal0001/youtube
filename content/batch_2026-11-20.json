@@ -173,35 +173,35 @@
       },
       {
         "id": "nexus-data-wall",
-        "title": "AI Is Running Out of Text",
-        "topic": "the data wall in AI training",
-        "hook": "AI companies spent years chasing more compute. The next shortage is stranger: readable text.",
-        "hook_headline": "The next shortage",
+        "title": "AI Training Data: A Forecast, Not a Countdown",
+        "topic": "estimates and forecasts for human-generated language-model training data",
+        "hook": "One research forecast estimated limits to public training text, but its timeline depends on assumptions about how models scale.",
+        "hook_headline": "A conditional forecast",
         "hook_visual": "grid",
         "beats": [
           {
-            "text": "Large models are trained on trillions of words scraped from the open web, books, code and subtitles.",
-            "headline": "Trillions of words",
-            "visual": "network"
-          },
-          {
-            "text": "That pool is finite, and the best quality slice of it is smaller than most people assume.",
-            "headline": "A finite pool",
+            "text": "A 2024 Epoch AI analysis estimated the effective stock of public human-generated text and adjusted for quality and repetition.",
+            "headline": "An estimate",
             "visual": "bars"
           },
           {
-            "text": "Publishers are restricting crawlers, and licensed archives cost real money, so fresh supply is tightening.",
-            "headline": "Supply tightening",
-            "visual": "shield"
+            "text": "The authors gave a wide uncertainty range and projected when training datasets could use that stock under selected growth assumptions.",
+            "headline": "Assumptions matter",
+            "visual": "chart"
           },
           {
-            "text": "The workaround is synthetic data, human feedback or smaller models trained on cleaner, curated text.",
-            "headline": "Three workarounds",
+            "text": "That projection is not evidence that AI systems have already run out of useful text or that every lab faces the same limit.",
+            "headline": "Not an active shortage",
+            "visual": "scale"
+          },
+          {
+            "text": "New data sources, licensing, synthetic data, and training choices can change how relevant the forecast is.",
+            "headline": "The scenario can shift",
             "visual": "nodes"
           }
         ],
-        "payoff": "The winners may not be the labs with the most data, but the ones with the cleanest way to replace it.",
-        "payoff_headline": "Quality beats volume",
+        "payoff": "Treat data-wall dates as scenarios to track, not deadlines; the estimate depends on what counts as usable data and how models are trained.",
+        "payoff_headline": "Forecasts are conditional",
         "cta": "Follow for more on how AI actually gets built.",
         "cta_headline": "Follow",
         "tags": [
@@ -210,43 +210,43 @@
           "training-data"
         ],
         "sources": [
-          "https://arxiv.org/search/?query=data+wall+language+model",
-          "https://www.epochai.org/research"
+          "https://epoch.ai/publications/will-we-run-out-of-data-limits-of-llm-scaling-based-on-human-generated-data",
+          "https://arxiv.org/abs/2211.04325"
         ],
         "slot": "pm",
-        "angle": "why high-quality text is becoming the bottleneck"
+        "angle": "how assumptions shape projections about public text data for AI training"
       },
       {
         "id": "nexus-on-device",
-        "title": "The AI Moving Onto Your Phone",
-        "topic": "on-device AI inference",
-        "hook": "The most useful AI of the next few years may never leave your phone.",
-        "hook_headline": "Local first",
+        "title": "On-Device AI: Speed, Memory, Trade-Offs",
+        "topic": "local AI inference on mobile devices and its deployment trade-offs",
+        "hook": "A model on your phone may work offline, but speed and answer quality depend on the device and task.",
+        "hook_headline": "Local has trade-offs",
         "hook_visual": "device",
         "beats": [
           {
-            "text": "Running a model on-device removes network latency, cloud bills and most privacy questions in one move.",
-            "headline": "Three problems gone",
+            "text": "Local inference can reduce network dependence, but an app may still send data for other features or analytics.",
+            "headline": "Local is not a promise",
             "visual": "shield"
           },
           {
-            "text": "Quantisation and distillation shrink models to a few billion parameters without destroying everyday reasoning.",
-            "headline": "Smaller, not dumber",
+            "text": "Compressing a model can reduce memory use and sometimes latency, but accuracy needs to be tested after compression.",
+            "headline": "Smaller, with checks",
             "visual": "bars"
           },
           {
-            "text": "Phone chips now ship dedicated neural hardware measured in tens of trillions of operations per second.",
-            "headline": "Neural silicon",
-            "visual": "chip"
+            "text": "MLPerf Mobile now includes standardized language-model tests, helping compare defined tasks and device setups.",
+            "headline": "Measure the device",
+            "visual": "chart"
           },
           {
-            "text": "The catch is memory bandwidth and battery, which is why tiny models still beat big ones on a handset.",
-            "headline": "The catch",
+            "text": "Memory, battery, heat, software support, and task quality still limit what a phone can run well.",
+            "headline": "The constraints",
             "visual": "battery"
           }
         ],
-        "payoff": "Expect hybrids: a small model handling the everyday work, and the cloud called only for the hard questions.",
-        "payoff_headline": "Hybrid by default",
+        "payoff": "Treat on-device AI as a deployment choice: measure latency and quality on the target phone, and inspect the app’s data behavior.",
+        "payoff_headline": "Measure the trade-off",
         "cta": "Follow for more on where AI is heading.",
         "cta_headline": "Follow",
         "tags": [
@@ -255,11 +255,12 @@
           "hardware"
         ],
         "sources": [
-          "https://arxiv.org/search/?query=on-device+language+model+inference",
-          "https://mlcommons.org/benchmarks/"
+          "https://mlcommons.org/benchmarks/inference-mobile/",
+          "https://mlcommons.org/2026/06/mlperf-mobile-v6/",
+          "https://apple.github.io/coremltools/docs-guides/source/opt-overview.html"
         ],
         "slot": "pm",
-        "angle": "why small local models are suddenly competitive"
+        "angle": "how to compare on-device inference using task quality, latency, and resource limits"
       }
     ],
     "academic-biohacker": [
@@ -434,34 +435,34 @@
       {
         "id": "academic-post-meal-walk",
         "title": "Walk After Eating",
-        "topic": "post-meal walking and blood glucose",
-        "hook": "Ten minutes of walking after a meal does something a supplement cannot: it moves glucose into muscle.",
-        "hook_headline": "Move, don't supplement",
+        "topic": "post-meal walking and blood glucose in small acute trials",
+        "hook": "Small controlled studies suggest short walks after meals can lower post-meal glucose in the groups and settings tested.",
+        "hook_headline": "A small signal",
         "hook_visual": "walk",
         "beats": [
           {
-            "text": "After you eat, glucose rises in the blood, and insulin signals muscle and fat to take it up.",
-            "headline": "The post-meal rise",
-            "visual": "chart"
+            "text": "A short walk after eating is a way to add movement around a meal; its glucose effect varies by person and study.",
+            "headline": "Movement after meals",
+            "visual": "walk"
           },
           {
-            "text": "Contracting muscle pulls glucose in through a transporter that does not need extra insulin to activate.",
-            "headline": "Muscle as a sink",
-            "visual": "cell"
-          },
-          {
-            "text": "Trials comparing sitting with light walking after meals generally report lower glucose peaks with the walk.",
-            "headline": "What trials show",
+            "text": "In a 10-person crossover trial, three 10-minute walks after meals lowered dinner glucose versus no exercise.",
+            "headline": "One small trial",
             "visual": "bars"
           },
           {
-            "text": "The effect is modest and short-lived, so it complements movement across the day rather than replacing it.",
-            "headline": "Modest, not magic",
+            "text": "A separate trial in 41 adults with type 2 diabetes found lower post-meal glucose when walking followed meals rather than happening once daily.",
+            "headline": "A second group",
+            "visual": "chart"
+          },
+          {
+            "text": "These were short-term studies; they do not establish a cure or replace prescribed diabetes care.",
+            "headline": "What it cannot say",
             "visual": "scale"
           }
         ],
-        "payoff": "If you only change one habit this week, make it a short walk while your food settles.",
-        "payoff_headline": "The smallest change",
+        "payoff": "If it suits your health and routine, a short post-meal walk can be a practical activity break, not a treatment replacement.",
+        "payoff_headline": "A practical option",
         "cta": "Follow for evidence-first health shorts.",
         "cta_headline": "Follow",
         "tags": [
@@ -471,11 +472,11 @@
           "evidence"
         ],
         "sources": [
-          "https://pubmed.ncbi.nlm.nih.gov/?term=postprandial+walking+glucose",
-          "https://www.who.int/news-room/fact-sheets/detail/physical-activity"
+          "https://pubmed.ncbi.nlm.nih.gov/32173259/",
+          "https://pubmed.ncbi.nlm.nih.gov/27747394/"
         ],
         "slot": "am",
-        "angle": "why a short walk after eating changes the glucose curve"
+        "angle": "what controlled studies show about short walks after meals, and where the evidence stops"
       },
       {
         "id": "academic-cool-to-sleep",

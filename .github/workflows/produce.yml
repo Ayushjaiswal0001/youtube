@@ -113,8 +113,7 @@ permissions:
 
 concurrency:
   # One production run per channel *and format*, and never cancel a render in progress: a half-written
-  # episode is worse than a queued one. Keying on the format is what lets a 50-minute long-form render
-  # and a 3-minute Short run side by side instead of queueing behind each other.
+  # episode is worse than a queued one. This keeps a horizontal render and a Short independent.
   group: produce-${{ inputs.channel }}-${{ inputs.format || 'native' }}
   cancel-in-progress: false
 
@@ -169,17 +168,30 @@ jobs:
           cache: pip
 
       - name: Install system dependencies
+        timeout-minutes: 10
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
+          # Bound mirror and package-lock stalls; the step timeout is the final backstop.
+          sudo env DEBIAN_FRONTEND=noninteractive apt-get \
+            -o Acquire::Retries=3 \
+            -o Acquire::http::Timeout=20 \
+            -o Acquire::https::Timeout=20 \
+            -o Acquire::ForceIPv4=true \
+            -o DPkg::Lock::Timeout=60 update
+          sudo env DEBIAN_FRONTEND=noninteractive apt-get \
+            -o Acquire::Retries=3 \
+            -o Acquire::http::Timeout=20 \
+            -o Acquire::https::Timeout=20 \
+            -o Acquire::ForceIPv4=true \
+            -o DPkg::Lock::Timeout=60 install -y --no-install-recommends \
             ffmpeg libcairo2-dev pkg-config python3-dev fonts-dejavu-core
           ffmpeg -version | head -1
           ffprobe -version | head -1
 
       - name: Install Python dependencies
+        timeout-minutes: 10
         run: |
-          python -m pip install --upgrade pip
-          python -m pip install -r requirements.txt
+          python -m pip install --timeout 20 --retries 3 --upgrade pip
+          python -m pip install --timeout 20 --retries 3 -r requirements.txt
 
       - name: Restore pipeline state
         uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830  # v4.2.0

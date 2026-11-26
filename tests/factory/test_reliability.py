@@ -6,6 +6,7 @@ a cleanup that deletes the finished video, a truncated MP4 that looks complete.
 """
 
 import json
+import multiprocessing
 import os
 import subprocess
 import tempfile
@@ -72,6 +73,47 @@ class JournalTests(unittest.TestCase):
         self.assertEqual(declared - reachable, set())
 
 
+def _lock_contender(path, ready, start, finish, results, job_id):
+    lock = rel.JobLock(path, job_id=job_id, heartbeat_interval=0.05)
+    ready.set()
+    if not start.wait(20):
+        results.put(("timeout", None, os.getpid()))
+        return
+    acquired = lock.acquire()
+    results.put(("acquired" if acquired else "busy", lock.owner_token, os.getpid()))
+    if acquired:
+        finish.wait(20)
+        lock.release()
+
+
+def _lock_owner_wait(path, acquired, *, abrupt=False):
+    lock = rel.JobLock(path, job_id="same-job", heartbeat_interval=30)
+    if not lock.acquire():
+        os._exit(3)
+    acquired.set()
+    if abrupt:
+        os._exit(0)
+    while True:
+        time.sleep(1)
+
+
+def _lock_reclaimer_race(path, precheck_done, proceed, results):
+    original_try_lock = rel._try_native_lock
+
+    def delayed_try_lock(fd):
+        precheck_done.set()
+        if not proceed.wait(20):
+            raise TimeoutError("replacement owner was not created")
+        return original_try_lock(fd)
+
+    rel._try_native_lock = delayed_try_lock
+    lock = rel.JobLock(path, job_id="reclaimer", heartbeat_interval=30)
+    acquired = lock.acquire()
+    results.put(("acquired" if acquired else "busy", lock.owner_token))
+    if acquired:
+        lock.release()
+
+
 class LockTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -80,90 +122,342 @@ class LockTests(unittest.TestCase):
     def tearDown(self):
         self.tmp.cleanup()
 
+    def _contenders(self, count, *, job_id="same-job"):
+        ctx = multiprocessing.get_context("spawn")
+        start = ctx.Event()
+        finish = ctx.Event()
+        ready = [ctx.Event() for _ in range(count)]
+        results = ctx.Queue()
+        processes = [
+            ctx.Process(
+                target=_lock_contender,
+                args=(str(self.path), ready[index], start, finish, results, job_id),
+            )
+            for index in range(count)
+        ]
+        try:
+            for process in processes:
+                process.start()
+            for event in ready:
+                self.assertTrue(event.wait(20), "contender did not reach the start barrier")
+            start.set()
+            outcomes = [results.get(timeout=30) for _ in processes]
+            finish.set()
+            for process in processes:
+                process.join(20)
+                self.assertFalse(process.is_alive(), "contender did not exit")
+                self.assertEqual(process.exitcode, 0)
+            return outcomes
+        finally:
+            start.set()
+            finish.set()
+            for process in processes:
+                if process.is_alive():
+                    process.terminate()
+                    process.join(10)
+            results.close()
+            results.join_thread()
+
+    def _write_legacy_record(self, *, pid, host=None, heartbeat=None):
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        self.path.write_text(json.dumps({
+            "pid": pid,
+            "host": host or rel.socket.gethostname(),
+            "acquired_at": "2026-01-01T00:00:00+00:00",
+            "job_id": "legacy-job",
+            "heartbeat": time.time() if heartbeat is None else heartbeat,
+        }), encoding="utf-8")
+
     def test_one_owner_at_a_time(self):
         first = rel.JobLock(self.path, job_id="a")
         self.assertTrue(first.acquire())
-        self.assertFalse(rel.JobLock(self.path, job_id="b").acquire())
+        contender = rel.JobLock(self.path, job_id="b")
+        self.assertFalse(contender.acquire())
+        self.assertFalse(contender.is_stale())
         first.release()
 
-    def test_the_next_owner_can_take_the_lock(self):
-        first = rel.JobLock(self.path, job_id="a")
-        first.acquire()
+    def test_the_next_owner_can_take_the_lock_without_deleting_guard(self):
+        first = rel.JobLock(self.path, job_id="same-job")
+        self.assertTrue(first.acquire())
+        guard_identity = (self.path.with_name(self.path.name + ".guard").stat().st_dev,
+                          self.path.with_name(self.path.name + ".guard").stat().st_ino)
         first.release()
-        self.assertTrue(rel.JobLock(self.path, job_id="b").acquire())
+        self.assertTrue(self.path.exists())
+        self.assertTrue(self.path.with_name(self.path.name + ".guard").exists())
 
-    def test_a_context_manager_releases_on_exception(self):
+        second = rel.JobLock(self.path, job_id="same-job")
+        self.assertTrue(second.acquire())
+        self.assertNotEqual(first.owner_token, second.owner_token)
+        current_guard = self.path.with_name(self.path.name + ".guard").stat()
+        self.assertEqual(guard_identity, (current_guard.st_dev, current_guard.st_ino))
+        second.release()
+
+    def test_a_context_manager_releases_kernel_ownership_on_exception(self):
         with self.assertRaises(RuntimeError):
             with rel.JobLock(self.path, job_id="a"):
                 raise RuntimeError("render died")
-        self.assertFalse(self.path.exists())
+        self.assertTrue(self.path.exists())
+        self.assertTrue(self.path.with_name(self.path.name + ".guard").exists())
+        successor = rel.JobLock(self.path, job_id="b")
+        self.assertTrue(successor.acquire())
+        successor.release()
 
     def test_a_holding_job_blocks_the_context_manager(self):
         holder = rel.JobLock(self.path, job_id="a")
-        holder.acquire()
+        self.assertTrue(holder.acquire())
         with self.assertRaises(rel.LockBusy):
             with rel.JobLock(self.path, job_id="b"):
                 pass
         holder.release()
 
-    def test_a_dead_process_lock_is_stale(self):
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.path.write_text(json.dumps({
-            "pid": 999_999_999, "host": rel.socket.gethostname(),
-            "acquired_at": "2026-01-01T00:00:00+00:00", "job_id": "dead",
-            "heartbeat": time.time(),
-        }), encoding="utf-8")
-        self.assertTrue(rel.JobLock(self.path, job_id="new").is_stale())
+    def test_active_process_with_expired_heartbeat_is_not_stale(self):
+        lock = rel.JobLock(self.path, job_id="live", ttl=0.01, heartbeat_interval=30)
+        self.assertTrue(lock.acquire())
+        payload = json.loads(self.path.read_text(encoding="utf-8"))
+        payload["heartbeat"] = time.time() - 7200
+        self.path.write_text(json.dumps(payload), encoding="utf-8")
 
-    def test_an_old_heartbeat_is_stale(self):
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.path.write_text(json.dumps({
-            "pid": os.getpid(), "host": "somewhere-else",
-            "acquired_at": "2026-01-01T00:00:00+00:00", "job_id": "slow",
-            "heartbeat": time.time() - 10_000,
-        }), encoding="utf-8")
-        self.assertTrue(rel.JobLock(self.path, job_id="new", ttl=900).is_stale())
-
-    def test_a_live_lock_with_a_fresh_heartbeat_is_not_stale(self):
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.path.write_text(json.dumps({
-            "pid": os.getpid(), "host": rel.socket.gethostname(),
-            "acquired_at": "2026-01-01T00:00:00+00:00", "job_id": "live",
-            "heartbeat": time.time(),
-        }), encoding="utf-8")
-        self.assertFalse(rel.JobLock(self.path, job_id="new", ttl=900).is_stale())
-
-    def test_a_stale_lock_is_taken_over(self):
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.path.write_text(json.dumps({
-            "pid": 999_999_999, "host": rel.socket.gethostname(),
-            "acquired_at": "2026-01-01T00:00:00+00:00", "job_id": "dead",
-            "heartbeat": time.time(),
-        }), encoding="utf-8")
-        self.assertTrue(rel.JobLock(self.path, job_id="new").acquire())
-
-    def test_a_heartbeat_extends_the_lock(self):
-        lock = rel.JobLock(self.path, job_id="a", ttl=60)
-        lock.acquire()
-        first = lock.read().heartbeat
-        # Windows advances time.time() in ~15.6 ms ticks, so two heartbeats in the same tick are
-        # legitimately identical. The TTL is 900 s; the test only has to cross one tick.
-        time.sleep(0.05)
-        lock.heartbeat()
-        self.assertGreater(lock.read().heartbeat, first)
+        self.assertFalse(rel.JobLock(self.path, job_id="contender", ttl=0.01).is_stale())
+        self.assertFalse(rel.JobLock(self.path, job_id="contender").acquire())
         lock.release()
 
-    def test_a_foreign_lock_is_not_deleted_by_its_previous_owner(self):
-        # A lock stolen after a false-stale must not be removed by the original holder's cleanup.
-        stolen = rel.JobLock(self.path, job_id="a")
-        stolen.acquire()
-        self.path.write_text(json.dumps({
-            "pid": os.getpid(), "host": rel.socket.gethostname(),
-            "acquired_at": "2026-01-01T00:00:00+00:00", "job_id": "b",
-            "heartbeat": time.time(),
-        }), encoding="utf-8")
-        stolen.release()
+    def test_an_active_render_cannot_expire_at_the_original_3600_second_ttl(self):
+        lock = rel.JobLock(self.path, job_id="long-render", ttl=3600, heartbeat_interval=30)
+        self.assertTrue(lock.acquire())
+        payload = json.loads(self.path.read_text(encoding="utf-8"))
+        payload["heartbeat"] = time.time() - 3601
+        self.path.write_text(json.dumps(payload), encoding="utf-8")
+        time.sleep(0.03)
+
+        self.assertFalse(rel.JobLock(self.path, job_id="second", ttl=3600).is_stale())
+        self.assertFalse(rel.JobLock(self.path, job_id="second").acquire())
+        lock.release()
+
+    def test_a_render_longer_than_its_ttl_keeps_ownership(self):
+        lock = rel.JobLock(self.path, job_id="long-render", ttl=0.08, heartbeat_interval=0.01)
+        self.assertTrue(lock.acquire())
+        first_heartbeat = lock.read().heartbeat
+        time.sleep(0.25)
+        lock.assert_healthy()
+        self.assertFalse(rel.JobLock(self.path, job_id="second").acquire())
+        self.assertGreater(lock.read().heartbeat, first_heartbeat)
+        lock.release()
+
+    def test_a_dead_legacy_process_with_stale_heartbeat_can_be_recovered(self):
+        self._write_legacy_record(pid=999_999_999, heartbeat=time.time() - 7200)
+        lock = rel.JobLock(self.path, job_id="recovered")
+        self.assertTrue(lock.is_stale())
+        self.assertTrue(lock.acquire())
+        self.assertEqual(lock.read().protocol, rel.JobLock.PROTOCOL)
+        lock.release()
+
+    def test_remote_legacy_owner_is_not_declared_dead_from_local_uncertainty(self):
+        self._write_legacy_record(
+            pid=999_999_999,
+            host="remote-runner",
+            heartbeat=time.time() - 7200,
+        )
+        lock = rel.JobLock(self.path, job_id="local")
+        self.assertFalse(lock.is_stale())
+        self.assertFalse(lock.acquire())
+
+    def test_two_simultaneous_stale_reclaimers_have_one_owner(self):
+        self._write_legacy_record(pid=999_999_999, heartbeat=time.time() - 7200)
+        outcomes = self._contenders(2)
+        self.assertEqual(sum(result[0] == "acquired" for result in outcomes), 1)
+        self.assertEqual(sum(result[0] == "busy" for result in outcomes), 1)
+
+    def test_replacement_lock_created_during_stale_reclamation_stays_owned(self):
+        self._write_legacy_record(pid=999_999_999, heartbeat=time.time() - 7200)
+        ctx = multiprocessing.get_context("spawn")
+        precheck_done, proceed = ctx.Event(), ctx.Event()
+        results = ctx.Queue()
+        reclaimer = ctx.Process(
+            target=_lock_reclaimer_race,
+            args=(str(self.path), precheck_done, proceed, results),
+        )
+        reclaimer.start()
+        replacement = None
+        try:
+            self.assertTrue(precheck_done.wait(20), "reclaimer did not inspect stale metadata")
+            replacement = rel.JobLock(self.path, job_id="replacement")
+            self.assertTrue(replacement.acquire())
+            replacement_token = replacement.owner_token
+            proceed.set()
+            self.assertEqual(results.get(timeout=20)[0], "busy")
+            replacement.assert_healthy()
+            self.assertEqual(replacement.read().owner_token, replacement_token)
+        finally:
+            proceed.set()
+            if replacement is not None:
+                replacement.release()
+            reclaimer.join(20)
+            if reclaimer.is_alive():
+                reclaimer.terminate()
+                reclaimer.join(10)
+            results.close()
+            results.join_thread()
+        self.assertFalse(reclaimer.is_alive())
+        self.assertEqual(reclaimer.exitcode, 0)
+
+    def test_replacement_metadata_never_replaces_the_guard_instance(self):
+        first = rel.JobLock(self.path, job_id="same-job", heartbeat_interval=30)
+        self.assertTrue(first.acquire())
+        guard = self.path.with_name(self.path.name + ".guard")
+        original_identity = (guard.stat().st_dev, guard.stat().st_ino)
+        first.heartbeat()
+        self.assertEqual(original_identity, (guard.stat().st_dev, guard.stat().st_ino))
+        self.assertFalse(rel.JobLock(self.path, job_id="same-job").acquire())
+        first.release()
+        self.assertTrue(guard.exists())
+
+    def test_former_owner_cannot_release_a_successor_with_the_same_job_id(self):
+        former = rel.JobLock(self.path, job_id="same-job")
+        self.assertTrue(former.acquire())
+        former_token = former.owner_token
+        former.release()
+
+        replacement = rel.JobLock(self.path, job_id="same-job")
+        self.assertTrue(replacement.acquire())
+        self.assertNotEqual(former_token, replacement.owner_token)
+        former.release()
+        replacement.assert_healthy()
+        self.assertFalse(rel.JobLock(self.path, job_id="same-job").acquire())
+        replacement.release()
+
+    def test_two_processes_with_the_same_job_identity_have_one_owner(self):
+        outcomes = self._contenders(2, job_id="identical-job-id")
+        self.assertEqual(sum(result[0] == "acquired" for result in outcomes), 1)
+        self.assertEqual(sum(result[0] == "busy" for result in outcomes), 1)
+
+    def test_production_heartbeat_renews_during_lock_ownership(self):
+        lock = rel.JobLock(self.path, job_id="render", ttl=0.2, heartbeat_interval=0.02)
+        self.assertTrue(lock.acquire())
+        first = lock.read().heartbeat
+        deadline = time.monotonic() + 2
+        while time.monotonic() < deadline and lock.read().heartbeat <= first:
+            time.sleep(0.01)
+        self.assertGreater(lock.read().heartbeat, first)
+        lock.assert_healthy()
+        lock.release()
+
+    def test_heartbeat_failure_stops_renewal_and_keeps_lock_fail_closed(self):
+        lock = rel.JobLock(self.path, job_id="render", heartbeat_interval=0.01)
+        self.assertTrue(lock.acquire())
+        with mock.patch.object(lock, "_write_metadata", side_effect=OSError("disk unavailable")):
+            deadline = time.monotonic() + 2
+            while time.monotonic() < deadline and lock._heartbeat_error is None:
+                time.sleep(0.01)
+            self.assertIsNotNone(lock._heartbeat_error)
+            with self.assertRaises(rel.LockHeartbeatError):
+                lock.assert_healthy()
+            self.assertFalse(rel.JobLock(self.path, job_id="contender").acquire())
+        lock.release()
+        recovered = rel.JobLock(self.path, job_id="recovered")
+        self.assertTrue(recovered.acquire())
+        recovered.release()
+
+    def test_owner_termination_releases_os_lock(self):
+        ctx = multiprocessing.get_context("spawn")
+        acquired = ctx.Event()
+        process = ctx.Process(target=_lock_owner_wait, args=(str(self.path), acquired))
+        process.start()
+        try:
+            self.assertTrue(acquired.wait(20))
+            process.terminate()
+            process.join(20)
+            self.assertFalse(process.is_alive())
+            recovered = rel.JobLock(self.path, job_id="after-terminate")
+            self.assertTrue(recovered.acquire())
+            recovered.release()
+        finally:
+            if process.is_alive():
+                process.terminate()
+                process.join(10)
+
+    def test_abrupt_process_termination_releases_os_lock(self):
+        ctx = multiprocessing.get_context("spawn")
+        acquired = ctx.Event()
+        process = ctx.Process(
+            target=_lock_owner_wait,
+            args=(str(self.path), acquired),
+            kwargs={"abrupt": True},
+        )
+        process.start()
+        process.join(20)
+        self.assertFalse(process.is_alive())
+        self.assertEqual(process.exitcode, 0)
+        self.assertTrue(acquired.is_set())
+        recovered = rel.JobLock(self.path, job_id="after-kill")
+        self.assertTrue(recovered.acquire())
+        recovered.release()
+
+    def test_sigkill_releases_os_lock_for_recovery(self):
+        ctx = multiprocessing.get_context("spawn")
+        acquired = ctx.Event()
+        process = ctx.Process(target=_lock_owner_wait, args=(str(self.path), acquired))
+        process.start()
+        try:
+            self.assertTrue(acquired.wait(20))
+            process.kill()
+            process.join(20)
+            self.assertFalse(process.is_alive())
+            recovered = rel.JobLock(self.path, job_id="after-sigkill")
+            self.assertTrue(recovered.acquire())
+            recovered.release()
+        finally:
+            if process.is_alive():
+                process.kill()
+                process.join(10)
+
+    def test_corrupt_metadata_does_not_steal_a_live_os_lock_and_recovers_after_exit(self):
+        owner = rel.JobLock(self.path, job_id="owner", heartbeat_interval=30)
+        self.assertTrue(owner.acquire())
+        self.path.write_text("{corrupt", encoding="utf-8")
+        self.assertFalse(rel.JobLock(self.path, job_id="contender").acquire())
+        owner.release()
+
+        recovered = rel.JobLock(self.path, job_id="recovered")
+        self.assertTrue(recovered.acquire())
+        self.assertEqual(recovered.read().owner_token, recovered.owner_token)
+        recovered.release()
+
+    def test_missing_lock_files_are_created_and_recoverable(self):
+        lock = rel.JobLock(self.path, job_id="new")
+        self.assertTrue(lock.acquire())
+        lock.release()
         self.assertTrue(self.path.exists())
+        self.assertTrue(self.path.with_name(self.path.name + ".guard").exists())
+        again = rel.JobLock(self.path, job_id="again")
+        self.assertTrue(again.acquire())
+        again.release()
+
+    @unittest.skipUnless(os.name == "nt", "native LockFileEx is exercised on Windows")
+    def test_windows_lockfileex_serializes_competing_handles(self):
+        first = rel.JobLock(self.path, job_id="windows")
+        self.assertTrue(first.acquire())
+        self.assertFalse(rel.JobLock(self.path, job_id="windows").acquire())
+        first.release()
+        successor = rel.JobLock(self.path, job_id="windows")
+        self.assertTrue(successor.acquire())
+        successor.release()
+
+    @unittest.skipUnless(os.name == "posix", "native flock is exercised on POSIX")
+    def test_posix_flock_serializes_competing_handles(self):
+        first = rel.JobLock(self.path, job_id="posix")
+        self.assertTrue(first.acquire())
+        self.assertFalse(rel.JobLock(self.path, job_id="posix").acquire())
+        first.release()
+        successor = rel.JobLock(self.path, job_id="posix")
+        self.assertTrue(successor.acquire())
+        successor.release()
+
+    def test_concurrent_acquisition_stress_never_has_two_owners(self):
+        outcomes = self._contenders(12, job_id="stress-shared-job")
+        owners = [result[1] for result in outcomes if result[0] == "acquired"]
+        self.assertEqual(len(owners), 1)
+        self.assertEqual(len(set(owners)), 1)
+        self.assertEqual(sum(result[0] == "busy" for result in outcomes), 11)
 
 
 class PreflightTests(unittest.TestCase):

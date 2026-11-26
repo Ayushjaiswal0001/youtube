@@ -5,41 +5,46 @@
     {
       "id": "academic-post-meal-walk",
       "title": "Walk After Eating",
-      "topic": "post-meal walking and blood glucose",
-      "angle": "why a short walk after eating changes the glucose curve",
+      "topic": "post-meal walking and blood glucose in small acute trials",
+      "angle": "what controlled studies show about short walks after meals, and where the evidence stops",
       "slot": "am",
-      "tags": ["health", "glucose", "walking", "evidence"],
-      "sources": [
-        "https://pubmed.ncbi.nlm.nih.gov/?term=postprandial+walking+glucose",
-        "https://www.who.int/news-room/fact-sheets/detail/physical-activity"
+      "tags": [
+        "health",
+        "glucose",
+        "walking",
+        "evidence"
       ],
-      "hook": "Ten minutes of walking after a meal does something a supplement cannot: it moves glucose into muscle.",
-      "hook_headline": "Move, don't supplement",
+      "sources": [
+        "https://pubmed.ncbi.nlm.nih.gov/32173259/",
+        "https://pubmed.ncbi.nlm.nih.gov/27747394/"
+      ],
+      "hook": "Small controlled studies suggest short walks after meals can lower post-meal glucose in the groups and settings tested.",
+      "hook_headline": "A small signal",
       "hook_visual": "walk",
       "beats": [
         {
-          "text": "After you eat, glucose rises in the blood, and insulin signals muscle and fat to take it up.",
-          "headline": "The post-meal rise",
-          "visual": "chart"
+          "text": "A short walk after eating is a way to add movement around a meal; its glucose effect varies by person and study.",
+          "headline": "Movement after meals",
+          "visual": "walk"
         },
         {
-          "text": "Contracting muscle pulls glucose in through a transporter that does not need extra insulin to activate.",
-          "headline": "Muscle as a sink",
-          "visual": "cell"
-        },
-        {
-          "text": "Trials comparing sitting with light walking after meals generally report lower glucose peaks with the walk.",
-          "headline": "What trials show",
+          "text": "In a 10-person crossover trial, three 10-minute walks after meals lowered dinner glucose versus no exercise.",
+          "headline": "One small trial",
           "visual": "bars"
         },
         {
-          "text": "The effect is modest and short-lived, so it complements movement across the day rather than replacing it.",
-          "headline": "Modest, not magic",
+          "text": "A separate trial in 41 adults with type 2 diabetes found lower post-meal glucose when walking followed meals rather than happening once daily.",
+          "headline": "A second group",
+          "visual": "chart"
+        },
+        {
+          "text": "These were short-term studies; they do not establish a cure or replace prescribed diabetes care.",
+          "headline": "What it cannot say",
           "visual": "scale"
         }
       ],
-      "payoff": "If you only change one habit this week, make it a short walk while your food settles.",
-      "payoff_headline": "The smallest change",
+      "payoff": "If it suits your health and routine, a short post-meal walk can be a practical activity break, not a treatment replacement.",
+      "payoff_headline": "A practical option",
       "cta": "Follow for evidence-first health shorts.",
       "cta_headline": "Follow"
     },
@@ -49,7 +54,11 @@
       "topic": "core temperature and sleep onset",
       "angle": "the thermoregulation signal that starts sleep",
       "slot": "am",
-      "tags": ["sleep", "temperature", "evidence"],
+      "tags": [
+        "sleep",
+        "temperature",
+        "evidence"
+      ],
       "sources": [
         "https://pubmed.ncbi.nlm.nih.gov/?term=core+temperature+sleep+onset",
         "https://www.nhlbi.nih.gov/health/sleep"
@@ -90,7 +99,12 @@
       "topic": "slow paced breathing and heart rate variability",
       "angle": "how breathing rate shifts autonomic balance",
       "slot": "am",
-      "tags": ["breathing", "stress", "heart-rate", "evidence"],
+      "tags": [
+        "breathing",
+        "stress",
+        "heart-rate",
+        "evidence"
+      ],
       "sources": [
         "https://pubmed.ncbi.nlm.nih.gov/?term=slow+paced+breathing+heart+rate+variability",
         "https://www.nccih.nih.gov/health/meditation-and-mindfulness"
@@ -131,7 +145,12 @@
       "topic": "protein at breakfast and appetite",
       "angle": "why front-loading protein changes later cravings",
       "slot": "am",
-      "tags": ["nutrition", "protein", "appetite", "evidence"],
+      "tags": [
+        "nutrition",
+        "protein",
+        "appetite",
+        "evidence"
+      ],
       "sources": [
         "https://pubmed.ncbi.nlm.nih.gov/?term=high+protein+breakfast+appetite",
         "https://www.who.int/news-room/fact-sheets/detail/healthy-diet"
@@ -168,83 +187,93 @@
     },
     {
       "id": "academic-daylight-vs-screens",
-      "title": "Morning Light Beats Night Screens",
-      "topic": "light exposure timing and circadian rhythm",
-      "angle": "why morning outdoor light matters more than blue light filters",
+      "title": "Light Timing Helps Set the Body Clock",
+      "topic": "light timing, circadian phase, and evening display exposure",
+      "angle": "what controlled light studies show without promising a universal quick fix",
       "slot": "am",
-      "tags": ["light", "circadian", "sleep", "evidence"],
+      "tags": [
+        "light",
+        "circadian",
+        "sleep",
+        "evidence"
+      ],
       "sources": [
-        "https://pubmed.ncbi.nlm.nih.gov/?term=light+exposure+circadian+phase",
+        "https://pubmed.ncbi.nlm.nih.gov/2267478/",
+        "https://pubmed.ncbi.nlm.nih.gov/36854795/",
         "https://www.nigms.nih.gov/education/fact-sheets/Pages/circadian-rhythms.aspx"
       ],
-      "hook": "Bright light at the wrong time and dim light at the right time both confuse the same clock.",
-      "hook_headline": "One clock",
+      "hook": "Light can shift the body clock, but timing and dose in a study matter.",
+      "hook_headline": "Timing matters",
       "hook_visual": "sun",
       "beats": [
         {
-          "text": "A special set of retinal cells reports light levels to the brain's master clock, separate from image vision.",
-          "headline": "A light sensor",
+          "text": "Light reaching the eyes helps synchronize circadian rhythms, which influence daily sleep and wake timing.",
+          "headline": "Light and the clock",
           "visual": "eye"
         },
         {
-          "text": "Morning light advances the clock and anchors it, which is why outdoor light beats indoor light by a wide margin.",
-          "headline": "Morning anchors it",
+          "text": "A controlled study in 20 people with delayed sleep phase used two hours of bright morning light plus evening light restriction and advanced circadian markers.",
+          "headline": "One studied protocol",
           "visual": "sun"
         },
         {
-          "text": "Bright light late at night delays the clock and pushes sleep later, even when screens look dim.",
-          "headline": "Late light delays",
+          "text": "A 2023 lab study in 72 healthy men found evening display light with lower melanopic irradiance had different sleep and melatonin effects than higher exposure.",
+          "headline": "Screen light, measured",
           "visual": "moon"
         },
         {
-          "text": "Blue light filters reduce some short-wavelength light but do not replace dimming the room and the screen.",
-          "headline": "Filters are partial",
-          "visual": "shield"
+          "text": "Neither study proves that ten minutes outdoors or a blue-light filter works the same for everyone.",
+          "headline": "No universal shortcut",
+          "visual": "scale"
         }
       ],
-      "payoff": "Ten minutes outside in the morning buys more than any filter installed at night.",
-      "payoff_headline": "Go outside first",
+      "payoff": "The evidence supports paying attention to light timing; persistent sleep problems need advice suited to the person, not a one-size-fits-all promise.",
+      "payoff_headline": "Context matters",
       "cta": "Follow for more circadian science.",
       "cta_headline": "Follow"
     },
     {
       "id": "academic-break-up-sitting",
-      "title": "Break Up Your Sitting",
-      "topic": "sitting breaks and metabolic health",
-      "angle": "why short movement breaks matter even with exercise",
+      "title": "Movement Breaks and Post-Meal Glucose",
+      "topic": "brief activity breaks during prolonged sitting and glucose",
+      "angle": "why laboratory findings depend on the group and break protocol",
       "slot": "am",
-      "tags": ["movement", "metabolism", "evidence"],
-      "sources": [
-        "https://pubmed.ncbi.nlm.nih.gov/?term=sitting+breaks+glucose+insulin",
-        "https://www.who.int/news-room/fact-sheets/detail/physical-activity"
+      "tags": [
+        "movement",
+        "metabolism",
+        "evidence"
       ],
-      "hook": "A morning workout does not fully cancel eight unbroken hours in a chair.",
-      "hook_headline": "Exercise is not enough",
+      "sources": [
+        "https://pubmed.ncbi.nlm.nih.gov/27208318/",
+        "https://pubmed.ncbi.nlm.nih.gov/30954561/"
+      ],
+      "hook": "Brief movement breaks can help in some lab studies, but they are not a guaranteed glucose fix for everyone.",
+      "hook_headline": "Depends on the study",
       "hook_visual": "chair",
       "beats": [
         {
-          "text": "Long uninterrupted sitting is associated with worse metabolic markers, independent of planned exercise.",
-          "headline": "Independent risk",
-          "visual": "bars"
+          "text": "Prolonged sitting is linked with health risks, but one activity-break schedule does not fit every person or outcome.",
+          "headline": "A variable signal",
+          "visual": "chair"
         },
         {
-          "text": "Standing or walking for a couple of minutes every half hour lowers post-meal glucose in lab studies.",
-          "headline": "Two minutes, often",
+          "text": "In a crossover trial of 24 inactive adults with type 2 diabetes, three-minute walking or simple resistance breaks every 30 minutes reduced post-meal glucose over an eight-hour lab day.",
+          "headline": "A tested protocol",
           "visual": "clock"
         },
         {
-          "text": "The likely mechanism is repeated muscle contraction restoring glucose uptake after it goes quiet.",
-          "headline": "Muscle goes quiet",
-          "visual": "cell"
+          "text": "A separate trial in healthy sedentary men with central obesity found more frequent interruptions did not reduce post-meal plasma glucose.",
+          "headline": "Not every group",
+          "visual": "bars"
         },
         {
-          "text": "The breaks do not need to be exercise: standing, stairs or a short walk all count as interruption.",
-          "headline": "Interrupt, don't exercise",
-          "visual": "walk"
+          "text": "These short laboratory studies cannot establish the best long-term schedule for everyone.",
+          "headline": "Limits of the evidence",
+          "visual": "scale"
         }
       ],
-      "payoff": "Set a timer for thirty minutes. The point is not the workout, it is the interruption.",
-      "payoff_headline": "Interrupt the chair",
+      "payoff": "Choose activity breaks that fit your situation; they complement, rather than replace, planned exercise and clinical advice.",
+      "payoff_headline": "A practical balance",
       "cta": "Follow for evidence-first health shorts.",
       "cta_headline": "Follow"
     }
