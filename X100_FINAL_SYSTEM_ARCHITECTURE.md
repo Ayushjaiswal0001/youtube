@@ -1,60 +1,62 @@
 # X100 final system architecture
 
-Status basis: GitHub `main` at `01f3abd4078abca30eabbd6822139130121a72d7`; reviewed 2026-11-26. This describes implemented paths and their test/artifact evidence, not a promise that production workflows are enabled.
+Status reviewed 2026-11-26. Verified repository: Ayushjaiswal0001/youtube at D:\X100-youtube. Protected main is b16c4b5fd0d8cd6731d11dde40fc3a7d49b52d8f. PR #22 is merged. The focused reliability/content candidate is commit 7d6ffe0 on codex/fix-joblock-ownership and is not on main; production readiness therefore remains blocked pending review and merge.
 
 ## System boundary
 
-X100 creates a Short and a horizontal episode for each of three configured YouTube channels. GitHub Actions coordinates work; Python generates scripts, narration, artwork/video, captions, package manifests, quality checks, and (only when authorized) private YouTube uploads and scheduled releases. It uses no paid API in the documented configuration. Real scheduled public release has not yet been validated.
+X100 builds Shorts and horizontal episodes for Nexus Node, Academic Biohacker, and Natkhat Toons. Python selects authored content, generates narration and captions, renders video, applies technical/editorial gates, packages artifacts, and can request private YouTube uploads and timed releases when authorized. Actual public scheduled delivery has not been proven. The configured path has no paid API dependency; it still relies on GitHub Actions, YouTube quotas, and external runtimes.
 
-## Main components
+## Components
 
-| Component | Responsibility | Main files |
+| Area | Responsibility | Main paths |
 | --- | --- | --- |
-| Channel and runtime configuration | Validates identities, language, format, profile, publication policy, paths, and release time | `channels/*.json`, `factory/config.py`, `uploader/config.py` |
-| Content planning | Selects unused topic-bank entries, authored long-form plans, or Natkhat series episodes; checks availability and order | `content/topics/*.json`, `content/longform/*.json`, `content/series/natkhat-toons.json`, `factory/content/*`, `factory/cli.py` |
-| Script and voice | Builds channel-language scripts, voices, word timings, descriptions, tags, and local SRT captions | `factory/content/script.py`, `factory/media/tts.py`, `factory/media/captions.py` |
-| Rendering | English plate/card engine; Hindi character/stage renderer; horizontal and vertical profiles | `factory/media/*`, `studio/pipeline/*`, `studio/animation/*` |
-| State and recovery | Run ledger, resumable jobs/scenes, locks, pause flags, upload history and duplicate protection | `factory/state.py`, `factory/orchestrator.py`, `factory/controls.py`, `pipeline_state/` |
-| Quality and packaging | Technical QC, creative QC when supported, manifest generation, publishing gate | `factory/qa/*`, `tools/*` |
-| YouTube boundary | Channel identity checks, credentials, private upload, upload ledger, schedule read-back | `factory/publisher.py`, `uploader/*` |
-| CI and orchestration | Independent short/long jobs, content availability, policy checks, artifact retention and summaries | `.github/workflows/produce-*.yml`, `.github/workflows/produce.yml` |
+| Configuration | Channel identity, format, schedule policy, paths, language | channels/*.json, factory/config.py, uploader/config.py |
+| Content | Topic banks, long plans, ordered Natkhat episodes, availability | content/topics/*.json, content/longform/*.json, content/series/*, factory/content/* |
+| Script and media | Script shaping, voice, word timing, local SRT, rendering | factory/content/script.py, factory/media/*, studio/pipeline/* |
+| State and recovery | Job journal, run history, plan state, pause flags, duplicate ledger | factory/state.py, factory/orchestrator.py, factory/controls.py, pipeline_state/ |
+| Lock ownership | One process per channel/plan in a shared filesystem; heartbeat and recovery | factory/reliability.py |
+| QC and packaging | Geometry, duration, loudness, captions, creative checks, manifest, release gate | factory/qa/*, tools/* |
+| YouTube boundary | Channel identity, private upload, schedule request and metadata read-back | factory/publisher.py, uploader/* |
+| CI and orchestration | Daily/manual entrypoints, per-format concurrency, security/test jobs | .github/workflows/produce.yml, production.yml, ci.yml, security.yml |
 
 ## Production path
 
-```text
-channel policy + plan bank
-          │
-          ├─ availability and pause checks
-          ├─ plan/script/voice
-          ├─ render + captions + thumbnail
-          ├─ technical QC ─ manifest ─ publishing gate
-          └─ package ─ channel identity ─ private upload
-                                      └─ publishAt request ─ YouTube status read-back
-```
+    channel policy + plan
+      -> pause and availability checks
+      -> lock acquisition before shared journal changes
+      -> script, voice, rendering and captions
+      -> technical QC and creative checks
+      -> manifest and publishing gate
+      -> channel identity and private upload, only when authorized
+      -> publishAt request and YouTube status read-back
 
-Each channel workflow starts distinct `short` and `long` jobs. A plan exhaustion is a content gap and skips downstream production; a blocked plan or failed gate is a run failure. Upload authorization combines the workflow input, channel policy, content availability, credentials, identity check, gate, and code-level environment guard. Scheduling has a separate `FACTORY_ALLOW_SCHEDULE` guard. `allow_public_upload` is false in all channel JSON files.
+A computed release time is a request value, not proof of a stored schedule. The uploader requires read-back verification in code; the audit did not perform a live YouTube upload or inspect live pending schedules.
 
-The file lock checks a same-host process without signaling it. POSIX uses the zero-signal PID probe; Windows uses a waitable process handle because `os.kill(pid, 0)` generates a console Ctrl+C event there. Unknown Windows process-access results keep the lock live, preferring a blocked run over stealing a possibly active lock.
+## Ownership and concurrency
 
-After an upload with `publishAt`, `verify_schedule()` refreshes the API client and reads status back. A missing, mismatched, or unreadable release time fails closed; it is not reported as verified. The uploaded video remains private if scheduling did not take. This has been exercised with mocks; YouTube's behavior on a real scheduled activation remains unproven.
+JobLock now takes an OS-held byte-range lock on a stable .guard file: flock on POSIX and LockFileEx on Windows. A unique owner token identifies each acquisition. The heartbeat writes diagnostic metadata every 30 seconds in production; heartbeat age cannot override an OS lock. Acquisition happens before the shared job journal is read or changed. The renderer checks lock health before packaging and before READY_TO_PUBLISH. False acquisition raises LockBusy without invoking the renderer or mutating the journal.
 
-## Formats and channel-specific renderer
+GitHub Actions serializes production jobs by channel and format and does not cancel the active render. Short and horizontal work remain independent. GitHub concurrency allows one running and one pending run per group; it is not an unbounded queue. The OS lock protects concurrent processes sharing the same filesystem. Correctness on a network filesystem depends on its lock implementation and was not separately tested.
 
-| Channel | Short | Horizontal path | Identity constraints |
-| --- | --- | --- | --- |
-| Nexus Node | English system/AI plates, 1080×1920 | English card renderer, 1920×1080 | Dark navy technical diagrams and data plates |
-| Academic Biohacker | English evidence briefs, 1080×1920 | English card renderer, 1920×1080 | Evidence-first health/neuroscience; claims need specific sources and appropriate qualifications |
-| Natkhat Toons | Hindi character animation, 1080×1920 | Hindi stage renderer, 1920×1080 | Chiku/Gappu continuity; made-for-kids is forced true |
+## Channel and format paths
 
-Representative downloaded GitHub Actions artifacts were independently probed and decoded for both formats on all three channels. The Natkhat 16:9 sample is 64.5 seconds: technically valid for the configured horizontal render path, but too short to represent substantial long-form content.
+| Channel | Short | Horizontal |
+| --- | --- | --- |
+| Nexus Node | English technical cards, 1080x1920 | English cards and diagrams, 1920x1080 |
+| Academic Biohacker | English evidence briefs, 1080x1920 | English evidence cards, 1920x1080 |
+| Natkhat Toons | Hindi character animation, 1080x1920 | Hindi stage renderer, 1920x1080 |
 
-## State transitions and recovery
+Natkhat configuration forces madeForKids=true. That is a platform setting, not a full child-safety certification.
 
-The factory records job state and run history under `pipeline_state/`, and outputs under `build/<channel>/<plan>/` (the Hindi path may include a channel prefix). `resume` reuses completed work and regenerates missing/invalid render fragments. The duplicate ledger keys uploads by artifact hash, while the scheduled-release guard is scoped per plan so two formats may share a channel release instant. Cleanup is dry-run by default and excludes active or unreleased work.
+## Evidence boundary
 
-## Entry points
+Seven preserved local videos were probed and fully decoded: six channel/format examples plus one additional Nexus Short. Geometry, frame rate, encoded AAC, silence/black/freeze thresholds, and SRT timing are summarized in X100_FINAL_QUALITY_AUDIT.md. These are sampled artifacts, not proof of every future plan. No audio listening review or live scheduled release verification was performed.
 
-- Operator commands and emergency controls: [X100_PRODUCTION_OPERATIONS_GUIDE.md](X100_PRODUCTION_OPERATIONS_GUIDE.md)
-- Current supported limits: [X100_KNOWN_LIMITATIONS.md](X100_KNOWN_LIMITATIONS.md)
-- Current release evidence and scorecard: [X100_FINAL_PRODUCTION_CLOSURE_REPORT.md](X100_FINAL_PRODUCTION_CLOSURE_REPORT.md)
-- Prior implementation detail (dated historical report): [X100_POST_MERGE_PRODUCTION_READINESS_REPORT.md](X100_POST_MERGE_PRODUCTION_READINESS_REPORT.md)
+## Operations and follow-up
+
+- Current production evidence and final verdict: X100_FINAL_PROJECT_COMPLETION_REPORT.md
+- Lock design and process tests: X100_LOCK_RELIABILITY_REPORT.md
+- Operator procedures and stop commands: X100_PRODUCTION_OPERATIONS_GUIDE.md
+- Owner-controlled preflight and activation boundary: X100_FINAL_ACTIVATION_HANDOVER.md
+- Remaining limits: X100_KNOWN_LIMITATIONS.md
+- Current closure snapshot: X100_FINAL_PRODUCTION_CLOSURE_REPORT.md

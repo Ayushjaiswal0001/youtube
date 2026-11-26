@@ -1,67 +1,58 @@
 # X100 final activation handover
 
-Date: 2026-11-26 (IST)
+Status date: 2026-11-26
+Verified repository: Ayushjaiswal0001/youtube
+Current main: b16c4b5fd0d8cd6731d11dde40fc3a7d49b52d8f
+Reliability candidate: 7d6ffe0 on codex/fix-joblock-ownership, awaiting PR/owner review
 
-## A. Current repository state
+## Handover state
 
-- Repository: `Ayushjaiswal0001/youtube`, cloned in isolation to `D:\X100-youtube` because `D:\animated` is an unrelated working tree with user changes.
-- Current `main`: `01f3abd4078abca30eabbd6822139130121a72d7`, merge commit for PR #21.
-- PR #21 is merged. Its checks were green before merge. A new CI run on the merge commit failed one factory test; the security workflow passed.
-- Focused branch: `codex/fix-publishing-policy-clock-test`. [PR #22 is open](https://github.com/Ayushjaiswal0001/youtube/pull/22), merge state `CLEAN`, awaiting owner review. Latest PR CI and security checks passed after the documentation refresh: 1,375 factory tests passed, 2 skipped; uploader's 77 tests passed on both Python 3.11 and 3.12; all four security jobs passed. The duplicate push-triggered runs also passed. The original exhaustive local suite passed 1,451 tests with 5 successful subtests; the 3 added auditor tests passed separately.
-- All three publishing workflows were freshly checked with `gh workflow list --all`: `nexus-node daily`, `academic-biohacker daily`, and `natkhat-toons daily` are `disabled_manually`.
+PR #22 is merged as b16c4b5. Main CI run 45705546332 and security run 45705546316 succeeded. The new JobLock fix is not merged and must receive a focused PR, owner review, Ubuntu POSIX lock coverage, successful PR CI/security, and protected merge before production readiness can advance. No production workflow was enabled, dispatched, uploaded, or scheduled in this audit.
 
-## B. Defect and fix status
+All three daily workflows are currently disabled_manually. The production (manual) workflow is active but idle. There are no Actions runs in progress. The local pause check reads paused=false; GitHub Actions variables access returned 403, so runner/account pause state is owner-dependent. No OAuth value, live channel identity, or live YouTube pending schedule was checked.
 
-Merge-commit CI run `45655992920` failed only `test_publish_looks_up_the_release_for_its_own_plan`. The test used a fixed release date but did not freeze the resolver clock, making it fail after the 90-minute late grace. The resolver behaved safely and refused the missed release. The focused test now pins the resolver to before the configured release. Local Windows testing also found and fixed the `os.kill(pid, 0)` lock-check bug, which generated Ctrl+C on Windows, and stabilized a second publishing test around the IST midnight boundary. Security review also found a high-confidence shell injection path from manual `plan_id` input into the credential-bearing upload command. The branch normalizes plan IDs before writing step outputs, removes raw input serialization, and passes step outputs through environment variables. The workflow auditor now checks multiline `run:` scripts; its new 3-test module passes. PR #22 and duplicate push CI runs are green; owner review is pending.
+## Nexus Node: owner preflight summary
 
-## C. Fresh channel/config preflight
+| Item | Current evidence |
+| --- | --- |
+| Workflow | nexus-node daily |
+| Current state | disabled_manually |
+| Cron | 30 12 * * * UTC |
+| Next actual run | None while disabled |
+| Next nominal occurrence if enabled | 2026-11-27, start 18:00 IST |
+| Nominal release | 20:00 IST; calculated policy time, not verified YouTube metadata |
+| Expected formats | Short and horizontal, independent jobs |
+| Local isolated availability query | Short nexus-power-grid; horizontal long-nexus-power-grid |
+| Pause | Local check false / none; GitHub runner state not verified |
+| Duplicate protection | Local plan/hash and release guards are in code; live GitHub/YouTube duplicate state not verified |
+| Upload and schedule guards | allow_public_upload=false in channel policy; workflow and code guards require explicit inputs and gate; schedule read-back is required by code |
+| Account/channel identity | Not verified against live YouTube; owner-dependent |
 
-| Channel | Configured policy | Cron UTC → IST start | Configured release IST | Live workflow |
-| --- | --- | --- | --- | --- |
-| Nexus Node | scheduled; scheduled upload; shift; 90-minute grace; 15-minute minimum lead | `30 12 * * *` → 18:00 | 20:00 | disabled_manually |
-| Academic Biohacker | scheduled; scheduled upload; shift; 90-minute grace; 15-minute minimum lead | `30 4 * * *` → 10:00 | 12:00 | disabled_manually |
-| Natkhat Toons | scheduled; scheduled upload; shift; 90-minute minimum lead; made-for-kids forced true | `30 10 * * *` → 16:00 | 18:00 | disabled_manually |
+The local availability result uses isolated temporary state and does not prove production cache, reservation, duplicate, or YouTube state. The production workflow also builds the Academic and Natkhat channels on their own schedules; do not interpret the three disabled schedules as a complete account-level pause proof.
 
-Read-only plan commands found four unused topic entries each for Nexus and Academic, and six authored Natkhat Shorts across its three remaining Haveli episodes plus three Jungle episodes. The next Natkhat Short is `natkhat-haveli-e4`. There is one authored horizontal plan per channel. All six format/channel combinations report a plan available now. This is local repository state, not a promise that a plan is still available when the cron fires.
+## Required owner-controlled steps
 
-The read-only local pause check returned `paused: false`, scope `none`. The production runner's pause state, actual YouTube pending releases, live duplicate state, and OAuth capability were not independently inspected. No secrets were read. Prior reports' “not paused/no pending” statements remain historical until checked in an authorized runtime.
+1. Review the focused JobLock/content PR after it is opened. Confirm required reviewers, security findings, Windows and POSIX CI, and the final changed files.
+2. Merge only through the protected PR process if the owner accepts the change. No merge was performed here.
+3. Verify main contains the merge and its CI/security checks are green.
+4. Render fresh versions of academic-post-meal-walk and nexus-data-wall from corrected copy. Review narration, frames, AAC, SRT, and release gate. The preserved older files still contain copy that should not be released.
+5. Run a fresh read-only preflight: confirm global and channel pause state, plan availability, duplicate reservations, upload ledger, channel/account identity, policy, and pending YouTube releases. Use only approved non-secret identity/status checks. The current API variable read returned 403.
+6. Obtain the owner's explicit activation approval. Then enable Nexus alone:
 
-## D. Nexus next-run calculation
+    gh workflow enable "nexus-node daily" --repo Ayushjaiswal0001/youtube
 
-At the audit date of 2026-11-26, if any daily workflow is enabled, the next configured start is Academic Biohacker at **2026-11-26 10:00 IST**, followed by Natkhat at 16:00 and Nexus at 18:00. The Nexus release is **2026-11-26 20:00 IST**, requested as `publishAt=2026-11-26T14:30:00Z`. All three workflows are currently disabled, so these are configuration times, not live scheduled runs.
+7. Observe the actual workflow. Verify each expected format, channel identity, upload outcome, video IDs, schedule_verified result, and the matching publishAt stored by YouTube. Keep private and escalate if verification fails.
+8. Consider Academic only after Nexus has been independently verified. Consider Natkhat only after Academic is independently verified.
 
-The workflow's Short and horizontal jobs run independently. Both should check availability, render/resume, pass QC, manifest and publishing gate, then upload privately. `verify_schedule()` must read back the actual `publishAt` and only report success on a matching value. There has not yet been a production scheduled-release activation proving YouTube honors this request.
+The enable command above is prepared for the owner and was not executed.
 
-## E. Owner activation boundary
+## Emergency stop
 
-Do not enable or dispatch a workflow while the merge-commit CI failure remains unresolved, the current PR checks are pending, or the focused changes are unreviewed. After the branch checks are green and the owner reviews and merges the PR, verify main contains the fixes, Nexus remains disabled, and current runtime state/content are clear. Only then—after explicit owner approval—enable Nexus alone:
+    python -m factory.cli pause
+    gh workflow disable "nexus-node daily" --repo Ayushjaiswal0001/youtube
 
-```powershell
-gh workflow enable "nexus-node daily" --repo Ayushjaiswal0001/youtube
-```
+Use the corresponding disable command for another channel if it is the affected schedule. A disable does not terminate a currently running job and neither command removes a publishAt already stored at YouTube. Cancel an active Actions job and inspect YouTube Studio under owner authority when required. Resume only after the owner confirms the incident is resolved:
 
-This task did not enable, dispatch, upload, or schedule anything. Do not activate Academic Biohacker or Natkhat automatically.
+    python -m factory.cli pause --resume
 
-## F. Emergency stop
-
-```powershell
-gh workflow disable "nexus-node daily" --repo Ayushjaiswal0001/youtube
-python -m factory.cli pause
-```
-
-The first stops future Nexus triggers; the second creates the global pause flag. `pause --channel all --reason ...` is not valid: this CLI has no `--reason`, and `--channel all` is not the global pause. Disabling a workflow does not stop a running job or cancel a YouTube schedule that already exists. Use run cancellation and YouTube Studio for those states.
-
-## G. First-run evidence to require
-
-In Actions: schedule trigger only; both format jobs; expected channel and plans; availability true; render, QC, manifest, gate, and package pass; private uploads and channel identity checks pass; `schedule_verified=true`; no duplicate or unexpected immediate publication.
-
-In YouTube metadata/Studio: inspect both video IDs on the intended channel, confirm `privacyStatus=private` before release and the exact `publishAt=2026-11-26T14:30:00Z`. Preserve Actions and metadata evidence. Mark Nexus validated only after YouTube confirms the scheduled state. A mismatch is a stop-and-investigate event; keep the video private.
-
-## H. Owner actions
-
-1. Review the publishing-policy, Windows lock portability, shell-injection, and content-source fixes; wait for final branch CI.
-2. Merge the focused PR only after review and green checks; no merge has been requested or performed here.
-3. Run a fresh runtime preflight for pause state, pending releases, duplicate plans, and content availability without exposing secret values.
-4. Decide whether to accept the thumbnail, caption, schedule-modification, and finite-content limitations in [X100_KNOWN_LIMITATIONS.md](X100_KNOWN_LIMITATIONS.md).
-5. Give explicit approval before the Nexus enable command.
-6. Inspect and verify the first Nexus run before considering another channel.
+See X100_PRODUCTION_OPERATIONS_GUIDE.md for scoped pause and recovery commands.

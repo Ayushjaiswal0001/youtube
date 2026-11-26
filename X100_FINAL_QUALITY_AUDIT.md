@@ -1,48 +1,85 @@
 # X100 final quality audit
 
-Audit window: 2026-11-25–26. Repository: `Ayushjaiswal0001/youtube`; base `main` `01f3abd4078abca30eabbd6822139130121a72d7`; fix branch `codex/fix-publishing-policy-clock-test`.
+Audit date: 2026-11-26
+Repository: Ayushjaiswal0001/youtube, checkout D:\X100-youtube
+Protected main: b16c4b5fd0d8cd6731d11dde40fc3a7d49b52d8f
+Reliability/content candidate: 7d6ffe0 on codex/fix-joblock-ownership; not merged
 
-## Test and CI evidence
+This report distinguishes live GitHub evidence from local tests and preserved sample artifacts. All media listed below is local under D:\X100-youtube\audit-artifacts and remains unmodified.
 
-- Merge-commit CI run `45655992920` failed in `factory (plan + publish gates)` after 1,371 passed, 2 skipped, and 1 failed in that job. Six other merge-commit checks passed; the security run passed all four jobs.
-- Failure: `test_publish_looks_up_the_release_for_its_own_plan` used the actual clock with a fixed November 25 20:00 IST release. CI reached it more than 90 minutes after that instant, so the production resolver correctly refused the late release and the test's expectation was invalid.
-- The test is now isolated from wall-clock time by invoking the real resolver at a fixed time before its intended release. The focused test passed locally on Python 3.12.7 / Windows 11: `1 passed in 0.81s`.
-- The same local regression run exposed `os.kill(pid, 0)` interrupting Windows when the lock check examined a live process. `factory/reliability.py` now checks a waitable Win32 process handle and treats uncertain access as live. `tests/factory/test_reliability.py`: 38 passed in 2.06s after the fix.
-- A second publishing-policy test failed near midnight because it used the wall clock and represented the previous day's time as an ambiguous time-only value. It now pins the real resolver to 20:05 IST and passed with the full file: 36 passed in 3.01s.
-- Original exhaustive local suite: 1,451 passed, 0 failed, 0 skipped, and 5 successful subtests across six disjoint module batches; cumulative runtime 1,009.88 seconds. The final collection is 1,454 tests across 82 modules; the 3 added workflow-auditor tests passed separately.
-- PR #22's latest completed documentation-head CI and security runs passed. Factory tests reported 1,375 passed and 2 skipped in 333.23 seconds on the PR run and 386.49 seconds on the duplicate push run. Uploader unit tests passed all 77 tests on Python 3.11 and 3.12. Both security runs passed all four jobs. These runs validated the unchanged executable source.
+## Repository, PR, and CI
 
-## Security workflow review
+PR #22, head 6c52d38ac48963f9a37d1aadd5139e0e3453d768, merged 2026-11-25 into main as b16c4b5fd0d8cd6731d11dde40fc3a7d49b52d8f. Latest main CI run 45705546332 and security run 45705546316 completed successfully on that merge SHA. CI evidence includes factory, uploader Python 3.11/3.12, workflow permission/pinning, dependency audit, Gitleaks, and secret/history scans.
 
-- Completed Standard review `809f271b-0654-454a-9ea3-c7579717dada` found one high-confidence CWE-78 in its pre-fix working-tree snapshot: manually supplied `plan_id` was emitted as a workflow step output and interpolated into Bash source in the credential-bearing upload step.
-- The focused branch normalizes the ID with `slugify` before writing it as output, no longer writes the raw dispatch input to `GITHUB_OUTPUT`, and passes step outputs through environment variables instead of embedding them in shell source. The scanner was also fixed to inspect multiline `run:` scripts; three new regression tests pass.
-- Current checks: `python -m tools.workflow_audit` — 7 workflows, 0 findings; `python -m tools.secret_scan` — 0 findings; reusable workflow YAML parse — passed. PR CI and all four security jobs passed; the pre-fix scan itself remains a historical snapshot rather than a post-remediation scan.
-- The base security workflow passed run `45655992820`, though its previous audit missed this multiline shell interpolation. OAuth values were not inspected. Daybreak access was not granted, no independent reviewer was assigned, and pip-audit was not rerun locally.
+A separate local candidate commit 7d6ffe0 fixes JobLock ownership and corrects authored topic source/copy. Its CI and independent review are pending a focused PR. PR #2 remains open on a stale base and was not modified.
 
-## Production artifacts inspected
+## Local software checks
 
-Downloaded GitHub Actions artifacts for a Short and a horizontal episode for each channel, plus a second Nexus Short. Probed with FFprobe 8.0.1, decoded through FFmpeg, sampled five frames across each video, and independently measured encoded audio using FFmpeg EBU R128.
+- Full suite: 1,469 passed, 1 skipped, 5 subtests passed in 1,054.07 seconds, Python 3.12.7 on Windows. Isolated temporary state/build/log roots were used.
+- Focused lock, orchestration, and workflow regression run: 114 passed, 1 skipped in 18.97 seconds.
+- After source/copy corrections, content planning, availability, lookup, creative QC, and long-form planning: 78 passed in 6.04 seconds.
+- Python compilation and git diff whitespace checks passed.
+- Workflow auditor: 7 workflows, 0 findings.
+- Secret scanner: 14 rules, 0 findings, none at or above high.
+- Gitleaks redacted working-diff scan: 0 leaks.
+- Dependency audit: 0 blocking, 0 accepted, 0 findings.
+- The local full suite ran before the content-only JSON correction; the focused content suite ran after that correction. Branch CI must validate the final PR tree. POSIX flock coverage is skipped locally on Windows.
 
-| Channel / format | Representative artifact | Duration | Geometry / fps | Encoded loudness / true peak | Visual sample assessment |
-| --- | --- | ---: | --- | --- | --- |
-| Nexus Short | `nexus-data-wall` | 41.967 s | 1080×1920 / 30 | −14.2 LUFS / −2.5 dBTP | Distinct technical plates; title and timed captions remained inside the frame |
-| Nexus horizontal | `long-nexus-power-grid` | 214.067 s | 1920×1080 / 30 | −14.1 LUFS / −2.3 dBTP | Clear chapter-card hierarchy, readable captions, varied diagrams |
-| Academic Short | `academic-post-meal-walk` | 38.367 s | 1080×1920 / 30 | −14.2 LUFS / −2.3 dBTP | Evidence-paper palette and relevant chart/pictogram scenes; caption line breaks should be reviewed at handset scale |
-| Academic horizontal | `long-academic-study-protocol` | 218.933 s | 1920×1080 / 30 | −14.3 LUFS / −2.1 dBTP | Clear card and diagram layouts; dense paragraphs in some cards are small at preview size |
-| Natkhat Short | `natkhat-haveli-e1` | 32.100 s | 1080×1920 / 30 | −14.1 LUFS / −1.4 dBTP | Hindi captions and character identity visible; intentionally dark haunted setting, with adequate contrast in inspected frames |
-| Natkhat horizontal | `natkhat-haveli-stage-e1` | 64.500 s | 1920×1080 / 30 | −14.1 LUFS / −1.4 dBTP | Character poses and Hindi subtitle band vary across scenes; repeated background is intentional but scene variety is limited |
+## Actual video, frame, and audio checks
 
-FFmpeg reported no decode errors for the six inspected files. The bundled QC and publishing-gate JSONs for the artifacts also report passing checks; see the specific artifacts and job runs rather than inferring this from filenames. The loudness results above are measurements from the downloaded encoded AAC tracks, not source WAV files. True peaks are below the project −1 dBTP gate; Natkhat has the smallest headroom.
+Seven preserved artifacts were inspected: six channel/format examples and an additional Nexus Short. FFprobe confirmed H.264 video at 30 fps, AAC stereo at 44.1 kHz, and zero audio start offset. FFmpeg fully decoded all seven with exit code 0. At blackdetect duration >=1 second and pixel threshold 0.10, no black events were found. At freezedetect threshold -60 dB and duration >=2 seconds, no freeze events were found.
 
-The images establish representative visual appearance, not full-resolution human review of every frame. The short Natkhat episode is a story sample, not a complete child-safety certification. Separate YouTube caption-track attachment is not demonstrated; local SRT and burned-in captions are separate capabilities.
+| Artifact | Duration | Geometry | AAC integrated loudness | AAC true peak | SRT cues |
+| --- | ---: | --- | ---: | ---: | ---: |
+| Academic horizontal, long-academic-study-protocol | 218.933 s | 1920x1080 | -14.36 LUFS | -2.12 dBTP | 94 |
+| Academic Short, academic-post-meal-walk | 38.366 s | 1080x1920 | -14.22 LUFS | -2.31 dBTP | 17 |
+| Natkhat horizontal, natkhat-haveli-stage-e1 | 64.500 s | 1920x1080 | -14.04 LUFS | -1.44 dBTP | 21 |
+| Natkhat Short, natkhat-haveli-e1 | 32.100 s | 1080x1920 | -14.02 LUFS | -1.40 dBTP | 10 |
+| Nexus horizontal, long-nexus-power-grid | 214.067 s | 1920x1080 | -14.13 LUFS | -2.34 dBTP | 97 |
+| Nexus Short, nexus-data-wall | 41.966 s | 1080x1920 | -14.22 LUFS | -2.55 dBTP | 18 |
+| Additional Nexus Short, nexus-eval-problem | 32.667 s | 1080x1920 | -14.43 LUFS | -2.44 dBTP | 16 |
 
-## Content/editorial findings
+Every measured encoded AAC true peak is below the project -1 dBTP ceiling. Integrated loudness ranges from -14.43 to -14.02 LUFS. Audio and video durations differ by at most 0.035 seconds; all audio starts at 0.000 seconds. A -50 dB / 0.8-second silence scan found three 0.800–0.817 second intervals in the Natkhat horizontal audio. These may be dialogue pauses; they were not listened to. No subjective listening check was available, so voice completeness, naturalness, music balance, and abrupt audible endings are not certified.
 
-- Sample scripts preserve distinct channel identities and their language settings. Natkhat dialogue is Hindi and child-appropriate in the inspected sample; no harmful content was found in that sample.
-- Academic scripts use qualifying language, but some source fields are broad search or institution landing pages rather than direct study links. A reviewed health Short cites a PubMed search and WHO activity page; evidence traceability should be improved for future topics.
-- Corrected the available Nexus evaluation Short on this branch: it now describes contamination as a risk (“can be misleading”), recommends held-out workload examples as a complement to public comparisons, and links directly to the primary contamination study at `https://arxiv.org/abs/2310.18018` plus Stanford HELM. The broader bank still contains some search and institution landing-page sources, so future plan claims need source-level review.
-- Historical QC warnings (for example missing dataviz when scripts contain no quantitative claim) are warnings, not suppressed failures.
+Each video has a local UTF-8 SRT. All seven parsed with no malformed blocks, no overlapping cues, and the last cue ends before video end. Maximum displayed line length is 46 characters for English samples and 38 for Natkhat. Five representative frames per video were sampled from preserved contact sheets; no obvious crop, text overflow, missing asset, or subtitle-band placement defect was seen. This is a sample check, not complete frame-by-frame review. Academic horizontal cards have dense small text in places. Natkhat uses a deliberately dark haunted setting and repeated stage backgrounds. No child-safety certification was performed. Burned-in captions and local SRT do not establish the presence of YouTube caption tracks.
 
-## Coverage limits
+The seven videos total 133,280,859 bytes. A machine snapshot during the audit showed 7.88 GiB total RAM and 1.70 GiB free, and D: had 24.04 GiB free of 30.66 GiB. This is a host-capacity snapshot, not a measured per-render peak. Peak CPU/RAM, exact contention latency, and exact crash-recovery time were not measured.
 
-GitHub artifacts provide six independently inspectable channel/format samples, but do not prove every script, every frame, every future plan, or actual YouTube scheduled-public behavior. Manual full-resolution frame-by-frame review, long-run reliability over repeated daily releases, and real scheduled-release verification remain outside the evidence collected here.
+## Editorial and source audit
+
+The candidate updates the topic bank and matching batch copies with direct evidence and narrower claims:
+
+- Post-meal walking: a 10-person acute crossover trial and a 41-person type 2 diabetes timing trial; no supplement comparison or treatment promise.
+- Circadian light: direct studies of bright morning light in a defined delayed-sleep-phase group and melanopic evening display exposure in 72 healthy men; no universal ten-minute result or blanket filter claim.
+- Sitting breaks: a 24-person type 2 diabetes activity-break trial and a separate negative result in healthy sedentary men with central obesity; no universal two-minute schedule.
+- Open weights: model-card documentation and Stanford HELM; no unsupported claim that open models follow closed models by a fixed number of months.
+- On-device inference: current MLPerf Mobile and model-compression documentation; removes unqualified privacy and hardware-throughput promises.
+- Data-centre power: IEA plus a direct 2026 Berkeley Lab grid-connection report; the constraint is described as region- and project-dependent.
+- Robot video: direct 2025 preprint, explicitly scoped as one research result rather than a general capability.
+- Data-wall forecast: a direct 2024 analysis and related preprint; projections are identified as conditional estimates.
+
+Two preserved videos predate the copy/source corrections and were not rewritten: academic-post-meal-walk retains the supplement contrast, and nexus-data-wall has a title/hook that states a forecast as a present shortage. Neither should be released without a fresh render from corrected copy and another editorial check. This audit does not alter or delete the preserved audit artifacts.
+
+## Channel and content coverage
+
+All six channel/format combinations returned an available plan in an isolated read-only query. The current content bank remains short:
+
+| Channel | Unused Short topics | Authored horizontal plans | Editorial/capacity note |
+| --- | ---: | ---: | --- |
+| Academic Biohacker | 2 | 1 | Minimum +5 Shorts and +6 horizontal plans for seven unique daily pairs |
+| Nexus Node | 4 | 1 | Minimum +3 Shorts and +6 horizontal plans for seven unique daily pairs |
+| Natkhat Toons | 6 across Haveli and Jungle | 1 | Minimum +1 Short and +6 horizontal plans; current horizontal sample is only 64.5 seconds and needs a substantial authored story |
+
+These are arithmetic minimums for a seven-day bank at one Short plus one horizontal episode daily; no additional content was generated. Available local work does not prove that GitHub or YouTube state has no reservation, duplicate, or pending release.
+
+## Publishing and operational verification
+
+At the time of the audit, all three daily workflows were disabled_manually; the manual production workflow was active but idle. No Actions runs were in progress. Main CI/security evidence is historical to the verified main SHA; the new candidate PR has not yet run. The local pause check returned paused=false, scope=none. A GitHub Actions variables API read returned 403, so runner/account pause state is owner-dependent.
+
+Historical manual production run 45625058307 completed render/resume in about 16m31 and the full job in about 17m56; its upload steps were skipped. A separate prior measurement recorded 3,008 seconds for an 11-beat horizontal render. These are different measurements. Configured job budgets are 60 minutes for Shorts and 120 minutes for horizontal videos. No video was uploaded or scheduled in this audit. No YouTube live channel identity, stored publishAt, or pending-release read-back was performed.
+
+## Limitations and verdict
+
+The local samples pass the numeric geometry/audio/caption checks above, but subjective audio review, full-resolution frame review, child-safety certification, every-plan editorial review, and YouTube live schedule proof remain absent. The authored bank cannot support the current daily two-format cadence beyond a small number of days. JobLock is fixed only on candidate commit 7d6ffe0; protected main still needs review, merge, and green CI.
+
+See X100_FINAL_PROJECT_COMPLETION_REPORT.md for the A-T completion report and X100_FINAL_ACTIVATION_HANDOVER.md for the owner-controlled next steps.
