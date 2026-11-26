@@ -36,12 +36,13 @@ ready to publish.
 
 ## Staged production gate
 
-The proposed channel configuration sets `production_enabled=true` for Nexus Node and Academic Biohacker,
-and `production_enabled=false` for Natkhat Toons. The reusable workflow checks that gate immediately after
-checkout and before dependency installation, planning, rendering, credential export, upload, or scheduling.
-The local `pause_state` and publishing-policy reports also honor it. This permits the verified Nexus and
-next Academic stages while keeping Natkhat held until its turn. It takes effect on GitHub only after the
-proposed code change is merged.
+The proposed channel configuration sets `production_enabled=true` only for Nexus Node. Academic Biohacker
+and Natkhat Toons remain disabled until their respective review and activation turns. The reusable workflow
+checks that gate immediately after checkout and before dependency installation, planning, rendering,
+credential export, upload, or scheduling. The local `pause_state` and publishing-policy reports also honor
+it. Nexus is verified live; Academic still needs the requested audio review before activation, and Natkhat
+remains held until its later turn. The gates take effect on GitHub only after the proposed code change is
+merged.
 
 The GitHub daily workflows themselves remain active. Anyone needing them fully disabled before the code
 change is merged must use an account with Actions administration rights to disable them in GitHub.
