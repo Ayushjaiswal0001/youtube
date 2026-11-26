@@ -1,0 +1,522 @@
+"""Illustrated scene treatments adapted from the user's Nafay 3D style references.
+
+These are complete moving compositions around the planned visual, rather than an animated
+transition on a fixed slide. All layout and texture randomness is deterministic per scene.
+"""
+
+from __future__ import annotations
+
+import math
+import random
+from functools import lru_cache
+from pathlib import Path
+from typing import Any
+
+from PIL import Image, ImageDraw, ImageFont, ImageOps
+
+from ..config import FONTS_DIR
+
+WIDTH, HEIGHT = 1080, 1920
+CAPTION_TOP = 1430
+TITLE_FONT = FONTS_DIR / "Inter-Black.otf"
+ROUNDED_FONT = FONTS_DIR / "Baloo2-Variable.ttf"
+NOTE_FONT = FONTS_DIR / "Caladea-Bold.ttf"
+
+
+def _font(path: Path, size: int) -> ImageFont.FreeTypeFont:
+    font = ImageFont.truetype(str(path), size)
+    if path.name == "Baloo2-Variable.ttf":
+        try:
+            font.set_variation_by_axes([700])
+        except (AttributeError, OSError):
+            pass
+    return font
+
+
+def _wrap(draw: ImageDraw.ImageDraw, text: str, font: ImageFont.FreeTypeFont, width: int) -> list[str]:
+    words = text.split()
+    if not words:
+        return [""]
+    rows: list[str] = []
+    current = words[0]
+    for word in words[1:]:
+        candidate = f"{current} {word}"
+        if draw.textlength(candidate, font=font) <= width:
+            current = candidate
+        else:
+            rows.append(current)
+            current = word
+    rows.append(current)
+    return rows
+
+
+def _fit_text(draw: ImageDraw.ImageDraw, text: str, path: Path, width: int,
+              start_size: int, min_size: int = 38, max_lines: int = 2
+              ) -> tuple[ImageFont.FreeTypeFont, list[str]]:
+    for size in range(start_size, min_size - 1, -2):
+        font = _font(path, size)
+        rows = _wrap(draw, text.upper(), font, width)
+        if len(rows) <= max_lines:
+            return font, rows
+    font = _font(path, min_size)
+    return font, _wrap(draw, text.upper(), font, width)[:max_lines]
+
+
+def _centered(draw: ImageDraw.ImageDraw, text: str, font: ImageFont.FreeTypeFont,
+              y: int, fill: str, left: int = 0, right: int = WIDTH) -> tuple[int, int, int, int]:
+    box = draw.textbbox((0, 0), text, font=font)
+    x = (left + right - (box[2] - box[0])) / 2
+    draw.text((x, y), text, font=font, fill=fill)
+    return int(x), y, int(x + box[2] - box[0]), int(y + box[3] - box[1])
+
+
+def _ease_out(value: float) -> float:
+    x = min(1.0, max(0.0, value))
+    return 1 + 2.3 * (x - 1) ** 3 + 1.3 * (x - 1) ** 2
+
+
+def _progress(local: float, span: float) -> float:
+    return min(1.0, max(0.0, local / max(0.001, span)))
+
+
+@lru_cache(maxsize=1)
+def _paper_background(kind: str) -> Image.Image:
+    if kind == "board":
+        image = Image.new("RGB", (WIDTH, HEIGHT), "#9B6840")
+        draw = ImageDraw.Draw(image)
+        # Large cork panels keep texture visible without competing with the evidence cards.
+        draw.rectangle((38, 38, WIDTH - 38, HEIGHT - 38), fill="#A8754C", outline="#5D3928", width=18)
+        rng = random.Random(7421)
+        for _ in range(1850):
+            x, y = rng.randrange(54, WIDTH - 54), rng.randrange(54, HEIGHT - 54)
+            radius = rng.choice((1, 2, 3))
+            color = rng.choice(("#B78358", "#8A5836", "#96613D", "#C18B5C"))
+            draw.ellipse((x - radius, y - radius, x + radius, y + radius), fill=color)
+        for y in (430, 920, 1370):
+            draw.line((48, y, WIDTH - 48, y + 6), fill="#855532", width=2)
+        return image
+    if kind == "zine":
+        image = Image.new("RGB", (WIDTH, HEIGHT), "#D7C3A3")
+        draw = ImageDraw.Draw(image)
+        rng = random.Random(8153)
+        for _ in range(950):
+            x, y = rng.randrange(WIDTH), rng.randrange(HEIGHT)
+            radius = rng.choice((1, 2, 3))
+            color = rng.choice(("#C8B18E", "#E3D1B3", "#A88F70"))
+            draw.ellipse((x - radius, y - radius, x + radius, y + radius), fill=color)
+        return image
+    image = Image.new("RGB", (WIDTH, HEIGHT), "#F5EEDB")
+    draw = ImageDraw.Draw(image)
+    draw.ellipse((690, -250, 1270, 380), fill="#F7D9CD")
+    draw.ellipse((-270, 1040, 420, 1760), fill="#D4EEE0")
+    draw.polygon(((0, 1230), (1080, 1140), (1080, 1470), (0, 1470)), fill="#E8DDC3")
+    rng = random.Random(9271)
+    for _ in range(210):
+        x, y = rng.randrange(40, 1040), rng.randrange(70, 1390)
+        draw.ellipse((x, y, x + 3, y + 3), fill="#D7C9AE")
+    return image
+
+
+def _fit_pan(image: Image.Image | None, size: tuple[int, int], progress: float) -> Image.Image:
+    width, height = size
+    if image is None:
+        blank = Image.new("RGB", size, "#F4ECD9")
+        d = ImageDraw.Draw(blank)
+        d.ellipse((width * .38, height * .2, width * .62, height * .7), fill="#E9D9B9")
+        return blank
+    zoom = 1.035 + .055 * progress
+    scaled = ImageOps.fit(image.convert("RGB"),
+                          (int(width * zoom), int(height * zoom)),
+                          method=Image.Resampling.LANCZOS,
+                          centering=(.45 + .1 * progress, .48))
+    left = (scaled.width - width) // 2
+    top = (scaled.height - height) // 2
+    return scaled.crop((left, top, left + width, top + height))
+
+
+def _paste_rounded(frame: Image.Image, image: Image.Image, box: tuple[int, int, int, int],
+                   radius: int, outline: str, shadow: str = "#443327") -> None:
+    x1, y1, x2, y2 = box
+    width, height = x2 - x1, y2 - y1
+    draw = ImageDraw.Draw(frame)
+    draw.rounded_rectangle((x1 + 10, y1 + 15, x2 + 10, y2 + 15), radius=radius, fill=shadow)
+    draw.rounded_rectangle(box, radius=radius, fill="#FFFDF7", outline=outline, width=5)
+    image = image.resize((width - 28, height - 28), Image.Resampling.LANCZOS)
+    mask = Image.new("L", image.size, 0)
+    ImageDraw.Draw(mask).rounded_rectangle((0, 0, image.width - 1, image.height - 1), radius=max(4, radius - 12), fill=255)
+    frame.paste(image, (x1 + 14, y1 + 14), mask)
+
+
+def _paste_pop_window(frame: Image.Image, image: Image.Image, box: tuple[int, int, int, int],
+                      local: float, span: float, index: int, total: int) -> None:
+    x1, y1, x2, y2 = box
+    draw = ImageDraw.Draw(frame)
+    draw.rounded_rectangle((x1 + 10, y1 + 15, x2 + 10, y2 + 15), radius=38, fill="#B49F7D")
+    draw.rounded_rectangle(box, radius=38, fill="#FFFDF7", outline="#43A79A", width=5)
+    inner = (x1 + 15, y1 + 15, x2 - 15, y2 - 15)
+    picture = _fit_pan(image, (inner[2] - inner[0], inner[3] - inner[1]), _progress(local, span))
+    reveal = min(1.0, max(0.0, local / .34))
+    if index == total - 1 and local > max(0.0, span - .34):
+        reveal = min(reveal, max(0.0, (span - local) / .34))
+    if reveal < 1.0:
+        width, height = picture.size
+        radius = int(math.hypot(width, height) * .55 * reveal)
+        mask = Image.new("L", picture.size, 0)
+        ImageDraw.Draw(mask).ellipse((width // 2 - radius, height // 2 - radius,
+                                      width // 2 + radius, height // 2 + radius), fill=255)
+        frame.paste(picture, (inner[0], inner[1]), mask)
+        ring = ImageDraw.Draw(frame)
+        ring.ellipse((width // 2 + inner[0] - radius, height // 2 + inner[1] - radius,
+                      width // 2 + inner[0] + radius, height // 2 + inner[1] + radius),
+                     outline="#E45D4F", width=5)
+    else:
+        frame.paste(picture, (inner[0], inner[1]))
+
+
+def _draw_pop_prop(draw: ImageDraw.ImageDraw, kind: str, local: float) -> None:
+    """Small scene props are symbolic illustrations and add no unspoken measurements."""
+    cx, cy = 296, 1195
+    ink = "#514239"
+    if kind in {"walk", "meal", "plate"}:
+        draw.ellipse((cx - 94, cy - 22, cx + 94, cy + 38), fill="#FFF9E9", outline=ink, width=5)
+        draw.ellipse((cx - 69, cy - 10, cx + 69, cy + 25), outline="#D69E57", width=4)
+        draw.ellipse((cx - 43, cy - 6, cx - 10, cy + 16), fill="#78A768")
+        draw.ellipse((cx + 2, cy - 9, cx + 33, cy + 14), fill="#E89058")
+        draw.arc((cx - 15, cy - 58, cx + 18, cy - 20), 190, 350, fill="#D48655", width=4)
+        draw.arc((cx + 15, cy - 73, cx + 46, cy - 22), 190, 350, fill="#D48655", width=4)
+        for step in range(4):
+            phase = (local * 2.4 + step * .25) % 1.0
+            x = 116 + step * 37 + int(phase * 20)
+            y = 1228 - step * 15
+            draw.ellipse((x, y, x + 12, y + 23), fill="#E45D4F")
+    elif kind in {"clock", "thermo", "bath"}:
+        draw.ellipse((cx - 72, cy - 72, cx + 72, cy + 72), fill="#FFFDF7", outline="#43A79A", width=7)
+        draw.ellipse((cx - 6, cy - 6, cx + 6, cy + 6), fill=ink)
+        angle = -math.pi / 2 + local * .9
+        draw.line((cx, cy, cx + math.cos(angle) * 48, cy + math.sin(angle) * 48), fill="#E45D4F", width=8)
+        draw.line((cx, cy, cx - 25, cy - 20), fill=ink, width=6)
+    elif kind in {"scale", "balance"}:
+        draw.line((cx, cy - 65, cx, cy + 48), fill=ink, width=8)
+        draw.line((cx - 74, cy - 35, cx + 74, cy - 35), fill="#43A79A", width=8)
+        draw.line((cx - 50, cy - 35, cx - 70, cy + 18), fill=ink, width=4)
+        draw.line((cx + 50, cy - 35, cx + 70, cy + 18), fill=ink, width=4)
+        draw.arc((cx - 94, cy + 5, cx - 44, cy + 33), 0, 180, fill="#E45D4F", width=6)
+        draw.arc((cx + 44, cy + 5, cx + 94, cy + 33), 0, 180, fill="#E45D4F", width=6)
+        draw.line((cx - 50, cy + 54, cx + 50, cy + 54), fill=ink, width=8)
+    else:
+        draw.rounded_rectangle((cx - 92, cy - 65, cx + 92, cy + 56), radius=18,
+                               fill="#FFFDF7", outline="#43A79A", width=5)
+        for row in range(3):
+            draw.line((cx - 54, cy - 29 + row * 28, cx + 48, cy - 29 + row * 28),
+                      fill="#E45D4F" if row == 1 else "#9E8B72", width=5)
+        draw.polygon(((cx + 49, cy - 4), (cx + 72, cy + 7), (cx + 49, cy + 18)), fill="#E45D4F")
+
+
+def _draw_brand(draw: ImageDraw.ImageDraw, brand: tuple[str, str, str], label: str,
+                bg: str, fg: str, accent: str) -> None:
+    draw.rounded_rectangle((66, 72, 1014, 190), radius=28, fill=bg, outline=fg, width=3)
+    draw.rounded_rectangle((82, 91, 97, 170), radius=7, fill=accent)
+    draw.text((122, 91), brand[0], font=_font(TITLE_FONT, 27), fill=fg)
+    draw.text((122, 132), label, font=_font(NOTE_FONT, 26), fill=accent)
+
+
+def _draw_pop_info(frame: Image.Image, image: Image.Image | None, line: Any,
+                   local: float, span: float, index: int, total: int,
+                   brand: tuple[str, str, str]) -> dict[str, Any]:
+    frame.paste(_paper_background("pop"))
+    draw = ImageDraw.Draw(frame)
+    _draw_brand(draw, brand, "IDEAS IN MOTION", "#FFF8E8", "#382D25", "#E45D4F")
+    progress = _progress(local, span)
+    spring = min(1.08, max(.01, _ease_out(local / .44)))
+    headline_font, rows = _fit_text(draw, line.headline or line.caption or line.text[:38],
+                                    ROUNDED_FONT, 770, 78, 48, 2)
+    bubble_top = 230 + int(15 * (1 - spring))
+    bubble = (92, bubble_top, 918, bubble_top + (174 if len(rows) == 1 else 226))
+    draw.rounded_rectangle(bubble, radius=48, fill="#FFFDF7", outline="#5E4634", width=5)
+    draw.polygon(((812, bubble[3] - 4), (856, bubble[3] - 5), (828, bubble[3] + 31)), fill="#FFFDF7")
+    draw.line((812, bubble[3] - 3, 828, bubble[3] + 31, 856, bubble[3] - 4), fill="#5E4634", width=4)
+    row_height = headline_font.size + 2
+    text_top = bubble_top + (bubble[3] - bubble_top - len(rows) * row_height) // 2 - 4
+    title_boxes = []
+    for row in rows:
+        title_boxes.append(_centered(draw, row, headline_font, text_top, "#33291F", 126, 884))
+        text_top += row_height
+    # The evidence graphic is a moving picture window inside a rounded illustrated room.
+    enter = max(.04, min(1.0, spring))
+    target_box = (92, 515 + int(28 * (1 - enter)), 736, 966 + int(28 * (1 - enter)))
+    # A pantry-like shelf slides into the scene; abstract product blocks are decoration, not labels.
+    shelf_x = 774 + int(100 * (1 - enter))
+    draw.rounded_rectangle((shelf_x, 600, 1025, 1055), radius=28, fill="#E2D6BD", outline="#77614A", width=5)
+    for y in (740, 885, 1028):
+        draw.rounded_rectangle((shelf_x + 10, y, 1015, y + 15), radius=7, fill="#92795B")
+    for col, x in enumerate((shelf_x + 24, shelf_x + 88, shelf_x + 151, shelf_x + 206)):
+        for row, y in enumerate((650, 790, 934)):
+            color = ("#E98D68", "#64AFA1", "#E7C252", "#8F9FD0")[(col + row) % 4]
+            draw.rounded_rectangle((x, y, x + 38, y + 72), radius=12, fill=color, outline="#69553D", width=3)
+            draw.ellipse((x + 12, y + 8, x + 25, y + 21), fill="#FFF4D3")
+    _paste_pop_window(frame, image, target_box, local, span, index, total)
+    draw = ImageDraw.Draw(frame)
+    # A dotted route grows from the guide's hand to the focus of this beat.
+    start, end = (760, 1135), (650 - int(progress * 65), 980)
+    for step in range(13):
+        phase = step / 12
+        x = (1 - phase) ** 2 * start[0] + 2 * (1 - phase) * phase * 650 + phase ** 2 * end[0]
+        y = (1 - phase) ** 2 * start[1] + 2 * (1 - phase) * phase * 1020 + phase ** 2 * end[1]
+        if phase <= progress:
+            draw.ellipse((x - 5, y - 5, x + 5, y + 5), fill="#E45D4F")
+    # Small friendly guide with a changing pointing arm and a springy idle motion.
+    bob = int(7 * math.sin(local * 5.5))
+    hx, hy = 868, 1045 + bob
+    draw.ellipse((hx - 60, hy - 61, hx + 60, hy + 59), fill="#EAA870", outline="#4E382D", width=6)
+    draw.ellipse((hx - 27, hy - 16, hx - 13, hy + 1), fill="#31271F")
+    draw.ellipse((hx + 15, hy - 16, hx + 29, hy + 1), fill="#31271F")
+    draw.arc((hx - 20, hy - 1, hx + 23, hy + 34), 5, 165, fill="#7E3E34", width=5)
+    draw.rounded_rectangle((hx - 61, hy + 52, hx + 62, hy + 193), radius=35, fill="#56B5A5", outline="#3D4139", width=6)
+    arm_y = hy + 74 + int(5 * math.sin(local * 7))
+    draw.line((hx - 48, arm_y, hx - 105, arm_y - 62, hx - 168, arm_y - 110), fill="#EAA870", width=24)
+    draw.ellipse((hx - 179, arm_y - 122, hx - 157, arm_y - 100), fill="#EAA870", outline="#4E382D", width=3)
+    draw.line((hx - 26, hy + 185, hx - 44, hy + 243), fill="#3A3330", width=22)
+    draw.line((hx + 30, hy + 185, hx + 49, hy + 243), fill="#3A3330", width=22)
+    draw.ellipse((hx - 69, hy + 231, hx - 28, hy + 253), fill="#51443A")
+    draw.ellipse((hx + 30, hy + 231, hx + 71, hy + 253), fill="#51443A")
+    _draw_pop_prop(draw, line.visual, local)
+    # Beat count is a sequence marker, not a scientific quantity.
+    draw.ellipse((936, 420, 1024, 508), fill="#FFD96C", outline="#513C2C", width=4)
+    count = max(1, min(index + 1, int(math.ceil((index + 1) * max(progress, .18)))))
+    _centered(draw, f"{count:02d}", _font(ROUNDED_FONT, 35), 442, "#49362B", 936, 1024)
+    # Hand-drawn footer replaces the rigid progress bar.
+    draw.text((76, 1780), brand[2], font=_font(ROUNDED_FONT, 27), fill="#5E5141")
+    draw.line((75, 1840, 1005, 1840), fill="#C6B89D", width=5)
+    route_end = 75 + int(930 * min(1.0, (index + progress) / max(1, total)))
+    draw.line((75, 1840, route_end, 1840), fill="#E45D4F", width=7)
+    draw.ellipse((route_end - 11, 1829, route_end + 11, 1851), fill="#F1C64F", outline="#4A392D", width=3)
+    return {
+        "headline": (float(bubble[0]), float(bubble[1]), float(bubble[2]), float(bubble[3])),
+        "visual": tuple(float(value) for value in target_box),
+    }
+
+
+def _draw_note(draw: ImageDraw.ImageDraw, text: str, box: tuple[int, int, int, int],
+               angle: int, seed: int, color: str) -> tuple[float, float, float, float]:
+    x1, y1, x2, y2 = box
+    draw.polygon(((x1 + 8, y1 + 9), (x2 + 5, y1 + 4), (x2, y2 + 8), (x1 + 4, y2)), fill="#67422C")
+    draw.polygon(((x1 + 4, y1), (x2 - 5, y1 + 2), (x2, y2 - 5), (x1, y2)), fill=color, outline="#5F432C")
+    tape = "#E8D8B3"
+    draw.polygon(((x1 + 18, y1 - 8), (x1 + 120, y1 - 5), (x1 + 116, y1 + 16), (x1 + 20, y1 + 12)), fill=tape)
+    font, rows = _fit_text(draw, text, NOTE_FONT, x2 - x1 - 34, 33, 24, 3)
+    y = y1 + 32
+    for row in rows:
+        draw.text((x1 + 18, y), row, font=font, fill="#3D3027")
+        y += font.size + 1
+    pin_x, pin_y = (x1 + x2) // 2, y1 + 6
+    draw.ellipse((pin_x - 11, pin_y - 10, pin_x + 11, pin_y + 11), fill="#C7352D", outline="#6F2822", width=2)
+    draw.ellipse((pin_x - 5, pin_y - 7, pin_x + 2, pin_y), fill="#F4B5A6")
+    return float(pin_x), float(pin_y + 4), float(pin_x), float(pin_y + 4)
+
+
+def _bezier(start: tuple[float, float], control: tuple[float, float], end: tuple[float, float],
+            progress: float) -> list[tuple[float, float]]:
+    points = []
+    for step in range(31):
+        amount = step / 30
+        if amount > progress:
+            break
+        inverse = 1 - amount
+        x = inverse * inverse * start[0] + 2 * inverse * amount * control[0] + amount * amount * end[0]
+        y = inverse * inverse * start[1] + 2 * inverse * amount * control[1] + amount * amount * end[1]
+        points.append((x, y))
+    return points
+
+
+def _draw_evidence_board(frame: Image.Image, image: Image.Image | None, line: Any,
+                         context_lines: list[Any], local: float, span: float,
+                         index: int, total: int, brand: tuple[str, str, str]) -> dict[str, Any]:
+    frame.paste(_paper_background("board"))
+    draw = ImageDraw.Draw(frame)
+    _draw_brand(draw, brand, "FIELD NOTES  •  CLAIMS AND CONTEXT", "#F2E4C8", "#3B281D", "#B82F2C")
+    # Leave previous beats pinned at the edge so the board grows with the story.
+    older = context_lines[max(0, index - 2):index]
+    note_boxes = [(66, 335, 344, 500), (736, 345, 1014, 510)]
+    note_colors = ("#E8D77A", "#D7E8D8")
+    note_pins = []
+    for offset, previous in enumerate(older):
+        note_pins.append(_draw_note(draw, previous.headline or previous.caption or previous.text[:38],
+                                    note_boxes[offset], 0, index * 11 + offset, note_colors[offset]))
+    progress = _progress(local, span)
+    enter = max(.02, min(1.06, _ease_out(local / .42)))
+    scale = .92 + .08 * enter
+    card_w, card_h = int(790 * scale), int(825 * scale)
+    card_x = int(540 - card_w / 2 + 9 * math.sin(local * .7))
+    card_y = int(470 + 18 * (1 - enter) - 14 * progress)
+    # Curved red string is drawn in stages and tied to the moving scene pin.
+    target_pin = (536.0, card_y + 6.0)
+    for offset, pin in enumerate(note_pins):
+        path = _bezier((pin[0], pin[1]), (520 + (offset - .5) * 180, 470), target_pin,
+                       min(1.0, progress * 1.65 + offset * .08))
+        if len(path) > 1:
+            draw.line(path, fill="#B5252A", width=6)
+            for point in (path[0], path[-1]):
+                draw.ellipse((point[0] - 6, point[1] - 6, point[0] + 6, point[1] + 6), fill="#C7352D")
+    # Off-white polaroid with darkroom print, taped top edge and evidence caption.
+    draw.rounded_rectangle((card_x + 14, card_y + 18, card_x + card_w + 14, card_y + card_h + 18),
+                           radius=8, fill="#573922")
+    draw.rectangle((card_x, card_y, card_x + card_w, card_y + card_h), fill="#F7F1E1", outline="#4D3829", width=5)
+    picture = _fit_pan(image, (card_w - 82, 490), progress)
+    frame.paste(picture, (card_x + 41, card_y + 42))
+    draw.rectangle((card_x + 41, card_y + 42, card_x + card_w - 41, card_y + 532), outline="#594538", width=3)
+    title_font, rows = _fit_text(draw, line.headline or line.caption or line.text[:48], NOTE_FONT,
+                                 card_w - 76, 46, 34, 2)
+    title_y = card_y + 575
+    title_boxes = []
+    for row in rows:
+        title_boxes.append((card_x + 42, title_y,
+                            card_x + 42 + int(draw.textlength(row, font=title_font)), title_y + title_font.size))
+        draw.text((card_x + 42, title_y), row, font=title_font, fill="#312820")
+        title_y += title_font.size + 6
+    # A moving pointer and a tiny pin glint make the evidence photo feel handled, not pasted in.
+    pin_x, pin_y = 536, card_y + 6
+    draw.ellipse((pin_x - 21, pin_y - 22, pin_x + 21, pin_y + 20), fill="#B8282E", outline="#64201F", width=3)
+    draw.ellipse((pin_x - 11, pin_y - 14, pin_x - 1, pin_y - 5), fill="#F5B6A4")
+    draw.polygon(((card_x + 95, card_y - 11), (card_x + 288, card_y - 5),
+                  (card_x + 281, card_y + 34), (card_x + 104, card_y + 29)), fill="#E8D8B3")
+    # The closing stamp is a neutral scope reminder, never a factual verdict.
+    if index == total - 1 and local > max(0.0, span - 1.45):
+        stamp = Image.new("RGBA", (330, 110), (0, 0, 0, 0))
+        sd = ImageDraw.Draw(stamp)
+        sd.rounded_rectangle((5, 5, 325, 105), radius=8, outline=(183, 39, 44, 225), width=8)
+        sd.rounded_rectangle((14, 14, 316, 96), radius=5, outline=(183, 39, 44, 180), width=2)
+        sd.text((28, 27), "SCOPE CHECK", font=_font(TITLE_FONT, 43), fill=(183, 39, 44, 235))
+        stamp = stamp.rotate(-8 + 2 * math.sin(local * 24), resample=Image.Resampling.BICUBIC, expand=True)
+        frame.paste(stamp, (630, 1200), stamp)
+    draw = ImageDraw.Draw(frame)
+    draw.text((74, 1784), brand[2], font=_font(NOTE_FONT, 27), fill="#F5EBD5")
+    draw.text((828, 1780), f"CLUE {index + 1:02d}", font=_font(TITLE_FONT, 24), fill="#F5EBD5")
+    route_y = 1840
+    draw.line((74, route_y, 1006, route_y), fill="#765036", width=5)
+    route_end = 74 + int(932 * min(1.0, (index + progress) / max(1, total)))
+    draw.line((74, route_y, route_end, route_y), fill="#C7352D", width=8)
+    return {
+        "headline": (float(card_x + 38), float(card_y + 566), float(card_x + card_w - 38), float(title_y)),
+        "visual": (float(card_x), float(card_y), float(card_x + card_w), float(card_y + card_h)),
+    }
+
+
+def _torn_polygon(box: tuple[int, int, int, int], seed: int, teeth: int = 18) -> list[tuple[int, int]]:
+    x1, y1, x2, y2 = box
+    rng = random.Random(seed)
+    points: list[tuple[int, int]] = []
+    for step in range(teeth + 1):
+        x = x1 + (x2 - x1) * step / teeth
+        points.append((int(x), y1 + rng.randint(-7, 7)))
+    for step in range(teeth + 1):
+        y = y1 + (y2 - y1) * step / teeth
+        points.append((x2 + rng.randint(-7, 7), int(y)))
+    for step in range(teeth + 1):
+        x = x2 - (x2 - x1) * step / teeth
+        points.append((int(x), y2 + rng.randint(-7, 7)))
+    for step in range(teeth + 1):
+        y = y2 - (y2 - y1) * step / teeth
+        points.append((x1 + rng.randint(-7, 7), int(y)))
+    return points
+
+
+def _draw_zine(frame: Image.Image, image: Image.Image | None, line: Any,
+               local: float, span: float, t: float, index: int, total: int,
+               brand: tuple[str, str, str]) -> dict[str, Any]:
+    frame.paste(_paper_background("zine"))
+    draw = ImageDraw.Draw(frame)
+    beat_clock = math.floor(t * 8) / 8
+    jitter = random.Random(4700 + index * 19 + int(beat_clock * 8))
+    dx, dy = jitter.randint(-5, 5), jitter.randint(-4, 4)
+    draw.polygon(((64, 77), (1018, 68), (1010, 175), (71, 188)), fill="#211D1B")
+    draw.text((94, 99), brand[0], font=_font(TITLE_FONT, 27), fill="#FFF1D8")
+    draw.text((793, 101), "CUT / PASTE / THINK", font=_font(ROUNDED_FONT, 24), fill="#FFD34E")
+    headline = line.headline or line.caption or line.text[:42]
+    title_font, rows = _fit_text(draw, headline, TITLE_FONT, 850, 76, 50, 2)
+    paper_boxes = [(88, 230 + dy, 992, 443 + dy)]
+    title_color = "#171414"
+    title_y = 266 + dy
+    title_boxes = []
+    for row_index, row in enumerate(rows):
+        # Individual words land as cut paper; time quantization gives the source's hand-built cadence.
+        pieces = row.split()
+        widths = [draw.textlength(word, font=title_font) + 26 for word in pieces]
+        gap = 14
+        start_x = int((WIDTH - sum(widths) - gap * (len(widths) - 1)) / 2)
+        x = start_x
+        colors = ("#FFF2D5", "#EF5C4F", "#F5C840", "#171414")
+        for word_index, word in enumerate(pieces):
+            ordinal = row_index * 4 + word_index
+            if local < ordinal * .10:
+                x += widths[word_index] + gap
+                continue
+            pop = min(1.0, max(.08, _ease_out((local - ordinal * .10) / .22)))
+            tile_w = int(widths[word_index] * pop)
+            tile_h = title_font.size + 25
+            tile = (x + dx, title_y - 10 + dy, x + dx + tile_w, title_y - 10 + tile_h + dy)
+            draw.polygon(_torn_polygon(tile, index * 101 + ordinal, 8), fill=colors[(index + ordinal) % len(colors)])
+            fill = "#FFF7E5" if colors[(index + ordinal) % len(colors)] == "#171414" else "#1B1715"
+            draw.text((x + 12 + dx, title_y + dy), word, font=title_font, fill=fill)
+            title_boxes.append((tile[0], tile[1], tile[2], tile[3]))
+            x += widths[word_index] + gap
+
+    # Photostat drops onto torn paper with a brief slap and a held, low-rate jitter.
+    picture_box = (122 + dx, 505 + int(22 * (1 - _progress(local, .34))) + dy,
+                   958 + dx, 1155 + int(22 * (1 - _progress(local, .34))) + dy)
+    draw.polygon(_torn_polygon((picture_box[0] - 24, picture_box[1] - 23,
+                                picture_box[2] + 24, picture_box[3] + 24), 992 + index), fill="#211D1B")
+    draw.polygon(_torn_polygon((picture_box[0] - 13, picture_box[1] - 12,
+                                picture_box[2] + 13, picture_box[3] + 13), 993 + index), fill="#FFF2D5")
+    picture = _fit_pan(image, (picture_box[2] - picture_box[0], picture_box[3] - picture_box[1]),
+                       _progress(local, span))
+    frame.paste(picture, (picture_box[0], picture_box[1]))
+    draw = ImageDraw.Draw(frame)
+    # Two translucent tape strips and halftone dots remain in the margins, away from chart labels.
+    draw.polygon(((154 + dx, 482 + dy), (370 + dx, 478 + dy), (378 + dx, 515 + dy), (162 + dx, 520 + dy)), fill="#E6A6A0")
+    draw.polygon(((763 + dx, 1138 + dy), (940 + dx, 1134 + dy), (946 + dx, 1168 + dy), (771 + dx, 1174 + dy)), fill="#E8D89F")
+    for row in range(5):
+        for col in range(9):
+            cx, cy = 80 + col * 22, 750 + row * 22
+            if cx < picture_box[0] - 35:
+                draw.ellipse((cx, cy, cx + 5, cy + 5), fill="#2C2621")
+    for row in range(5):
+        for col in range(6):
+            cx, cy = 970 + col * 18, 670 + row * 18
+            if cx > picture_box[2] + 5:
+                draw.ellipse((cx, cy, cx + 4, cy + 4), fill="#C94B42")
+    draw.text((78, 1783), brand[2], font=_font(ROUNDED_FONT, 26), fill="#312821")
+    draw.line((78, 1840, 1002, 1840), fill="#88755A", width=5)
+    end_x = 78 + int(924 * min(1.0, (index + _progress(local, span)) / max(1, total)))
+    draw.line((78, 1840, end_x, 1840), fill="#E34F45", width=8)
+    return {
+        "headline": (float(min(box[0] for box in title_boxes) if title_boxes else 88),
+                    float(min(box[1] for box in title_boxes) if title_boxes else 230),
+                    float(max(box[2] for box in title_boxes) if title_boxes else 992),
+                    float(max(box[3] for box in title_boxes) if title_boxes else 443)),
+        "visual": tuple(float(value) for value in picture_box),
+    }
+
+
+def draw_illustrated_scene(
+    frame: Image.Image,
+    image: Image.Image | None,
+    line: Any,
+    context_lines: list[Any],
+    local: float,
+    span: float,
+    t: float,
+    duration: float,
+    index: int,
+    total: int,
+    brand: tuple[str, str, str],
+    style: str,
+) -> dict[str, Any]:
+    """Draw a beat as a live illustrated composition, preserving the planned diagram and wording."""
+
+    if style == "pop-info":
+        return _draw_pop_info(frame, image, line, local, span, index, total, brand)
+    if style == "evidence-board":
+        return _draw_evidence_board(frame, image, line, context_lines, local, span, index, total, brand)
+    if style == "zine-collage":
+        return _draw_zine(frame, image, line, local, span, t, index, total, brand)
+    raise ValueError(f"unsupported illustrated animation style: {style}")

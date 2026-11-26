@@ -59,7 +59,7 @@
     ],
     "visual_policy": {
       "scene_planning": true,
-      "animation_style": "data-story",
+      "animation_style": "pop-info",
       "categories": [
         "diagram",
         "dataviz"

@@ -49,7 +49,13 @@ def _mix(first: str, second: str, amount: float) -> str:
 
 
 def _font(path: Path, size: int) -> ImageFont.FreeTypeFont:
-    return ImageFont.truetype(str(path), size)
+    font = ImageFont.truetype(str(path), size)
+    if path.name == "Baloo2-Variable.ttf":
+        try:
+            font.set_variation_by_axes([700])
+        except (AttributeError, OSError):
+            pass
+    return font
 
 
 def _wrap(draw: ImageDraw.ImageDraw, text: str, font: ImageFont.FreeTypeFont, max_width: int) -> list[str]:
@@ -474,6 +480,7 @@ def _draw_caption(
     line: ScriptLine,
     t: float,
     c: dict[str, str],
+    animation_style: str = "default",
 ) -> tuple[float, float, float, float] | None:
     if t < line.start - 0.05:
         return None
@@ -490,8 +497,9 @@ def _draw_caption(
     # leave 8 px of overflow on a caption with many words. So the loop measures what it is about to draw.
     available = LAYOUT_HALF_WIDTH - 2 * pad_x - 8
     size = 78
+    font_path = FONTS_DIR / "Baloo2-Variable.ttf" if animation_style == "pop-info" else TITLE_FONT
     while True:
-        font = _font(TITLE_FONT, size)
+        font = _font(font_path, size)
         space = draw.textlength(" ", font=font)
         widths = [draw.textlength(word.text, font=font) for word in words]
         total = sum(widths) + space * max(0, len(words) - 1)
@@ -501,19 +509,37 @@ def _draw_caption(
     x = (WIDTH - total) / 2
     y = 1480
     capsule = (x - pad_x, y - pad_y, x + total + pad_x, y + size + pad_y + 12)
-    draw.rounded_rectangle(
-        capsule,
-        radius=26,
-        fill=_mix(c["bg"], "#000000", 0.72),
-        outline=_mix(c["bg"], c["accent"], 0.4),
-        width=2,
-    )
+    if animation_style == "pop-info":
+        draw.rounded_rectangle(capsule, radius=42, fill="#FFE27A", outline="#573A24", width=4)
+        draw.ellipse((capsule[0] + 16, capsule[1] + 14, capsule[0] + 34, capsule[1] + 32), fill="#FFFFFF")
+    elif animation_style == "evidence-board":
+        draw.rectangle(capsule, fill="#F8F0D8", outline="#6B4B32", width=3)
+        draw.rectangle((capsule[0], capsule[1], capsule[0] + 12, capsule[3]), fill="#C7352D")
+    elif animation_style == "zine-collage":
+        draw.polygon([(capsule[0] + 10, capsule[1] + 6), (capsule[2] - 4, capsule[1]),
+                      (capsule[2] + 3, capsule[3] - 8), (capsule[0], capsule[3])], fill="#FFF2D5")
+        draw.line((capsule[0] + 16, capsule[3] - 3, capsule[2] - 8, capsule[3] - 5), fill="#171414", width=5)
+    else:
+        draw.rounded_rectangle(
+            capsule,
+            radius=26,
+            fill=_mix(c["bg"], "#000000", 0.72),
+            outline=_mix(c["bg"], c["accent"], 0.4),
+            width=2,
+        )
     highlight = line.highlight.lower().strip(".,!?;:")
     longest = max(words, key=lambda word: len(word.text)).text.lower().strip(".,!?;:")
     target = highlight or longest
     for word, width in zip(words, widths):
         clean = word.text.lower().strip(".,!?;:")
-        fill = c["accent"] if clean == target or clean == longest else c["text"]
+        if animation_style == "pop-info":
+            fill = "#E64D42" if clean == target or clean == longest else "#33291F"
+        elif animation_style == "evidence-board":
+            fill = "#C7352D" if clean == target or clean == longest else "#27221C"
+        elif animation_style == "zine-collage":
+            fill = "#E54B40" if clean == target or clean == longest else "#171414"
+        else:
+            fill = c["accent"] if clean == target or clean == longest else c["text"]
         draw.text((x, y), word.text, font=font, fill=fill)
         x += width + space
     return tuple(round(value, 2) for value in capsule)
@@ -756,15 +782,25 @@ def _draw_scene_planned(
     total: int,
     spec: ChannelSpec,
     brand: tuple[str, str, str],
+    context_lines: list[ScriptLine] | None = None,
 ) -> dict[str, Any]:
-    """The planned card: same chrome and captions, the visual plate where the motif used to be."""
+    """Draw a planned beat using its configured scene treatment and visual evidence."""
 
     c = spec.colors
     draw = ImageDraw.Draw(frame)
+    policy = getattr(spec, "visual_policy", None) or {}
+    animation_style = str(policy.get("animation_style", "default"))
+    if animation_style in {"pop-info", "evidence-board", "zine-collage"}:
+        from .illustrated_styles import draw_illustrated_scene
+
+        drawn = draw_illustrated_scene(
+            frame, image, line, context_lines or [line], local, span, t, duration,
+            index, total, brand, animation_style,
+        )
+        drawn["caption"] = _draw_caption(draw, line, t, c, animation_style)
+        return drawn
     drawn = _draw_chrome(draw, line, brand, c, index, total)
     if image is not None:
-        policy = getattr(spec, "visual_policy", None) or {}
-        animation_style = str(policy.get("animation_style", "default"))
         drawn["visual"] = _paste_visual(frame, image, local, span, c, animation_style)
     else:
         # No visual resolved: draw nothing rather than a placeholder that pretends to be one. The
@@ -1106,11 +1142,17 @@ def compose_frame(
             frame, line, dispatcher.image_for(scene),
             max(0.0, t - scene.start_ms / 1000.0), scene.duration_ms / 1000.0,
             t, duration, line_index, len(lines), spec, brand,
+            context_lines=lines,
         )
-    apply_camera_drift(frame, t)
-    apply_light_sweep(frame, t, spec.colors["accent"])
+    animation_style = str((getattr(spec, "visual_policy", None) or {}).get("animation_style", "default"))
+    uses_illustrated_composition = dispatcher is not None and animation_style in {
+        "pop-info", "evidence-board", "zine-collage",
+    }
+    if not uses_illustrated_composition:
+        apply_camera_drift(frame, t)
+        apply_light_sweep(frame, t, spec.colors["accent"])
     if geometry is not None:
-        scale = camera_scale(t)
+        scale = 1.0 if uses_illustrated_composition else camera_scale(t)
         geometry.update({name: _scale_rect(box, scale) for name, box in (drawn or {}).items()})
     return frame
 
@@ -1306,6 +1348,7 @@ def render_english(
         "video_path": str(output_path),
         "duration": round(duration, 3),
         "size": output_path.stat().st_size,
+        "animation_style": str(policy.get("animation_style", "default")),
         "streams": [
             {"codec_type": s.get("codec_type"), "codec_name": s.get("codec_name"), "width": s.get("width"), "height": s.get("height")}
             for s in streams.get("streams", [])
