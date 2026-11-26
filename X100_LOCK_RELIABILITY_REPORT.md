@@ -34,7 +34,7 @@ Coverage includes active owners with expired heartbeat metadata, the original on
 
 ## Residual risks and release gate
 
-- This candidate is not on protected main. Do not characterize main as fixed until reviewed, merged, and main CI passes.
+- This candidate is not on protected main and remains local because both the CLI push and connected GitHub write API returned HTTP 403. Do not characterize main as fixed until the branch is published, reviewed, merged, and main CI passes.
 - POSIX CI and the new pull request's security jobs are not yet evidence in this report.
 - No physical reboot or shared-network-filesystem lock test was performed.
 - Exact lock acquisition latency and post-crash recovery time were not benchmarked.

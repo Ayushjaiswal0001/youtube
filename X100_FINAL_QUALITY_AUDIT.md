@@ -11,7 +11,7 @@ This report distinguishes live GitHub evidence from local tests and preserved sa
 
 PR #22, head 6c52d38ac48963f9a37d1aadd5139e0e3453d768, merged 2026-11-25 into main as b16c4b5fd0d8cd6731d11dde40fc3a7d49b52d8f. Latest main CI run 45705546332 and security run 45705546316 completed successfully on that merge SHA. CI evidence includes factory, uploader Python 3.11/3.12, workflow permission/pinning, dependency audit, Gitleaks, and secret/history scans.
 
-A separate local candidate commit 7d6ffe0 fixes JobLock ownership and corrects authored topic source/copy. Its CI and independent review are pending a focused PR. PR #2 remains open on a stale base and was not modified.
+A separate local candidate commit 7d6ffe0 fixes JobLock ownership and corrects authored topic source/copy. CLI push and connected GitHub-app write both returned HTTP 403, so the branch is not remote and no candidate PR/CI exists yet. PR #2 remains open on a stale base and was not modified.
 
 ## Local software checks
 

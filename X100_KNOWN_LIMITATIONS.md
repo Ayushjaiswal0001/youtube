@@ -4,7 +4,7 @@ Snapshot date: 2026-11-26. This file supersedes older status snapshots that desc
 
 ## Reliability and release limits
 
-- Main has not yet received the final JobLock single-owner repair. The candidate needs an independent review, POSIX CI, successful final PR CI/security, and a protected merge.
+- Main has not yet received the final JobLock single-owner repair. The candidate exists only in the local branch because both CLI and connected GitHub write calls returned HTTP 403. It needs authorized publication, an independent review, POSIX CI, successful final PR CI/security, and a protected merge.
 - Local Windows LockFileEx coverage passed. POSIX flock coverage was skipped locally and must run on Ubuntu CI.
 - No physical machine reboot or cross-host shared-filesystem lock test was performed. Network-filesystem correctness depends on its locking semantics.
 - Corrupt legacy metadata with uncertain owner state fails closed and may require owner investigation.

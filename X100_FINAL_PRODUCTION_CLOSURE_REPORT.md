@@ -8,7 +8,7 @@ This report supersedes older closure snapshots that described PR #22 as open or 
 
 ## Current closure status
 
-The remaining JobLock ownership defect is fixed and tested on the focused candidate branch, with topic-source and claim corrections included. The full Windows/Python 3.12 suite passed 1,469 tests with 1 skip and 5 passing subtests; post-edit content tests passed 78 tests. Current main CI and security are green, but those runs predate this candidate. The candidate has not yet received its own PR CI/security, independent review, POSIX run, or protected merge.
+The remaining JobLock ownership defect is fixed and tested on the focused local candidate branch, with topic-source and claim corrections included. The full Windows/Python 3.12 suite passed 1,469 tests with 1 skip and 5 passing subtests; post-edit content tests passed 78 tests. Current main CI and security are green, but those runs predate this candidate. Branch publication failed with HTTP 403 for both CLI and GitHub-app write access, so no remote branch or PR exists; candidate PR CI/security, independent review, POSIX run, and protected merge remain pending.
 
 The three daily channel workflows are disabled_manually. The manual production workflow is active but idle. No Actions runs are active. No workflow was dispatched, no video was uploaded, and no YouTube schedule was created or read back.
 
@@ -20,7 +20,7 @@ Local pause check: paused=false, scope=none. GitHub runner/global pause and live
 
 The next actual daily run is none because the daily workflows remain disabled. If enabled, Nexus's next nominal start is 2026-11-27 at 18:00 IST and its calculated release is 20:00 IST. This is not a YouTube-stored schedule. The authored bank is too small for a sustained daily Short plus horizontal cadence.
 
-The owner must review and merge the focused PR through branch protection, confirm its final CI/security and main checks, rerender the two corrected artifacts, run a fresh non-secret account preflight, and explicitly approve Nexus activation. Academic and Natkhat remain sequenced after independent Nexus verification. No activation command was run.
+The owner must first publish the local branch with an authorized GitHub identity and open a focused PR. Then review and merge through branch protection, confirm final CI/security and main checks, rerender the two corrected artifacts, run a fresh non-secret account preflight, and explicitly approve Nexus activation. Academic and Natkhat remain sequenced after independent Nexus verification. No activation command was run.
 
 ## Final verdict
 

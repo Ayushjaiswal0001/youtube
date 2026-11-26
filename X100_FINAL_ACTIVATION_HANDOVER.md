@@ -3,11 +3,11 @@
 Status date: 2026-11-26
 Verified repository: Ayushjaiswal0001/youtube
 Current main: b16c4b5fd0d8cd6731d11dde40fc3a7d49b52d8f
-Reliability candidate: 7d6ffe0 on codex/fix-joblock-ownership, awaiting PR/owner review
+Reliability candidate: 7d6ffe0 on local branch codex/fix-joblock-ownership. No PR exists yet: CLI push and GitHub-app write both returned HTTP 403.
 
 ## Handover state
 
-PR #22 is merged as b16c4b5. Main CI run 45705546332 and security run 45705546316 succeeded. The new JobLock fix is not merged and must receive a focused PR, owner review, Ubuntu POSIX lock coverage, successful PR CI/security, and protected merge before production readiness can advance. No production workflow was enabled, dispatched, uploaded, or scheduled in this audit.
+PR #22 is merged as b16c4b5. Main CI run 45705546332 and security run 45705546316 succeeded. The new JobLock fix is not merged and remains on the local focused branch. Publishing the branch failed with HTTP 403 for both the CLI account and connected GitHub app, so no PR exists yet. It must be published by an authorized identity, receive owner review, Ubuntu POSIX lock coverage, successful PR CI/security, and a protected merge before production readiness can advance. No production workflow was enabled, dispatched, uploaded, or scheduled in this audit.
 
 All three daily workflows are currently disabled_manually. The production (manual) workflow is active but idle. There are no Actions runs in progress. The local pause check reads paused=false; GitHub Actions variables access returned 403, so runner/account pause state is owner-dependent. No OAuth value, live channel identity, or live YouTube pending schedule was checked.
 
@@ -32,12 +32,13 @@ The local availability result uses isolated temporary state and does not prove p
 
 ## Required owner-controlled steps
 
-1. Review the focused JobLock/content PR after it is opened. Confirm required reviewers, security findings, Windows and POSIX CI, and the final changed files.
-2. Merge only through the protected PR process if the owner accepts the change. No merge was performed here.
-3. Verify main contains the merge and its CI/security checks are green.
-4. Render fresh versions of academic-post-meal-walk and nexus-data-wall from corrected copy. Review narration, frames, AAC, SRT, and release gate. The preserved older files still contain copy that should not be released.
-5. Run a fresh read-only preflight: confirm global and channel pause state, plan availability, duplicate reservations, upload ledger, channel/account identity, policy, and pending YouTube releases. Use only approved non-secret identity/status checks. The current API variable read returned 403.
-6. Obtain the owner's explicit activation approval. Then enable Nexus alone:
+1. Publish the local branch codex/fix-joblock-ownership with an authorized GitHub identity; the attempted CLI push and connected GitHub write API both returned HTTP 403. Then open the focused PR.
+2. Review the JobLock/content PR. Confirm required reviewers, security findings, Windows and POSIX CI, and the final changed files.
+3. Merge only through the protected PR process if the owner accepts the change. No merge was performed here.
+4. Verify main contains the merge and its CI/security checks are green.
+5. Render fresh versions of academic-post-meal-walk and nexus-data-wall from corrected copy. Review narration, frames, AAC, SRT, and release gate. The preserved older files still contain copy that should not be released.
+6. Run a fresh read-only preflight: confirm global and channel pause state, plan availability, duplicate reservations, upload ledger, channel/account identity, policy, and pending YouTube releases. Use only approved non-secret identity/status checks. The current API variable read returned 403.
+7. Obtain the owner's explicit activation approval. Then enable Nexus alone:
 
     gh workflow enable "nexus-node daily" --repo Ayushjaiswal0001/youtube
 

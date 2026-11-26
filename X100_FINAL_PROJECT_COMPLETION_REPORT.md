@@ -10,7 +10,7 @@ This report records verified evidence and stops at owner-controlled review/activ
 
 PR #22 is merged and main CI/security are green. The remaining JobLock single-owner defect has been addressed on a focused branch with real process-based regression coverage. Local full tests pass, content-source corrections pass their focused suite, security checks pass, and seven preserved media samples were probed, decoded, and measured.
 
-The candidate is not yet in a new PR or on main. No branch CI has validated this candidate. Two preserved artifacts still contain copy that should not be released until regenerated and reviewed. None of the daily workflows was enabled or dispatched, and no YouTube upload or schedule was made.
+The candidate is local only and is not on main. Publishing the branch failed: git push returned HTTP 403 (permission denied to the CLI account), and the connected GitHub app create-blob API returned HTTP 403 (resource not accessible by integration). No remote branch or PR exists, and no branch CI has validated this candidate. Two preserved artifacts still contain copy that should not be released until regenerated and reviewed. None of the daily workflows was enabled or dispatched, and no YouTube upload or schedule was made.
 
 ## B. Repository and main SHA
 
@@ -18,7 +18,7 @@ Repository verified as Ayushjaiswal0001/youtube at D:\X100-youtube. Remote main 
 
 ## C. PR and merge history
 
-PR #22, head 6c52d38ac48963f9a37d1aadd5139e0e3453d768, merged on 2026-11-25 as b16c4b5. PR #20 and #21 are prior project history. The focused candidate commit is 7d6ffe0; it has not been merged and is not part of current main.
+PR #22, head 6c52d38ac48963f9a37d1aadd5139e0e3453d768, merged on 2026-11-25 as b16c4b5. PR #20 and #21 are prior project history. The focused source candidate is commit 7d6ffe0; the documentation update is local on the same focused branch. Branch publication was rejected with HTTP 403, so no PR exists. The candidate has not been merged and is not part of current main.
 
 PR #2 remains open at head 2a810f08de4d3a50ff4a7da20d8357268f6a3744, based on older SHA 567e63c0c957d42dee4c17156bc7cc89db6f095b. No changes were made to it. Its owner should decide separately whether to refresh or retire it.
 
@@ -149,11 +149,12 @@ Preserved generated artifacts and pipeline state were not staged or altered.
 
 ## R. Exact remaining owner actions
 
-1. Review the focused PR after it is opened; require independent review and passing Windows/POSIX CI and security checks.
-2. Merge only through normal protected branch process if accepted; verify the resulting main SHA and main CI/security.
-3. Rerender and review the corrected Academic post-meal and Nexus data-wall artifacts.
-4. Run a fresh non-secret runtime preflight for pause, channel identity, plan/duplicate state, upload ledger, policy, and live YouTube pending schedules.
-5. Explicitly approve Nexus activation only after those checks. Verify the actual YouTube metadata before considering Academic, then Natkhat.
+1. With an authorized GitHub identity, publish the local branch using git push -u origin codex/fix-joblock-ownership, then open a focused PR. Both the CLI push and connected GitHub write API returned HTTP 403 in this session.
+2. Require independent review and passing Windows/POSIX CI and security checks.
+3. Merge only through the normal protected branch process if accepted; verify the resulting main SHA and main CI/security.
+4. Rerender and review the corrected Academic post-meal and Nexus data-wall artifacts.
+5. Run a fresh non-secret runtime preflight for pause, channel identity, plan/duplicate state, upload ledger, policy, and live YouTube pending schedules.
+6. Explicitly approve Nexus activation only after those checks. Verify the actual YouTube metadata before considering Academic, then Natkhat.
 
 No merge or activation was done.
 
