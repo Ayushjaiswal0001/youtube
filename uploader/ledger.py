@@ -135,21 +135,33 @@ class Ledger:
                 return entry
         return None
 
+    def latest_entries(self) -> list[LedgerEntry]:
+        """Return one current record per job, ordered by each job's latest update."""
+        latest: dict[str, tuple[int, LedgerEntry]] = {}
+        for index, entry in enumerate(self.entries()):
+            latest[entry.job_id] = (index, entry)
+        return [entry for _, entry in sorted(latest.values(), key=lambda item: item[0])]
+
     def latest_for_hash(self, video_sha256: str) -> LedgerEntry | None:
-        for entry in reversed(self.entries()):
+        for entry in reversed(self.latest_entries()):
             if entry.video_sha256 == video_sha256:
                 return entry
         return None
 
     def assert_no_duplicate(self, video_sha256: str) -> LedgerEntry | None:
-        latest = self.latest_for_hash(video_sha256)
-        if latest and latest.status in DUPLICATE_STATUSES:
+        matches = [
+            entry for entry in self.latest_entries()
+            if entry.video_sha256 == video_sha256
+        ]
+        blocking = [entry for entry in matches if entry.status in DUPLICATE_STATUSES]
+        if blocking:
+            latest = blocking[-1]
             raise DuplicateUploadError(
                 f"video hash already has ledger status {latest.status} "
                 f"for job {latest.job_id}",
                 status=latest.status,
             )
-        return latest
+        return matches[-1] if matches else None
 
     def start(
         self,
@@ -200,6 +212,7 @@ class Ledger:
             video_url=video_url,
             attempts=attempts,
             created_at=base.created_at,
+            updated_at=utc_now(),
         )
         self.append(entry)
         with self.root.joinpath("history.jsonl").open("a", encoding="utf-8") as handle:
@@ -265,15 +278,16 @@ class Ledger:
             error_code=error_code,
             error_message=error_message,
             created_at=base.created_at,
+            updated_at=utc_now(),
         )
         self.append(entry)
         return entry
 
     def history(self) -> list[LedgerEntry]:
-        return [entry for entry in self.entries() if entry.status == "uploaded"]
+        return [entry for entry in self.latest_entries() if entry.status == "uploaded"]
 
     def summary(self) -> dict[str, int]:
         result: dict[str, int] = {}
-        for entry in self.entries():
+        for entry in self.latest_entries():
             result[entry.status] = result.get(entry.status, 0) + 1
         return result

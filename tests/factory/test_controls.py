@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -22,19 +23,24 @@ def test_the_global_environment_flag_stops_every_channel(tmp_path: Path) -> None
         ensure_allowed("nexus-node", environ={"FACTORY_PAUSED": "true"}, root=tmp_path)
 
 
-def test_a_per_channel_variable_stops_only_that_channel(tmp_path: Path) -> None:
+def test_a_per_channel_variable_stops_only_that_channel(monkeypatch, tmp_path: Path) -> None:
+    from factory.config import load_channel_specs
+
+    specs = load_channel_specs()
+    specs["academic-biohacker"] = replace(specs["academic-biohacker"], production_enabled=True)
+    monkeypatch.setattr("factory.controls.load_channel_specs", lambda: specs)
     env = {"FACTORY_PAUSED_CHANNELS": "natkhat-toons, nexus-node"}
     assert pause_state("natkhat-toons", environ=env, root=tmp_path).paused
     assert pause_state("academic-biohacker", environ=env, root=tmp_path).paused is False
 
 
 def test_the_flag_file_works_without_an_operator_present(tmp_path: Path) -> None:
-    pause("natkhat-toons", root=tmp_path)
+    pause("nexus-node", root=tmp_path)
     with pytest.raises(ProductionPaused) as caught:
-        ensure_allowed("natkhat-toons", environ={}, root=tmp_path)
+        ensure_allowed("nexus-node", environ={}, root=tmp_path)
     assert "paused" in str(caught.value)
-    assert resume("natkhat-toons", root=tmp_path) is True
-    ensure_allowed("natkhat-toons", environ={}, root=tmp_path)
+    assert resume("nexus-node", root=tmp_path) is True
+    ensure_allowed("nexus-node", environ={}, root=tmp_path)
 
 
 def test_a_global_flag_file_stops_and_clears(tmp_path: Path) -> None:

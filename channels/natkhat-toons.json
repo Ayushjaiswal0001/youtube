@@ -17,6 +17,8 @@
     "language": "hi",
     "format": "shorts",
     "style": "tall-tale",
+    "visual_style": "cinematic-folktale",
+    "production_enabled": false,
     "voice": "hi-IN-MadhurNeural",
     "rate": "+8%",
     "pitch": "+0Hz",

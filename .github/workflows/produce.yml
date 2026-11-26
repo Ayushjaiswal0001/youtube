@@ -161,6 +161,14 @@ jobs:
             exit 1
           fi
 
+      - name: Emergency stop check
+        # Check pause flags immediately after checkout so a held channel uses no render resources.
+        env:
+          FACTORY_PAUSED: ${{ vars.FACTORY_PAUSED }}
+          FACTORY_PAUSED_CHANNELS: ${{ vars.FACTORY_PAUSED_CHANNELS }}
+        run: |
+          python -c "import os,sys; from factory.controls import pause_state; s = pause_state(os.environ['CHANNEL']); print(s.reason) if s.paused else None; sys.exit(1 if s.paused else 0)"
+
       - name: Set up Python
         uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0
         with:
@@ -403,15 +411,6 @@ jobs:
           PY
         env:
           RESOLVED_PLAN: ${{ steps.resolve.outputs.plan_id }}
-
-      - name: Emergency stop check
-        # A repository variable (FACTORY_PAUSED / FACTORY_PAUSED_CHANNELS) stops the run before any work,
-        # so stopping production never depends on someone being at a keyboard.
-        env:
-          FACTORY_PAUSED: ${{ vars.FACTORY_PAUSED }}
-          FACTORY_PAUSED_CHANNELS: ${{ vars.FACTORY_PAUSED_CHANNELS }}
-        run: |
-          python -c "import os,sys; from factory.controls import pause_state; s = pause_state(os.environ['CHANNEL']); print(s.reason) if s.paused else None; sys.exit(1 if s.paused else 0)"
 
       - name: Validate channel slug
         # The slug becomes a directory name and a command argument, so it is checked to be one of the

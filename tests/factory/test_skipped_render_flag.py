@@ -8,6 +8,7 @@ the truth, which is the worst possible failure for a "did anything happen?" fiel
 
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -61,10 +62,15 @@ class TestSkippedRenderFlag:
         assert "reused_build = build_is_complete(expected_out_dir) and not force" in source
         assert 'reused_build = (expected_out_dir / "video.mp4").is_file() and not force' not in source
 
-    def test_a_real_idempotent_rerun_reports_the_second_run_as_skipped(self, scratch) -> None:
+    def test_a_real_idempotent_rerun_reports_the_second_run_as_skipped(
+        self, scratch, monkeypatch
+    ) -> None:
         """End to end on the cheapest real episode: render once, then render again without force."""
 
-        spec = load_channel_specs()["academic-biohacker"]
+        specs = load_channel_specs()
+        spec = replace(specs["academic-biohacker"], production_enabled=True)
+        specs["academic-biohacker"] = spec
+        monkeypatch.setattr("factory.controls.load_channel_specs", lambda: specs)
         plan = _plan("academic-biohacker")
         first = render_episode(spec, plan=plan, force=True)
         assert first["qc_ok"], first.get("qc_errors")

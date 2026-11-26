@@ -281,6 +281,7 @@ def story_packet(script: Script, spec: ChannelSpec) -> dict[str, Any]:
                 "gappu_pose": str(raw.get("gappu_pose", "idle")),
                 "camera": str(raw.get("camera", "medium_pan")),
                 "bg": str(raw.get("bg", "haunted_haveli")),
+                "visual_style": spec.visual_style,
                 "sfx": str(raw.get("sfx", "whoosh")),
                 "subtitle_png": str(raw.get("subtitle_png", "")),
                 "title_png": str(raw.get("title_png", "")),

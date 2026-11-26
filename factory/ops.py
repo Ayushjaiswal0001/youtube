@@ -96,12 +96,28 @@ def cmd_gate(args: Any, *, specs: dict[str, ChannelSpec], print_fn,
     return 0 if all(r["ok"] for r in results) else 2
 
 
+def _upload_snapshot(root: Path, channel_slug: str, *, limit: int = 10) -> list[dict[str, Any]]:
+    from uploader.ledger import Ledger
+
+    if limit <= 0:
+        return []
+    ledger = Ledger(root, channel_slug)
+    return [
+        {
+            "video_id": entry.video_id,
+            "status": entry.status,
+            "at": entry.updated_at or entry.created_at,
+            "sha256": entry.video_sha256[:16],
+        }
+        for entry in ledger.latest_entries()[-limit:]
+    ]
+
+
 def collect_ops(specs: dict[str, ChannelSpec], *, channel: str = "all") -> dict[str, Any]:
     """Everything an operator needs, assembled from state that is already on disk."""
 
     from .state import ChannelState
     from uploader.config import load_channel_configs
-    from uploader.ledger import Ledger
 
     from .config import CHANNELS_DIR, UPLOAD_STATE_ROOT
 
@@ -149,14 +165,7 @@ def collect_ops(specs: dict[str, ChannelSpec], *, channel: str = "all") -> dict[
 
         uploads: List[dict[str, Any]] = []
         try:
-            ledger = Ledger(UPLOAD_STATE_ROOT, spec.slug)
-            for entry in ledger.entries()[-10:]:
-                uploads.append({
-                    "video_id": entry.video_id,
-                    "status": entry.status,
-                    "at": entry.produced_at,
-                    "sha256": entry.video_sha256[:16],
-                })
+            uploads = _upload_snapshot(UPLOAD_STATE_ROOT, spec.slug)
         except Exception:  # noqa: BLE001 - a missing ledger means "nothing uploaded yet"
             pass
 

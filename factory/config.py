@@ -267,6 +267,10 @@ class ChannelSpec:
     pitch: str
     palette: str
     niche: str
+    # Rendering treatment is independent from the writing/narrative style. This lets one channel
+    # change its animation language without changing its story templates or voice.
+    visual_style: str = "default"
+    production_enabled: bool = True
     queries: tuple[str, ...] = field(default_factory=tuple)
     # Terms that must appear in a discovered item before it may be produced for this channel. A generic
     # relevance score let a Nature astronomy story top the learning-science channel at 0.62, because
@@ -353,6 +357,9 @@ def load_channel_specs(channels_dir: Path | str | None = None) -> dict[str, Chan
         queries = factory.get("queries", [])
         if not isinstance(queries, list) or not all(isinstance(q, str) for q in queries):
             raise ValueError(f"factory.queries for {slug} must be a list of strings")
+        production_enabled = factory.get("production_enabled", True)
+        if not isinstance(production_enabled, bool):
+            raise ValueError(f"factory.production_enabled for {slug} must be a boolean")
         tags = defaults.get("tags", [])
         if not isinstance(tags, list) or not all(isinstance(t, str) for t in tags):
             raise ValueError(f"defaults.tags for {slug} must be a list of strings")
@@ -369,6 +376,8 @@ def load_channel_specs(channels_dir: Path | str | None = None) -> dict[str, Chan
             pitch=str(factory.get("pitch", "+0Hz")),
             palette=palette,
             niche=str(factory.get("niche", "")),
+            visual_style=str(factory.get("visual_style", "default")),
+            production_enabled=production_enabled,
             queries=tuple(queries),
             focus_terms=tuple(str(term).lower() for term in (factory.get("focus_terms") or [])),
             publish_time_ist=str(factory.get("publish_time_ist", "")),

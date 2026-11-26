@@ -88,3 +88,55 @@ class LedgerTests(unittest.TestCase):
             )
             with self.assertRaises(DuplicateUploadError):
                 ledger.assert_no_duplicate("video-hash")
+
+    def test_summary_reports_latest_status_per_job(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            ledger = Ledger(Path(temporary), "nexus-node")
+            ledger.start(
+                job_id="job-1", video_sha256="video-hash", metadata_sha256="metadata-hash",
+                title="Title", privacy_status="private", video_path="video.mp4",
+            )
+            ledger.mark_uploaded(
+                "job-1", video_id="video-1",
+                video_url="https://www.youtube.com/watch?v=video-1", attempts=1,
+            )
+
+            self.assertEqual(ledger.summary(), {"uploaded": 1})
+            self.assertEqual([entry.status for entry in ledger.latest_entries()], ["uploaded"])
+
+    def test_uploaded_hash_stays_blocked_after_another_attempt_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            ledger = Ledger(Path(temporary), "nexus-node")
+            for job_id in ("job-uploaded", "job-retry"):
+                ledger.start(
+                    job_id=job_id, video_sha256="video-hash", metadata_sha256="metadata-hash",
+                    title="Title", privacy_status="private", video_path="video.mp4",
+                )
+                if job_id == "job-uploaded":
+                    ledger.mark_uploaded(
+                        job_id, video_id="video-1",
+                        video_url="https://www.youtube.com/watch?v=video-1", attempts=1,
+                    )
+                else:
+                    ledger.mark_failed(
+                        job_id, error_code="http_403_forbidden",
+                        error_message="forbidden", attempts=1,
+                    )
+
+            with self.assertRaises(DuplicateUploadError) as caught:
+                ledger.assert_no_duplicate("video-hash")
+            self.assertEqual(caught.exception.status, "uploaded")
+
+    def test_uploaded_job_is_not_reported_as_an_old_uploading_job(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            ledger = Ledger(Path(temporary), "nexus-node")
+            ledger.start(
+                job_id="job-1", video_sha256="video-hash", metadata_sha256="metadata-hash",
+                title="Title", privacy_status="private", video_path="video.mp4",
+            )
+            ledger.mark_uploaded(
+                "job-1", video_id="video-1",
+                video_url="https://www.youtube.com/watch?v=video-1", attempts=1,
+            )
+
+            self.assertEqual(ledger.summary().get("uploading", 0), 0)

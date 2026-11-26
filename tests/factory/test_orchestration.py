@@ -377,6 +377,7 @@ class ResumeContractTests(unittest.TestCase):
             (out_dir / "qc.json").write_text(json.dumps({"ok": True}), encoding="utf-8")
             with mock.patch("factory.cli.load_plans_for", return_value=[plan]), \
                  mock.patch("factory.cli.episode_out_dir", return_value=out_dir), \
+                 mock.patch("factory.controls.ensure_allowed"), \
                  mock.patch("factory.cli.render_episode") as render:
                 code = cmd_resume(mock.Mock(channel=spec.slug, plan_id=None,
                                             format="long", force=False, json=True))
@@ -392,6 +393,7 @@ class ResumeContractTests(unittest.TestCase):
             out_dir.mkdir(parents=True)
             with mock.patch("factory.cli.load_plans_for", return_value=[plan]), \
                  mock.patch("factory.cli.episode_out_dir", return_value=out_dir), \
+                 mock.patch("factory.controls.ensure_allowed"), \
                  mock.patch("factory.cli.render_episode",
                             return_value={"qc_ok": True, "channel": spec.slug,
                                           "plan_id": plan_identifier(plan)}) as render:
