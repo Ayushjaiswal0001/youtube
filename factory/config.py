@@ -99,8 +99,9 @@ VISUAL_CATEGORIES = ("diagram", "dataviz", "motion_graphics", "kinetic_type", "p
                      "illustration", "software_demo")
 # Every field ``parse_visual_policy`` understands. Anything else is reported, not dropped silently.
 _POLICY_FIELDS = frozenset({"scene_planning", "categories", "min_scene_ms", "max_scene_ms",
-                            "palette", "chart_values", "warnings"})
+                            "palette", "chart_values", "animation_style", "warnings"})
 VISUAL_PALETTES = ("default", "paper")
+VISUAL_ANIMATION_STYLES = ("default", "data-story", "clean-tech")
 DEFAULT_VISUAL_MIN_MS = 2000
 DEFAULT_VISUAL_MAX_MS = 8000
 
@@ -121,6 +122,7 @@ class VisualPolicy(Mapping[str, Any]):
     max_scene_ms: int = DEFAULT_VISUAL_MAX_MS
     palette: str = "default"
     chart_values: bool = True
+    animation_style: str = "default"
     warnings: tuple[str, ...] = ()
 
     def as_dict(self) -> dict[str, Any]:
@@ -133,6 +135,7 @@ class VisualPolicy(Mapping[str, Any]):
             "max_scene_ms": self.max_scene_ms,
             "palette": self.palette,
             "chart_values": self.chart_values,
+            "animation_style": self.animation_style,
         }
 
     # Mapping protocol: `policy.get("scene_planning")`, `dict(policy)` and `policy or {}` all keep
@@ -226,9 +229,18 @@ def parse_visual_policy(raw: Any, *, slug: str = "") -> VisualPolicy:
         warnings.append(f"chart_values={chart_values!r} is not a boolean: using True")
         chart_values = True
 
+    animation_style = data.get("animation_style", "default")
+    if not isinstance(animation_style, str) or animation_style not in VISUAL_ANIMATION_STYLES:
+        warnings.append(
+            f"animation_style={animation_style!r} is not one of {list(VISUAL_ANIMATION_STYLES)}: "
+            "using 'default'"
+        )
+        animation_style = "default"
+
     policy = VisualPolicy(scene_planning=scene_planning, categories=categories,
                           min_scene_ms=min_scene_ms, max_scene_ms=max_scene_ms, palette=palette,
-                          chart_values=chart_values, warnings=tuple(warnings))
+                          chart_values=chart_values, animation_style=animation_style,
+                          warnings=tuple(warnings))
     if warnings:
         LOGGER.warning("%s: visual_policy: %s", slug or "channel", "; ".join(warnings))
     return policy
