@@ -650,6 +650,7 @@ def _paste_visual(
     local: float,
     span: float,
     c: dict[str, str],
+    animation_style: str = "default",
 ) -> tuple[float, float, float, float]:
     """Composite the scene's visual into the plate, with an entrance rise and fade.
 
@@ -659,12 +660,28 @@ def _paste_visual(
     left, top = VISUAL_PLATE["left"], VISUAL_PLATE["top"]
     width, height = VISUAL_PLATE_SIZE
     plate = _plate_image(image, local, span).resize((width, height), Image.BILINEAR)
+    reveal_edge: int | None = None
 
     if local < VISUAL_ENTER_S:
         alpha = local / VISUAL_ENTER_S
         rise = int(16 * (1.0 - alpha))
         backdrop = Image.new("RGB", (width, height), _rgb(_mix(c["bg"], c["panel"], 0.6)))
-        plate = Image.blend(backdrop, plate, max(0.0, min(1.0, alpha)) ** 0.7)
+        progress = max(0.0, min(1.0, alpha))
+        if animation_style in {"data-story", "clean-tech"}:
+            # The first beat draws the visual onto the card with a style-specific wipe. It changes
+            # only the reveal; all words, diagrams, labels, and source details remain the planned art.
+            mask = Image.new("L", (width, height), 0)
+            mask_draw = ImageDraw.Draw(mask)
+            if animation_style == "data-story":
+                edge = int(width * progress)
+                mask_draw.rectangle((0, 0, edge, height), fill=255)
+            else:
+                edge = int(height * progress)
+                mask_draw.rectangle((0, 0, width, edge), fill=255)
+            reveal_edge = edge
+            plate = Image.composite(plate, backdrop, mask)
+        else:
+            plate = Image.blend(backdrop, plate, progress ** 0.7)
         top = top + rise
 
     frame.paste(plate, (left, top))
@@ -673,7 +690,58 @@ def _paste_visual(
         draw = ImageDraw.Draw(frame)
         draw.rectangle((left, top - 3, left + int(width * min(1.0, local / VISUAL_ENTER_S)), top),
                        fill=c["accent"])
+    if reveal_edge is not None:
+        reveal = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+        reveal_draw = ImageDraw.Draw(reveal)
+        edge_color = _rgba(c["accent"], int(215 * (1.0 - min(1.0, local / VISUAL_ENTER_S) * 0.35)))
+        if animation_style == "data-story":
+            reveal_draw.line((reveal_edge, 0, reveal_edge, height - 1), fill=edge_color, width=4)
+        else:
+            reveal_draw.line((0, reveal_edge, width - 1, reveal_edge), fill=edge_color, width=4)
+        frame.paste(reveal, (left, top), reveal.getchannel("A"))
+    if animation_style in {"data-story", "clean-tech"}:
+        _draw_style_motion(frame, local, span, c, animation_style, left, top, width, height)
     return (float(left), float(top), float(left + width), float(top + height))
+
+
+def _draw_style_motion(
+    frame: "Image.Image",
+    local: float,
+    span: float,
+    c: dict[str, str],
+    style: str,
+    left: int,
+    top: int,
+    width: int,
+    height: int,
+) -> None:
+    """Add a small, channel-specific motion cue without changing the meaning of a diagram."""
+
+    overlay = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(overlay)
+    if style == "data-story":
+        # A chapter trace runs along the card's top safe edge. It is visual pacing, not a data axis.
+        progress = min(1.0, max(0.0, local / max(0.001, span)))
+        marker_x = int((width - 1) * progress)
+        color = _rgba(c["accent"], 190)
+        draw.line((0, 3, marker_x, 3), fill=color, width=3)
+        draw.ellipse((marker_x - 5, 0, marker_x + 5, 10), fill=color)
+    elif style == "clean-tech":
+        # A soft scanner travels over the existing UI-like plate; no new labels or quantities appear.
+        phase = (local % 4.8) / 4.8
+        scan_x = int((width - 1) * phase)
+        draw.line((scan_x - 3, 0, scan_x - 3, height - 1), fill=_rgba(c["accent"], 20), width=9)
+        draw.line((scan_x, 0, scan_x, height - 1), fill=_rgba(c["accent"], 70), width=2)
+        bracket = _rgba(c["accent2"], 95)
+        arm = 18
+        gap = 10
+        for x, y, dx, dy in (
+            (gap, gap, 1, 1), (width - gap, gap, -1, 1),
+            (gap, height - gap, 1, -1), (width - gap, height - gap, -1, -1),
+        ):
+            draw.line((x, y, x + arm * dx, y), fill=bracket, width=2)
+            draw.line((x, y, x, y + arm * dy), fill=bracket, width=2)
+    frame.paste(overlay, (left, top), overlay.getchannel("A"))
 
 
 def _draw_scene_planned(
@@ -695,7 +763,9 @@ def _draw_scene_planned(
     draw = ImageDraw.Draw(frame)
     drawn = _draw_chrome(draw, line, brand, c, index, total)
     if image is not None:
-        drawn["visual"] = _paste_visual(frame, image, local, span, c)
+        policy = getattr(spec, "visual_policy", None) or {}
+        animation_style = str(policy.get("animation_style", "default"))
+        drawn["visual"] = _paste_visual(frame, image, local, span, c, animation_style)
     else:
         # No visual resolved: draw nothing rather than a placeholder that pretends to be one. The
         # creative report counts it as uncovered.

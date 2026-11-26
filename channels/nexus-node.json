@@ -57,6 +57,7 @@
     ],
     "visual_policy": {
       "scene_planning": true,
+      "animation_style": "clean-tech",
       "categories": [
         "diagram",
         "dataviz",
