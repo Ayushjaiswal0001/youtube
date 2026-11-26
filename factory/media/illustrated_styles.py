@@ -124,11 +124,13 @@ def _fit_pan(image: Image.Image | None, size: tuple[int, int], progress: float) 
         d = ImageDraw.Draw(blank)
         d.ellipse((width * .38, height * .2, width * .62, height * .7), fill="#E9D9B9")
         return blank
-    zoom = 1.035 + .055 * progress
+    # Keep the camera travelling through the full beat: a subtle 5% push read as a fixed slide
+    # at phone size, so these illustrated treatments use a more visible documentary push-in.
+    zoom = 1.035 + .095 * progress
     scaled = ImageOps.fit(image.convert("RGB"),
                           (int(width * zoom), int(height * zoom)),
                           method=Image.Resampling.LANCZOS,
-                          centering=(.45 + .1 * progress, .48))
+                          centering=(.43 + .14 * progress, .48))
     left = (scaled.width - width) // 2
     top = (scaled.height - height) // 2
     return scaled.crop((left, top, left + width, top + height))
@@ -212,6 +214,56 @@ def _draw_pop_prop(draw: ImageDraw.ImageDraw, kind: str, local: float) -> None:
         draw.polygon(((cx + 49, cy - 4), (cx + 72, cy + 7), (cx + 49, cy + 18)), fill="#E45D4F")
 
 
+def _draw_study_group(draw: ImageDraw.ImageDraw,
+                      box: tuple[int, int, int, int], local: float) -> None:
+    """Show an illustrative participant group when the narration names a trial cohort."""
+
+    x1, y1, x2, y2 = box
+    draw.rounded_rectangle(box, radius=28, fill="#EAF2E9", outline="#5E9A8D", width=4)
+    draw.ellipse((x1 + 18, y1 + 42, x2 - 18, y2 + 56), fill="#D5E5D5")
+    # These figures are illustrative people, not a count of the study sample.
+    palette = ("#D96C55", "#628EAA", "#E0B54D", "#8F7AB5", "#4B9B87")
+    centers = [x1 + 104 + index * 108 for index in range(5)]
+    people = []
+    for index, center in enumerate(centers):
+        phase = local * 4.2 + index * .78
+        bob = int(7 * math.sin(phase))
+        head_y = y1 + 156 + bob
+        body_top = head_y + 42
+        walk = math.sin(phase) if index == 2 else 0.0
+        skin = ("#E8B184", "#D59A73", "#F0C5A0", "#C98362", "#E3A47D")[index]
+        draw.ellipse((center - 27, head_y - 27, center + 27, head_y + 27),
+                     fill=skin, outline="#57483B", width=4)
+        draw.arc((center - 13, head_y - 1, center + 13, head_y + 15), 5, 175,
+                 fill="#684C3F", width=3)
+        draw.rounded_rectangle((center - 36, body_top, center + 36, body_top + 92), radius=22,
+                               fill=palette[index], outline="#57483B", width=4)
+        draw.line((center - 27, body_top + 25, center - 53 - int(walk * 13), body_top + 64),
+                  fill=skin, width=13)
+        draw.line((center + 27, body_top + 25, center + 52 + int(walk * 13), body_top + 62),
+                  fill=skin, width=13)
+        left_stride = int(walk * 19)
+        right_stride = -left_stride
+        left_lift = max(0, int(abs(walk) * 8))
+        right_lift = max(0, int(abs(walk) * 8))
+        draw.line((center - 17, body_top + 89, center - 28 + left_stride,
+                   body_top + 148 - left_lift), fill="#51463E", width=14)
+        draw.line((center + 17, body_top + 89, center + 30 + right_stride,
+                   body_top + 148 - right_lift), fill="#51463E", width=14)
+        draw.ellipse((center - 42 + left_stride, body_top + 140 - left_lift,
+                      center - 14 + left_stride, body_top + 154 - left_lift), fill="#51463E")
+        draw.ellipse((center + 15 + right_stride, body_top + 140 - right_lift,
+                      center + 45 + right_stride, body_top + 154 - right_lift), fill="#51463E")
+        people.append((center, head_y))
+    # A moving halo points to each participant in turn without implying an experiment result.
+    active = int((local * .85) % len(people))
+    center, head_y = people[active]
+    radius = 38 + int(4 * math.sin(local * 4.5))
+    draw.ellipse((center - radius, head_y - radius, center + radius, head_y + radius),
+                 outline="#E5B94F", width=5)
+    draw.text((x1 + 22, y2 - 40), "STUDY GROUP", font=_font(ROUNDED_FONT, 23), fill="#3D5148")
+
+
 def _draw_brand(draw: ImageDraw.ImageDraw, brand: tuple[str, str, str], label: str,
                 bg: str, fg: str, accent: str) -> None:
     draw.rounded_rectangle((66, 72, 1014, 190), radius=28, fill=bg, outline=fg, width=3)
@@ -230,7 +282,7 @@ def _draw_pop_info(frame: Image.Image, image: Image.Image | None, line: Any,
     spring = min(1.08, max(.01, _ease_out(local / .44)))
     headline_font, rows = _fit_text(draw, line.headline or line.caption or line.text[:38],
                                     ROUNDED_FONT, 770, 78, 48, 2)
-    bubble_top = 230 + int(15 * (1 - spring))
+    bubble_top = 230 + int(15 * (1 - spring)) + int(5 * math.sin(local * 1.8))
     bubble = (92, bubble_top, 918, bubble_top + (174 if len(rows) == 1 else 226))
     draw.rounded_rectangle(bubble, radius=48, fill="#FFFDF7", outline="#5E4634", width=5)
     draw.polygon(((812, bubble[3] - 4), (856, bubble[3] - 5), (828, bubble[3] + 31)), fill="#FFFDF7")
@@ -243,9 +295,12 @@ def _draw_pop_info(frame: Image.Image, image: Image.Image | None, line: Any,
         text_top += row_height
     # The evidence graphic is a moving picture window inside a rounded illustrated room.
     enter = max(.04, min(1.0, spring))
-    target_box = (92, 515 + int(28 * (1 - enter)), 736, 966 + int(28 * (1 - enter)))
+    float_x = int(7 * math.sin(local * 1.35))
+    float_y = int(9 * math.sin(local * 1.7))
+    target_box = (92 + float_x, 515 + int(28 * (1 - enter)) + float_y,
+                  736 + float_x, 966 + int(28 * (1 - enter)) + float_y)
     # A pantry-like shelf slides into the scene; abstract product blocks are decoration, not labels.
-    shelf_x = 774 + int(100 * (1 - enter))
+    shelf_x = 774 + int(100 * (1 - enter)) + int(4 * math.sin(local * 1.1))
     draw.rounded_rectangle((shelf_x, 600, 1025, 1055), radius=28, fill="#E2D6BD", outline="#77614A", width=5)
     for y in (740, 885, 1028):
         draw.rounded_rectangle((shelf_x + 10, y, 1015, y + 15), radius=7, fill="#92795B")
@@ -256,6 +311,9 @@ def _draw_pop_info(frame: Image.Image, image: Image.Image | None, line: Any,
             draw.ellipse((x + 12, y + 8, x + 25, y + 21), fill="#FFF4D3")
     _paste_pop_window(frame, image, target_box, local, span, index, total)
     draw = ImageDraw.Draw(frame)
+    if "trial" in line.text.lower() and any(word in line.text.lower()
+                                             for word in ("group", "adult", "participant")):
+        _draw_study_group(draw, target_box, local)
     # A dotted route grows from the guide's hand to the focus of this beat.
     start, end = (760, 1135), (650 - int(progress * 65), 980)
     for step in range(13):
@@ -264,21 +322,36 @@ def _draw_pop_info(frame: Image.Image, image: Image.Image | None, line: Any,
         y = (1 - phase) ** 2 * start[1] + 2 * (1 - phase) * phase * 1020 + phase ** 2 * end[1]
         if phase <= progress:
             draw.ellipse((x - 5, y - 5, x + 5, y + 5), fill="#E45D4F")
+    # A bright bead keeps following the route after it has been drawn, so the beat stays in motion.
+    bead = (local * .48) % 1.0
+    bead_x = (1 - bead) ** 2 * start[0] + 2 * (1 - bead) * bead * 650 + bead ** 2 * end[0]
+    bead_y = (1 - bead) ** 2 * start[1] + 2 * (1 - bead) * bead * 1020 + bead ** 2 * end[1]
+    draw.ellipse((bead_x - 10, bead_y - 10, bead_x + 10, bead_y + 10),
+                 fill="#F4D36E", outline="#5E4634", width=3)
     # Small friendly guide with a changing pointing arm and a springy idle motion.
-    bob = int(7 * math.sin(local * 5.5))
+    bob = int(10 * math.sin(local * 4.0))
     hx, hy = 868, 1045 + bob
     draw.ellipse((hx - 60, hy - 61, hx + 60, hy + 59), fill="#EAA870", outline="#4E382D", width=6)
     draw.ellipse((hx - 27, hy - 16, hx - 13, hy + 1), fill="#31271F")
     draw.ellipse((hx + 15, hy - 16, hx + 29, hy + 1), fill="#31271F")
     draw.arc((hx - 20, hy - 1, hx + 23, hy + 34), 5, 165, fill="#7E3E34", width=5)
     draw.rounded_rectangle((hx - 61, hy + 52, hx + 62, hy + 193), radius=35, fill="#56B5A5", outline="#3D4139", width=6)
-    arm_y = hy + 74 + int(5 * math.sin(local * 7))
-    draw.line((hx - 48, arm_y, hx - 105, arm_y - 62, hx - 168, arm_y - 110), fill="#EAA870", width=24)
-    draw.ellipse((hx - 179, arm_y - 122, hx - 157, arm_y - 100), fill="#EAA870", outline="#4E382D", width=3)
-    draw.line((hx - 26, hy + 185, hx - 44, hy + 243), fill="#3A3330", width=22)
-    draw.line((hx + 30, hy + 185, hx + 49, hy + 243), fill="#3A3330", width=22)
-    draw.ellipse((hx - 69, hy + 231, hx - 28, hy + 253), fill="#51443A")
-    draw.ellipse((hx + 30, hy + 231, hx + 71, hy + 253), fill="#51443A")
+    hand_wave = int(18 * math.sin(local * 2.8))
+    arm_y = hy + 74 + int(12 * math.sin(local * 5.0))
+    draw.line((hx - 48, arm_y, hx - 105 + hand_wave // 2, arm_y - 62,
+               hx - 168 + hand_wave, arm_y - 110), fill="#EAA870", width=24)
+    draw.ellipse((hx - 179 + hand_wave, arm_y - 122, hx - 157 + hand_wave, arm_y - 100),
+                 fill="#EAA870", outline="#4E382D", width=3)
+    if line.visual == "walk":
+        stride = math.sin(local * 5.2)
+        left_dx, right_dx = int(stride * 22), int(-stride * 22)
+        left_up, right_up = max(0, int(abs(stride) * 10)), max(0, int(abs(stride) * 10))
+    else:
+        left_dx = right_dx = left_up = right_up = 0
+    draw.line((hx - 26, hy + 185, hx - 44 + left_dx, hy + 243 - left_up), fill="#3A3330", width=22)
+    draw.line((hx + 30, hy + 185, hx + 49 + right_dx, hy + 243 - right_up), fill="#3A3330", width=22)
+    draw.ellipse((hx - 69 + left_dx, hy + 231 - left_up, hx - 28 + left_dx, hy + 253 - left_up), fill="#51443A")
+    draw.ellipse((hx + 30 + right_dx, hy + 231 - right_up, hx + 71 + right_dx, hy + 253 - right_up), fill="#51443A")
     _draw_pop_prop(draw, line.visual, local)
     # Beat count is a sequence marker, not a scientific quantity.
     draw.ellipse((936, 420, 1024, 508), fill="#FFD96C", outline="#513C2C", width=4)
@@ -345,9 +418,10 @@ def _draw_evidence_board(frame: Image.Image, image: Image.Image | None, line: An
     progress = _progress(local, span)
     enter = max(.02, min(1.06, _ease_out(local / .42)))
     scale = .92 + .08 * enter
+    scale += .008 * math.sin(local * 1.8)
     card_w, card_h = int(790 * scale), int(825 * scale)
-    card_x = int(540 - card_w / 2 + 9 * math.sin(local * .7))
-    card_y = int(470 + 18 * (1 - enter) - 14 * progress)
+    card_x = int(540 - card_w / 2 + 16 * math.sin(local * 1.25))
+    card_y = int(470 + 18 * (1 - enter) - 14 * progress + 8 * math.sin(local * 1.6))
     # Curved red string is drawn in stages and tied to the moving scene pin.
     target_pin = (536.0, card_y + 6.0)
     for offset, pin in enumerate(note_pins):
@@ -357,13 +431,32 @@ def _draw_evidence_board(frame: Image.Image, image: Image.Image | None, line: An
             draw.line(path, fill="#B5252A", width=6)
             for point in (path[0], path[-1]):
                 draw.ellipse((point[0] - 6, point[1] - 6, point[0] + 6, point[1] + 6), fill="#C7352D")
+            bead = path[int(((local * .62 + offset * .31) % 1.0) * (len(path) - 1))]
+            bead_radius = 7 + int(2 * (1 + math.sin(local * 5.0 + offset)))
+            draw.ellipse((bead[0] - bead_radius, bead[1] - bead_radius,
+                          bead[0] + bead_radius, bead[1] + bead_radius),
+                         fill="#F1D276", outline="#8E2C2B", width=3)
     # Off-white polaroid with darkroom print, taped top edge and evidence caption.
     draw.rounded_rectangle((card_x + 14, card_y + 18, card_x + card_w + 14, card_y + card_h + 18),
                            radius=8, fill="#573922")
     draw.rectangle((card_x, card_y, card_x + card_w, card_y + card_h), fill="#F7F1E1", outline="#4D3829", width=5)
     picture = _fit_pan(image, (card_w - 82, 490), progress)
     frame.paste(picture, (card_x + 41, card_y + 42))
-    draw.rectangle((card_x + 41, card_y + 42, card_x + card_w - 41, card_y + 532), outline="#594538", width=3)
+    image_left, image_top = card_x + 41, card_y + 42
+    image_right = card_x + card_w - 41
+    draw.rectangle((image_left, image_top, image_right, card_y + 532), outline="#594538", width=3)
+    # A hand-held magnifier scans the evidence photo, giving the board a continuous action beat.
+    sweep = .5 + .5 * math.sin(local * 1.25)
+    lens_x = image_left + 66 + int(sweep * max(0, image_right - image_left - 132))
+    lens_y = image_top + 212 + int(18 * math.sin(local * 1.9))
+    draw.line((lens_x + 34, lens_y + 34, lens_x + 108, lens_y + 108), fill="#49372B", width=19)
+    draw.line((lens_x + 32, lens_y + 32, lens_x + 105, lens_y + 105), fill="#D6AE55", width=12)
+    draw.ellipse((lens_x - 58, lens_y - 58, lens_x + 58, lens_y + 58),
+                 outline="#49372B", width=18)
+    draw.ellipse((lens_x - 51, lens_y - 51, lens_x + 51, lens_y + 51),
+                 outline="#F1D276", width=8)
+    draw.arc((lens_x - 37, lens_y - 39, lens_x + 5, lens_y + 3), 200, 315,
+             fill="#FFF7D9", width=7)
     title_font, rows = _fit_text(draw, line.headline or line.caption or line.text[:48], NOTE_FONT,
                                  card_w - 76, 46, 34, 2)
     title_y = card_y + 575
