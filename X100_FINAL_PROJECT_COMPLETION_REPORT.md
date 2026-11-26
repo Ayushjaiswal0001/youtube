@@ -10,7 +10,7 @@ This report records verified evidence and stops at owner-controlled review/activ
 
 PR #22 is merged and main CI/security are green. The JobLock single-owner repair and a final journal-isolation correction are on the focused PR #23 branch with real process-based regression coverage. The full local suite and current focused Windows tests pass; evidence-backed content corrections pass their focused suite; security checks pass. Seven preserved media samples plus two corrected local derivatives were re-probed, decoded, and measured.
 
-The candidate is not on main. PR #23 is open at `https://github.com/Ayushjaiswal0001/youtube/pull/23`. The initial HTTP 403 was traced to an injected read-only `GITHUB_TOKEN` identity; an already-authenticated owner keyring identity had repository `push:true`, and the focused branch was published without creating credentials or exposing token values. CI and security passed on earlier branch head c653cfa; fresh runs are in progress for the final code head 528ec22. The preserved Academic and Nexus originals remain stale; corrected local derivatives exist and await owner editorial review. No production workflow was enabled or dispatched, and no YouTube upload or schedule was made.
+The candidate is not on main. PR #23 is open at `https://github.com/Ayushjaiswal0001/youtube/pull/23`. The initial HTTP 403 was traced to an injected read-only `GITHUB_TOKEN` identity; an already-authenticated owner keyring identity had repository `push:true`, and the focused branch was published without creating credentials or exposing token values. At 11:26 IST, all CI and security runs passed on verified branch head `d1edea4` (PR CI `45763722304`, push CI `45763714737`, PR security `45763722267`, push security `45763714758`), including Ubuntu factory coverage. The preserved Academic and Nexus originals remain stale; corrected local derivatives exist and await owner editorial review. No production workflow was enabled or dispatched, and no YouTube upload or schedule was made.
 
 ## B. Repository and main SHA
 
@@ -24,7 +24,7 @@ PR #2 remains open at head 2a810f08de4d3a50ff4a7da20d8357268f6a3744, based on ol
 
 ## D. CI status
 
-Latest main CI run 45705546332 and security run 45705546316 both completed successfully on b16c4b5. On earlier PR head c653cfa, CI run 45760740043 and security run 45760740015 passed. Final source head 528ec22943c896a2626b4877ddaaa1f035480534 passed PR CI run 45762197044 and push CI run 45762192360, including Ubuntu factory and uploader Python 3.11/3.12. PR security run 45762198015 and push security run 45762192359 passed all four jobs. Final docs-only commits trigger new latest-head checks, which must also pass before merge.
+Latest main CI run 45705546332 and security run 45705546316 both completed successfully on b16c4b5. On earlier PR head c653cfa, CI run 45760740043 and security run 45760740015 passed. Final source head 528ec22943c896a2626b4877ddaaa1f035480534 passed PR CI run 45762197044 and push CI run 45762192360, including Ubuntu factory and uploader Python 3.11/3.12. PR security run 45762198015 and push security run 45762192359 passed all four jobs. Latest verified docs head `d1edea4cd9d43867f2d4519fa4a77865c500919f` also passed PR CI `45763722304`, push CI `45763714737`, PR security `45763722267`, and push security `45763714758`. Verify any newer PR head before merge.
 
 ## E. Full test results
 
@@ -47,7 +47,7 @@ Detailed protocol and migration behavior are documented in X100_LOCK_RELIABILITY
 
 ## G. Concurrency stress test
 
-Real multiprocess tests cover two stale reclaimers, replacement during reclamation, identical job IDs, former-owner release, hard termination, corrupt metadata, missing lock files, heartbeat failure, and 12 simultaneous processes. The 12-process stress test observed exactly one owner. Windows LockFileEx behavior ran locally. POSIX flock is a platform skip on this Windows host and must pass on Ubuntu CI. No cross-host shared-network-filesystem stress was performed.
+Real multiprocess tests cover two stale reclaimers, replacement during reclamation, identical job IDs, former-owner release, hard termination, corrupt metadata, missing lock files, heartbeat failure, and 12 simultaneous processes. The 12-process stress test observed exactly one owner. Windows LockFileEx behavior ran locally. POSIX flock is skipped on this Windows host and passed in the latest verified Ubuntu PR run on head `d1edea4`. No cross-host shared-network-filesystem stress was performed.
 
 ## H. Security results
 
@@ -124,7 +124,7 @@ Because the daily workflows are disabled, there is no actual next run. The next 
 
 ## P. Known limitations
 
-- Candidate JobLock fix is on open PR #23 and unmerged. CI/security passed on source head 528ec22; latest documentation-head checks and independent review must pass before merge.
+- Candidate JobLock fix is on open PR #23 and unmerged. CI/security passed on source head 528ec22 and verified docs head `d1edea4`; independent review is still required before merge. Verify any newer PR head.
 - POSIX lock coverage, physical restart, and shared network filesystem semantics remain unverified here.
 - The two preserved originals remain stale and must not be released. Corrected local derivatives exist and passed automated/sample visual QC; owner editorial review is pending.
 - Subjective audio listening and complete frame-by-frame review were unavailable.
@@ -183,4 +183,4 @@ Use the matching workflow name for Academic or Natkhat. Cancel an active Actions
 
 **B. ENGINEERING COMPLETE — OWNER ACTIONS REQUIRED**
 
-The reliability correction is on PR #23 and remains unmerged. The final code head's CI/security runs must pass before merge, and an independent reviewer is not currently available in the repository collaborator list. Owner editorial review of the corrected media derivatives, live account preflight, and explicit Nexus activation approval also remain. Production workflows remain disabled and no owner-controlled activation was attempted.
+The reliability correction is on PR #23 and remains unmerged. CI/security passed on the latest verified docs head `d1edea4`; an independent reviewer is not currently available in the repository collaborator list. Owner editorial review of the corrected media derivatives, live account preflight, and explicit Nexus activation approval also remain. Production workflows remain disabled and no owner-controlled activation was attempted. Verify checks on any newer PR head before merge.

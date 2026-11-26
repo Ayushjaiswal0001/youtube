@@ -23,7 +23,7 @@ Complete these actions in order. No action below requires sharing a secret.
 
 ## 2. Wait for all checks on the latest PR head
 
-**Why this needs owner follow-through:** GitHub Actions started final-head CI and security after commit `528ec22`; documentation updates trigger another run. Only the latest PR head is authoritative.
+**Why this needs owner follow-through:** All PR/push CI and security runs passed on verified docs head `d1edea4` (CI `45763722304`/`45763714737`; security `45763722267`/`45763714758`). Only the latest PR head is authoritative, so repeat this check after any later commit.
 
 **Command:** In PowerShell, from any directory with GitHub CLI authenticated:
 

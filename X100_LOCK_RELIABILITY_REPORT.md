@@ -37,7 +37,7 @@ Coverage includes active owners with expired heartbeat metadata, the original on
 ## Residual risks and release gate
 
 - This candidate is not on protected main. PR #23 is open. The initial CLI 403 was caused by an injected read-only GITHUB_TOKEN account; an existing owner keyring identity with push permission was used to publish the branch safely. Do not characterize main as fixed until the branch is independently reviewed, merged, and main CI passes.
-- CI and security passed on PR head c653cfa. The follow-up commit 528ec22 passed new CI runs 45762197044 (PR) and 45762192360 (push) and security runs 45762198015 (PR) and 45762192359 (push), including Ubuntu factory coverage for POSIX `flock` and SIGKILL tests. The final documentation-only branch update triggers new checks that must pass before merge.
+- CI and security passed on PR head c653cfa. The follow-up commit 528ec22 passed CI runs 45762197044 (PR) and 45762192360 (push) and security runs 45762198015 (PR) and 45762192359 (push). Latest verified docs head `d1edea4` passed CI runs 45763722304 (PR) and 45763714737 (push) and security runs 45763722267 (PR) and 45763714758 (push), including Ubuntu factory coverage for POSIX `flock` and SIGKILL tests. Verify any newer PR head before merge.
 - No physical reboot or shared-network-filesystem lock test was performed.
 - Exact lock acquisition latency and post-crash recovery time were not benchmarked.
 - Legacy corrupt metadata without sufficient owner evidence intentionally fails closed and may require owner recovery.
