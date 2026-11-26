@@ -57,7 +57,7 @@
     ],
     "visual_policy": {
       "scene_planning": true,
-      "animation_style": "clean-tech",
+      "animation_style": "evidence-board",
       "categories": [
         "diagram",
         "dataviz",

@@ -101,7 +101,14 @@ VISUAL_CATEGORIES = ("diagram", "dataviz", "motion_graphics", "kinetic_type", "p
 _POLICY_FIELDS = frozenset({"scene_planning", "categories", "min_scene_ms", "max_scene_ms",
                             "palette", "chart_values", "animation_style", "warnings"})
 VISUAL_PALETTES = ("default", "paper")
-VISUAL_ANIMATION_STYLES = ("default", "data-story", "clean-tech")
+VISUAL_ANIMATION_STYLES = (
+    "default",
+    "data-story",
+    "clean-tech",
+    "pop-info",
+    "evidence-board",
+    "zine-collage",
+)
 DEFAULT_VISUAL_MIN_MS = 2000
 DEFAULT_VISUAL_MAX_MS = 8000
 
