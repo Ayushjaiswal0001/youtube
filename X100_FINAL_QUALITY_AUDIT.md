@@ -5,7 +5,7 @@ Repository: Ayushjaiswal0001/youtube, checkout D:\X100-youtube
 Protected main: b16c4b5fd0d8cd6731d11dde40fc3a7d49b52d8f
 Reliability/content candidate: 7d6ffe0 on codex/fix-joblock-ownership; not merged
 
-This report distinguishes live GitHub evidence from local tests and preserved sample artifacts. All media listed below is local under D:\X100-youtube\audit-artifacts and remains unmodified.
+This report distinguishes live GitHub evidence from local tests and preserved sample artifacts. The seven original media artifacts under D:\X100-youtube\audit-artifacts remain unmodified. Two corrected local derivatives are stored separately under `audit-artifacts/corrected-2026-11-26/`.
 
 ## Repository, PR, and CI
 
@@ -39,11 +39,20 @@ Seven preserved artifacts were inspected: six channel/format examples and an add
 | Nexus Short, nexus-data-wall | 41.966 s | 1080x1920 | -14.22 LUFS | -2.55 dBTP | 18 |
 | Additional Nexus Short, nexus-eval-problem | 32.667 s | 1080x1920 | -14.43 LUFS | -2.44 dBTP | 16 |
 
+Corrected derivative checks:
+
+| Corrected derivative | Duration | Geometry | AAC integrated loudness | AAC true peak | SRT cues | Audio/video delta |
+| --- | ---: | --- | ---: | ---: | ---: | ---: |
+| Academic Short, academic-post-meal-walk | 47.133 s | 1080x1920 | -14.53 LUFS | -2.26 dBTP | 20 | 0.012 s |
+| Nexus Short, nexus-data-wall | 45.433 s | 1080x1920 | -14.22 LUFS | -2.46 dBTP | 20 | 0.003 s |
+
+Both derivative files use H.264 at 30 fps and AAC stereo at 44.1 kHz. Full FFmpeg decode succeeded; black detection at >=1 second and freeze detection at >=2 seconds found no events. Their SRTs parsed without malformed blocks or overlaps, and each final cue ends before video end. The delivered audio scan found no silence event at -50 dB for >=0.8 seconds. The Academic MP4 is 10,031,680 bytes (SHA-256 `b7d33c51ec28965a3e1f5faa3129f3911edc4889f1e838c77dbd9d2f01764e06`); the Nexus MP4 is 9,656,685 bytes (SHA-256 `c4f30615ca3f37bb34b76c4cfb280776f47afc0aed814e687dcee7de30d2fe0d`).
+
 Every measured encoded AAC true peak is below the project -1 dBTP ceiling. Integrated loudness ranges from -14.43 to -14.02 LUFS. Audio and video durations differ by at most 0.035 seconds; all audio starts at 0.000 seconds. A -50 dB / 0.8-second silence scan found three 0.800–0.817 second intervals in the Natkhat horizontal audio. These may be dialogue pauses; they were not listened to. No subjective listening check was available, so voice completeness, naturalness, music balance, and abrupt audible endings are not certified.
 
 Each video has a local UTF-8 SRT. All seven parsed with no malformed blocks, no overlapping cues, and the last cue ends before video end. Maximum displayed line length is 46 characters for English samples and 38 for Natkhat. Five representative frames per video were sampled from preserved contact sheets; no obvious crop, text overflow, missing asset, or subtitle-band placement defect was seen. This is a sample check, not complete frame-by-frame review. Academic horizontal cards have dense small text in places. Natkhat uses a deliberately dark haunted setting and repeated stage backgrounds. No child-safety certification was performed. Burned-in captions and local SRT do not establish the presence of YouTube caption tracks.
 
-The seven videos total 133,280,859 bytes. A machine snapshot during the audit showed 7.88 GiB total RAM and 1.70 GiB free, and D: had 24.04 GiB free of 30.66 GiB. This is a host-capacity snapshot, not a measured per-render peak. Peak CPU/RAM, exact contention latency, and exact crash-recovery time were not measured.
+The seven original artifact trees total 133,280,859 bytes; the two corrected MP4 files total 19,688,365 bytes. A machine snapshot during the audit showed 7.88 GiB total RAM and 1.70 GiB free, and D: had 24.04 GiB free of 30.66 GiB. This is a host-capacity snapshot, not a measured per-render peak. Peak CPU/RAM, exact contention latency, and exact crash-recovery time were not measured.
 
 ## Editorial and source audit
 
@@ -58,7 +67,7 @@ The candidate updates the topic bank and matching batch copies with direct evide
 - Robot video: direct 2025 preprint, explicitly scoped as one research result rather than a general capability.
 - Data-wall forecast: a direct 2024 analysis and related preprint; projections are identified as conditional estimates.
 
-Two preserved videos predate the copy/source corrections and were not rewritten: academic-post-meal-walk retains the supplement contrast, and nexus-data-wall has a title/hook that states a forecast as a present shortage. Neither should be released without a fresh render from corrected copy and another editorial check. This audit does not alter or delete the preserved audit artifacts.
+The two preserved originals predate the copy/source corrections and were not rewritten: academic-post-meal-walk retains the supplement contrast, and nexus-data-wall has a title/hook that states a forecast as a present shortage. Corrected derivatives were rendered at `audit-artifacts/corrected-2026-11-26/build/academic-biohacker/academic-post-meal-walk/` and `audit-artifacts/corrected-2026-11-26/build/nexus-node/nexus-data-wall/`. Seven-panel contact sheets for each derivative were visually sampled; no obvious crop or text overflow was seen. These are sample visual checks, not a full-frame review, and no subjective audio listening review was performed. Owner editorial review remains required before release. The preserved originals were not altered or deleted.
 
 ## Channel and content coverage
 

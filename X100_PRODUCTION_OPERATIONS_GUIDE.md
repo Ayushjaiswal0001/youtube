@@ -48,7 +48,7 @@ Production concurrency is grouped by channel and format and does not cancel the 
 
 ## Safe owner activation sequence
 
-Do not activate until the local JobLock branch has been published by an authorized identity, its focused PR is reviewed and merged, final PR CI/security and main CI pass, and a fresh owner-controlled account preflight passes. The attempted push and connected GitHub write API both returned HTTP 403 in this audit. Re-render and review the corrected Academic post-meal and Nexus data-wall artifacts before either is release-eligible. Then follow X100_FINAL_ACTIVATION_HANDOVER.md. Nexus is first; activate one channel only, verify actual YouTube metadata, and consider the next channel only after that evidence.
+Do not activate until the local JobLock branch has been published by an authorized identity, its focused PR is reviewed and merged, final PR CI/security and main CI pass, and a fresh owner-controlled account preflight passes. The attempted push and connected GitHub write API both returned HTTP 403 in this audit. Review the corrected Academic and Nexus derivatives under `audit-artifacts/corrected-2026-11-26/build/academic-biohacker/academic-post-meal-walk/` and `audit-artifacts/corrected-2026-11-26/build/nexus-node/nexus-data-wall/` before either is release-eligible; the preserved originals contain stale copy. Then follow X100_FINAL_ACTIVATION_HANDOVER.md. Nexus is first; activate one channel only, verify actual YouTube metadata, and consider the next channel only after that evidence.
 
 After the owner has approved Nexus, the exact enable command is:
 

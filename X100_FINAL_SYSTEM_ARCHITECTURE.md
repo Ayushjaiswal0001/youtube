@@ -50,7 +50,7 @@ Natkhat configuration forces madeForKids=true. That is a platform setting, not a
 
 ## Evidence boundary
 
-Seven preserved local videos were probed and fully decoded: six channel/format examples plus one additional Nexus Short. Geometry, frame rate, encoded AAC, silence/black/freeze thresholds, and SRT timing are summarized in X100_FINAL_QUALITY_AUDIT.md. These are sampled artifacts, not proof of every future plan. No audio listening review or live scheduled release verification was performed.
+Seven preserved local videos plus two corrected derivatives were probed and fully decoded: six channel/format examples, one additional Nexus Short, and corrected Academic post-meal and Nexus data-wall Shorts. The originals remain unchanged; corrected derivatives are local-only under `audit-artifacts/corrected-2026-11-26/`. Geometry, frame rate, encoded AAC, silence/black/freeze thresholds, and SRT timing are summarized in X100_FINAL_QUALITY_AUDIT.md. These are sampled artifacts, not proof of every future plan. Contact sheets were sampled for the derivatives; no audio listening review or live scheduled release verification was performed.
 
 ## Operations and follow-up
 

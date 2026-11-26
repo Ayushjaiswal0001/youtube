@@ -36,7 +36,7 @@ The local availability result uses isolated temporary state and does not prove p
 2. Review the JobLock/content PR. Confirm required reviewers, security findings, Windows and POSIX CI, and the final changed files.
 3. Merge only through the protected PR process if the owner accepts the change. No merge was performed here.
 4. Verify main contains the merge and its CI/security checks are green.
-5. Render fresh versions of academic-post-meal-walk and nexus-data-wall from corrected copy. Review narration, frames, AAC, SRT, and release gate. The preserved older files still contain copy that should not be released.
+5. Review the corrected local derivatives at `audit-artifacts/corrected-2026-11-26/build/academic-biohacker/academic-post-meal-walk/` and `audit-artifacts/corrected-2026-11-26/build/nexus-node/nexus-data-wall/`. Automated media checks and sampled contact-sheet review passed; owner editorial review remains required. Do not release the preserved older files, which still contain stale copy.
 6. Run a fresh read-only preflight: confirm global and channel pause state, plan availability, duplicate reservations, upload ledger, channel/account identity, policy, and pending YouTube releases. Use only approved non-secret identity/status checks. The current API variable read returned 403.
 7. Obtain the owner's explicit activation approval. Then enable Nexus alone:
 

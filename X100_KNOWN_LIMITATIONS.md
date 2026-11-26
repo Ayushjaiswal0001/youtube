@@ -23,8 +23,8 @@ Snapshot date: 2026-11-26. This file supersedes older status snapshots that desc
 
 - Seven preserved sample videos passed full FFmpeg decode, specified black/freeze checks, numeric encoded AAC loudness/true-peak checks, and local SRT structural/timing checks.
 - No subjective listening check was available. Three sub-0.82-second silence intervals were detected in one Natkhat horizontal sample and were not auditioned.
-- Contact-sheet review sampled five frames per artifact; it is not a complete frame-by-frame visual review.
-- The Academic post-meal Short still contains a supplement comparison, and the Nexus data-wall Short presents a conditional forecast too categorically. Corrected topic and batch copy exists, but those preserved media files were not regenerated. Do not release those two versions before rerender and editorial review.
+- The seven preserved originals had five frames sampled per artifact; the two corrected derivatives had seven-panel contact sheets sampled. Neither check is a complete frame-by-frame visual review.
+- The preserved Academic post-meal Short still contains a supplement comparison, and the preserved Nexus data-wall Short presents a conditional forecast too categorically. Corrected derivatives exist under `audit-artifacts/corrected-2026-11-26/build/` and passed automated checks plus sampled contact-sheet review. Do not release the preserved versions; owner editorial review of the derivatives remains pending.
 - Natkhat samples are child-oriented animation in a haunted setting, but no formal child-safety certification was performed.
 - One horizontal plan exists per channel. Current 64.5-second Natkhat horizontal sample is a short story, not substantial long-form coverage.
 - Current unused topic bank: 2 Academic Shorts, 4 Nexus Shorts, 6 Natkhat Shorts. At one Short and one horizontal per channel per day, a seven-day unique bank needs Academic +5 Shorts/+6 horizontal plans, Nexus +3/+6, Natkhat +1/+6; Natkhat also needs a longer authored story. This is a minimum coverage calculation, not generated content.
@@ -32,5 +32,5 @@ Snapshot date: 2026-11-26. This file supersedes older status snapshots that desc
 ## Performance, cost, and service limits
 
 - Historical render measurements fit the current 60-minute Short and 120-minute horizontal workflow budgets, but were made on different runs: 16m31 render/resume in manual run 45625058307 versus a separate 3,008-second 11-beat horizontal measurement.
-- Peak CPU and per-render memory, exact recovery time, and exact lock contention latency were not measured. The 133,280,859-byte total is the size of seven preserved sample trees.
+- Peak CPU and per-render memory, exact recovery time, and exact lock contention latency were not measured. The 133,280,859-byte total is the size of seven preserved sample trees; the two corrected MP4s total 19,688,365 bytes.
 - The ₹0/month target excludes paid APIs, but does not promise unlimited free GitHub Actions/YouTube quota, uninterrupted external services, or zero machine and energy cost.

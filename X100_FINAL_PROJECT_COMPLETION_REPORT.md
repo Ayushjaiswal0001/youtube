@@ -8,9 +8,9 @@ This report records verified evidence and stops at owner-controlled review/activ
 
 ## A. Executive summary
 
-PR #22 is merged and main CI/security are green. The remaining JobLock single-owner defect has been addressed on a focused branch with real process-based regression coverage. Local full tests pass, content-source corrections pass their focused suite, security checks pass, and seven preserved media samples were probed, decoded, and measured.
+PR #22 is merged and main CI/security are green. The remaining JobLock single-owner defect has been addressed on a focused branch with real process-based regression coverage. Local full tests pass, content-source corrections pass their focused suite, security checks pass, and seven preserved media samples plus two corrected local derivatives were probed, decoded, and measured.
 
-The candidate is local only and is not on main. Publishing the branch failed: git push returned HTTP 403 (permission denied to the CLI account), and the connected GitHub app create-blob API returned HTTP 403 (resource not accessible by integration). No remote branch or PR exists, and no branch CI has validated this candidate. Two preserved artifacts still contain copy that should not be released until regenerated and reviewed. None of the daily workflows was enabled or dispatched, and no YouTube upload or schedule was made.
+The candidate is local only and is not on main. Publishing the branch failed: git push returned HTTP 403 (permission denied to the CLI account), and the connected GitHub app create-blob API returned HTTP 403 (resource not accessible by integration). No remote branch or PR exists, and no branch CI has validated this candidate. Two preserved artifacts still contain stale copy; corrected local derivatives exist but await owner editorial review. None of the daily workflows was enabled or dispatched, and no YouTube upload or schedule was made.
 
 ## B. Repository and main SHA
 
@@ -64,11 +64,15 @@ No OAuth value was read, printed, rotated, or changed. The candidate's CI securi
 
 Seven preserved videos were inspected: six channel/format representatives and an extra Nexus Short. FFprobe verified H.264 at 30 fps, expected 1080x1920 Shorts and 1920x1080 horizontal geometry. FFmpeg decoded all seven successfully. Black detection found no event lasting at least 1 second at pixel threshold 0.10; freeze detection found none lasting at least 2 seconds at -60 dB. Five sampled frames per video showed no obvious crop, text overflow, missing asset, or subtitle-band placement defect.
 
+Two corrected Shorts were rendered locally after the copy corrections: Academic `academic-post-meal-walk` (47.133 s) and Nexus `nexus-data-wall` (45.433 s). Both passed the same decode, black/freeze, encoded audio, and SRT checks; their seven-panel contact sheets were visually sampled with no obvious crop or text overflow. They are derivatives in `audit-artifacts/corrected-2026-11-26/`; the seven preserved originals remain unchanged. Owner editorial review is still required before release.
+
 Academic horizontal cards contain dense small text in places. Natkhat uses a deliberately dark haunted setting and repeated stage backgrounds. Sampling does not establish every-frame visual quality, transition quality, full accessibility, or child-safety certification.
 
 ## J. Audio QC
 
 Measurements were taken from the delivered AAC tracks, not WAV sources. All seven are AAC stereo at 44.1 kHz with 0.000-second start time. Integrated loudness spans -14.43 to -14.02 LUFS. True peaks span -2.55 to -1.40 dBTP, below the project's -1 dBTP ceiling. Audio/video duration difference is no more than 0.035 seconds.
+
+The corrected Academic derivative measures -14.53 LUFS / -2.26 dBTP and the corrected Nexus derivative -14.22 LUFS / -2.46 dBTP. Both have AAC stereo at 44.1 kHz and audio/video duration deltas below 0.012 seconds. No subjective listening review was available.
 
 A -50 dB, 0.8-second silence scan found three intervals in the Natkhat horizontal sample, each 0.800–0.817 seconds. They may be dialogue pauses; they were not auditioned. No subjective listening tool was available, so voice completeness, music balance, consistency, and audible endings are not certified.
 
@@ -76,11 +80,13 @@ A -50 dB, 0.8-second silence scan found three intervals in the Natkhat horizonta
 
 All seven local UTF-8 SRTs parsed with no malformed cue blocks or overlaps; final cue ends before video end. Counts range from 10 to 97 cues, and maximum line length is 46 characters. Sampled burned-in captions appeared within their bands. Local SRT and burned-in captions are separate from YouTube caption tracks; no caption-track upload was verified.
 
+Each corrected derivative also has a UTF-8 SRT with 20 cues, no malformed blocks or overlaps, a maximum line length of 46 characters, and a final cue before video end. No YouTube caption-track upload was verified.
+
 ## L. Content and editorial findings
 
 Topic and batch copy now links directly to studies and current technical reports, with narrower claims. Corrections cover post-meal walking, circadian light, sitting breaks, open-weight licensing/evaluation, on-device inference, data-centre grid connections, robot-video pretraining, and training-data forecasts. See the topic JSON in commit 7d6ffe0.
 
-Two archived videos predate those corrections and remain release-blocked: academic-post-meal-walk retains “does something a supplement cannot,” and nexus-data-wall states a conditional forecast as a present shortage. The local files were preserved without edits. Rerender those plans from corrected copy, then repeat editorial, audio, subtitle, visual, and technical QC before any release.
+The two archived originals predate those corrections and remain release-blocked: academic-post-meal-walk retains “does something a supplement cannot,” and nexus-data-wall states a conditional forecast as a present shortage. Corrected derivatives now exist at `audit-artifacts/corrected-2026-11-26/build/academic-biohacker/academic-post-meal-walk/video.mp4` and `audit-artifacts/corrected-2026-11-26/build/nexus-node/nexus-data-wall/video.mp4`; originals were preserved without edits. The derivatives passed automated media checks and sample contact-sheet review, but still need owner editorial review before release.
 
 Primary sources used include [the post-meal walking crossover trial](https://pubmed.ncbi.nlm.nih.gov/32173259/), [the type 2 diabetes walking-timing trial](https://pubmed.ncbi.nlm.nih.gov/27747394/), [the morning-light study](https://pubmed.ncbi.nlm.nih.gov/2267478/), [the melanopic display-light study](https://pubmed.ncbi.nlm.nih.gov/36854795/), [the sitting-break trial](https://pubmed.ncbi.nlm.nih.gov/27208318/), [the human-video VLA preprint](https://arxiv.org/abs/2510.21571), and the [Berkeley Lab grid-connection report](https://datacenters.lbl.gov/publications/speed-power-solutions-accelerating).
 
@@ -100,7 +106,7 @@ The additional content counts are minimum arithmetic coverage, not a request to 
 
 The 60-minute Short and 120-minute horizontal workflow budgets remain. Historical run 45625058307 rendered/resumed in about 16m31 and completed in about 17m56; upload steps were skipped. A separate prior benchmark recorded 3,008 seconds for an 11-beat horizontal render. They are distinct measurements.
 
-Seven preserved artifact trees total 133,280,859 bytes. Machine snapshot during the audit: 7.88 GiB total RAM, 1.70 GiB free, D: 24.04 GiB free of 30.66 GiB. Peak per-render CPU/memory, lock contention latency, and exact recovery time were not captured. No visual-quality tradeoff was made for speed.
+The seven preserved artifact trees total 133,280,859 bytes. The two corrected derivative MP4 files total 19,688,365 bytes. Machine snapshot during the audit: 7.88 GiB total RAM, 1.70 GiB free, D: 24.04 GiB free of 30.66 GiB. Peak per-render CPU/memory, lock contention latency, and exact recovery time were not captured. No visual-quality tradeoff was made for speed.
 
 ## O. Publishing and scheduling verification
 
@@ -120,7 +126,7 @@ Because the daily workflows are disabled, there is no actual next run. The next 
 
 - Candidate JobLock fix is unmerged and branch CI/review is pending.
 - POSIX lock coverage, physical restart, and shared network filesystem semantics remain unverified here.
-- Two preserved short videos need rerender and editorial review.
+- The two preserved originals remain stale and must not be released. Corrected local derivatives exist and passed automated/sample visual QC; owner editorial review is pending.
 - Subjective audio listening and complete frame-by-frame review were unavailable.
 - No formal Natkhat child-safety certification was performed.
 - Content banks cannot sustain a daily two-format schedule.
@@ -152,7 +158,7 @@ Preserved generated artifacts and pipeline state were not staged or altered.
 1. With an authorized GitHub identity, publish the local branch using git push -u origin codex/fix-joblock-ownership, then open a focused PR. Both the CLI push and connected GitHub write API returned HTTP 403 in this session.
 2. Require independent review and passing Windows/POSIX CI and security checks.
 3. Merge only through the normal protected branch process if accepted; verify the resulting main SHA and main CI/security.
-4. Rerender and review the corrected Academic post-meal and Nexus data-wall artifacts.
+4. Review the corrected local Academic post-meal and Nexus data-wall outputs in `audit-artifacts/corrected-2026-11-26/build/academic-biohacker/academic-post-meal-walk/` and `audit-artifacts/corrected-2026-11-26/build/nexus-node/nexus-data-wall/`; do not use the preserved older versions.
 5. Run a fresh non-secret runtime preflight for pause, channel identity, plan/duplicate state, upload ledger, policy, and live YouTube pending schedules.
 6. Explicitly approve Nexus activation only after those checks. Verify the actual YouTube metadata before considering Academic, then Natkhat.
 
@@ -176,4 +182,4 @@ Use the matching workflow name for Academic or Natkhat. Cancel an active Actions
 
 **BLOCKED — CRITICAL RELIABILITY OR QUALITY DEFECTS REMAIN**
 
-The reliability correction is on candidate commit 7d6ffe0 and is not on protected main. Candidate CI and owner review remain, and two archived artifacts require fresh corrected renders. Production workflows remain disabled and no owner-controlled activation was attempted.
+The reliability correction is on candidate commit 7d6ffe0 and is not on protected main. Candidate CI and owner review remain, and the two corrected media derivatives still require owner editorial review. Production workflows remain disabled and no owner-controlled activation was attempted.

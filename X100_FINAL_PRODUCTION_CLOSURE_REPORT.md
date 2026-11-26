@@ -12,7 +12,7 @@ The remaining JobLock ownership defect is fixed and tested on the focused local 
 
 The three daily channel workflows are disabled_manually. The manual production workflow is active but idle. No Actions runs are active. No workflow was dispatched, no video was uploaded, and no YouTube schedule was created or read back.
 
-Two preserved sample videos still contain copy that should not be released: the Academic post-meal Short contrasts walking with supplements, and the Nexus data-wall Short presents a conditional forecast as a present shortage. Corrected source-bank and batch copy exists; those artifacts require fresh render and review.
+The preserved Academic post-meal and Nexus data-wall Shorts still contain stale copy and should not be released. Corrected local derivatives now exist under `audit-artifacts/corrected-2026-11-26/build/`; both passed automated media checks and sampled contact-sheet review. Owner editorial review remains pending, and the originals remain unchanged.
 
 ## Operations and owner boundary
 
@@ -20,10 +20,10 @@ Local pause check: paused=false, scope=none. GitHub runner/global pause and live
 
 The next actual daily run is none because the daily workflows remain disabled. If enabled, Nexus's next nominal start is 2026-11-27 at 18:00 IST and its calculated release is 20:00 IST. This is not a YouTube-stored schedule. The authored bank is too small for a sustained daily Short plus horizontal cadence.
 
-The owner must first publish the local branch with an authorized GitHub identity and open a focused PR. Then review and merge through branch protection, confirm final CI/security and main checks, rerender the two corrected artifacts, run a fresh non-secret account preflight, and explicitly approve Nexus activation. Academic and Natkhat remain sequenced after independent Nexus verification. No activation command was run.
+The owner must first publish the local branch with an authorized GitHub identity and open a focused PR. Then review and merge through branch protection, confirm final CI/security and main checks, review the two corrected local artifacts, run a fresh non-secret account preflight, and explicitly approve Nexus activation. Academic and Natkhat remain sequenced after independent Nexus verification. No activation command was run.
 
 ## Final verdict
 
 **BLOCKED — CRITICAL RELIABILITY OR QUALITY DEFECTS REMAIN**
 
-Protected main does not yet contain the JobLock repair, and the two preserved videos require rerendering before release. The evidence matrix and exact procedures are in X100_FINAL_PROJECT_COMPLETION_REPORT.md. See X100_LOCK_RELIABILITY_REPORT.md for process-level coverage and X100_FINAL_ACTIVATION_HANDOVER.md for the owner boundary.
+Protected main does not yet contain the JobLock repair, and owner editorial review of the two corrected media derivatives remains outstanding. The evidence matrix and exact procedures are in X100_FINAL_PROJECT_COMPLETION_REPORT.md. See X100_LOCK_RELIABILITY_REPORT.md for process-level coverage and X100_FINAL_ACTIVATION_HANDOVER.md for the owner boundary.
