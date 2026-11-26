@@ -3,7 +3,8 @@
 Two levels, both checked before any work starts and before any upload:
 
 * **global** - ``FACTORY_PAUSED=1`` or a ``PAUSED`` file in the state directory stops every channel;
-* **per channel** - ``FACTORY_PAUSED_CHANNELS=natkhat-toons,nexus-node`` or a ``PAUSED_<channel>`` file.
+* **per channel** - a channel's ``production_enabled: false`` setting, the
+  ``FACTORY_PAUSED_CHANNELS`` variable, or a ``PAUSED_<channel>`` file.
 
 The environment variable is what CI uses (a repository variable is one click to set), and the file is
 what a person uses on a machine at 2 a.m. Both are read fresh on every call, so a pause takes effect on
@@ -17,7 +18,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Mapping, Optional
 
-from factory.config import STATE_ROOT
+from factory.config import STATE_ROOT, load_channel_specs
 
 
 class ProductionPaused(RuntimeError):
@@ -49,6 +50,11 @@ def pause_state(channel: Optional[str] = None, *, environ: Optional[Mapping[str,
         return PauseState(True, f"{state / 'PAUSED'} exists", "global")
 
     if channel:
+        spec = load_channel_specs().get(channel)
+        if spec is not None and not spec.production_enabled:
+            return PauseState(
+                True, "production_enabled is false in channel configuration", "channel"
+            )
         listed = {part.strip() for part in str(env.get("FACTORY_PAUSED_CHANNELS", "")).split(",")
                   if part.strip()}
         if channel in listed:

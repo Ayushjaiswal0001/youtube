@@ -74,3 +74,11 @@ jobs:
 
     assert len(findings) == 1
     assert findings[0]["kind"] == "input-in-shell"
+
+
+def test_production_pause_check_runs_before_dependencies_and_rendering() -> None:
+    workflow = Path(__file__).resolve().parents[2] / ".github" / "workflows" / "produce.yml"
+    text = workflow.read_text(encoding="utf-8")
+
+    assert text.index("- name: Emergency stop check") < text.index("- name: Set up Python")
+    assert text.index("- name: Emergency stop check") < text.index("- name: Resume or render")

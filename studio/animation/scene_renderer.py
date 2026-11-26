@@ -133,6 +133,24 @@ def _expression_schedule(scene_data, character: str, pose: str,
     return schedule
 
 
+def _draw_folktale_bloom(cr: cairo.Context, width: int, height: int,
+                         x: float, y: float, *, moonlit: bool) -> None:
+    """A soft painted halo behind the active character, drawn in world space."""
+    if moonlit:
+        color = (0.42, 0.80, 0.96)
+    else:
+        color = (1.00, 0.68, 0.31)
+    glow = cairo.RadialGradient(x, y, 20.0, x, y, 620.0)
+    glow.add_color_stop_rgba(0.0, *color, 0.12)
+    glow.add_color_stop_rgba(0.42, *color, 0.065)
+    glow.add_color_stop_rgba(1.0, *color, 0.0)
+    cr.save()
+    cr.set_source(glow)
+    cr.rectangle(0.0, 0.0, float(width), float(height))
+    cr.fill()
+    cr.restore()
+
+
 class SceneRenderer:
     """Renders a single animated scene into a high-quality vertical MP4."""
 
@@ -170,9 +188,20 @@ class SceneRenderer:
         camera_style = scene_data.get("camera", "medium_pan")
         sfx_name = scene_data.get("sfx", "whoosh")
         bg_name = scene_data.get("bg", "jungle_clearing")
+        visual_style = str(scene_data.get("visual_style") or "default").strip().lower()
+        cinematic_folktale = visual_style == "cinematic-folktale"
         # Time of day (T44): a scene may name a lighting preset. Without one, `lighting` stays None
         # and every draw below behaves exactly as it did before presets existed.
         lighting_name = str(scene_data.get("lighting") or "").strip()
+        if not lighting_name and cinematic_folktale:
+            lighting_name = {
+                "haunted_haveli": "moonlight",
+                "cave_entrance": "moonlight",
+                "village_night": "moonlight",
+                "forest_path": "warm_afternoon",
+                "jungle_clearing": "daylight",
+                "riverbank": "warm_afternoon",
+            }.get(bg_name, "daylight")
         lighting = preset_for(lighting_name) if lighting_name else None
 
         # Near-camera set (T45b): placed per location, deterministic, and measured later. Only the
@@ -678,13 +707,25 @@ class SceneRenderer:
                 cr.paint()
                 cr.restore()
 
-                self.environment.render_by_name(
-                    bg_name, cr, t, camera.pan_x, camera.pan_y,
-                    zoom=(camera.zoom if os.environ.get("FACTORY_CAMERA_ZOOM_BG", "1") == "1"
-                          else 1.0))
+                background_args = {
+                    "camera_x": camera.pan_x,
+                    "camera_y": camera.pan_y,
+                    "zoom": (camera.zoom if os.environ.get("FACTORY_CAMERA_ZOOM_BG", "1") == "1"
+                             else 1.0),
+                }
+                if cinematic_folktale and isinstance(self.environment, BackgroundRenderer):
+                    background_args["visual_style"] = visual_style
+                self.environment.render_by_name(bg_name, cr, t, **background_args)
 
                 cr.save()
                 camera.apply(cr, t)
+                if cinematic_folktale:
+                    focus = speaker if speaker in ("chiku", "gappu") else "chiku"
+                    focus_slot = stage.slot(focus)
+                    _draw_folktale_bloom(
+                        cr, self.width, self.height, focus_slot.x, stage.eye_y + 90.0,
+                        moonlit=bg_name in ("haunted_haveli", "cave_entrance", "village_night"),
+                    )
                 # Contact shadows (T41): only an environment with a floor can take them, and they
                 # are drawn under the cast so a character stands on the ground instead of floating
                 # over it.

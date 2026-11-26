@@ -25,7 +25,8 @@ class BackgroundRenderer:
     OVERSCAN = 1.13
 
     def render_by_name(self, name: str, cr: cairo.Context, t: float,
-                       camera_x: float = 0.0, camera_y: float = 0.0, zoom: float = 1.0):
+                       camera_x: float = 0.0, camera_y: float = 0.0, zoom: float = 1.0,
+                       visual_style: str = "default"):
         """Dispatches to the requested background renderer with safe default fallback."""
         bg_map: Dict[str, Callable] = {
             "jungle_clearing": self.render_jungle_clearing,
@@ -36,6 +37,10 @@ class BackgroundRenderer:
             "village_night": self.render_village_night,
         }
         render_fn = bg_map.get(name, self.render_jungle_clearing)
+        detail_name = name
+        if visual_style == "cinematic-folktale" and name == "haunted_haveli":
+            render_fn = self.render_cinematic_haveli
+            detail_name = "cinematic_haveli"
         cr.save()
         cr.translate(self.width / 2.0, self.height / 2.0)
         # The characters are drawn under the camera's zoom; the backdrop used to ignore it, so a
@@ -44,6 +49,336 @@ class BackgroundRenderer:
         cr.scale(self.OVERSCAN * zoom, self.OVERSCAN * zoom)
         cr.translate(-self.width / 2.0, -self.height / 2.0)
         render_fn(cr, t, camera_x, camera_y)
+        if visual_style == "cinematic-folktale":
+            self._draw_folktale_details(detail_name, cr, t)
+        cr.restore()
+
+    def render_cinematic_haveli(self, cr: cairo.Context, t: float,
+                                camera_x: float = 0.0, camera_y: float = 0.0):
+        """Original moonlit haveli set with carved Indian arches and a warm courtyard."""
+        w, h = self.width, self.height
+        cr.save()
+        cr.translate(-camera_x * 0.28, -camera_y * 0.28)
+
+        sky = cairo.LinearGradient(0.0, 0.0, 0.0, h * 0.70)
+        sky.add_color_stop_rgb(0.0, 0.045, 0.09, 0.20)
+        sky.add_color_stop_rgb(0.56, 0.13, 0.19, 0.31)
+        sky.add_color_stop_rgb(1.0, 0.34, 0.25, 0.28)
+        cr.rectangle(0, 0, w, h)
+        cr.set_source(sky)
+        cr.fill()
+
+        # Moon, haze, and stars establish a cool night above the warmer architecture.
+        draw_ellipse(cr, w * 0.82, h * 0.14, 150, 150,
+                     fill_color=(0.69, 0.82, 1.0, 0.08))
+        draw_ellipse(cr, w * 0.82, h * 0.14, 78, 78,
+                     fill_color=(0.94, 0.91, 0.73, 0.95))
+        draw_ellipse(cr, w * 0.82 + 18, h * 0.14 - 10, 69, 69,
+                     fill_color=(0.07, 0.12, 0.24, 1.0))
+        for index in range(20):
+            sx = (index * 173.0 + 61.0) % (w * 0.72)
+            sy = (index * 241.0 + 38.0) % (h * 0.30)
+            pulse = 0.62 + 0.28 * math.sin(t * 1.6 + index * 1.7)
+            draw_ellipse(cr, sx, sy, 2.0 + (index % 3), 2.0 + (index % 3),
+                         fill_color=(0.94, 0.94, 0.78, pulse))
+
+        # Distant domes and garden silhouettes give the set a layered horizon.
+        cr.set_source_rgb(0.08, 0.15, 0.19)
+        cr.move_to(-20, h * 0.43)
+        cr.curve_to(w * 0.14, h * 0.34, w * 0.20, h * 0.40, w * 0.34, h * 0.37)
+        cr.curve_to(w * 0.51, h * 0.31, w * 0.62, h * 0.43, w * 0.77, h * 0.35)
+        cr.curve_to(w * 0.88, h * 0.31, w * 0.96, h * 0.41, w + 20, h * 0.36)
+        cr.line_to(w + 20, h * 0.63)
+        cr.line_to(-20, h * 0.63)
+        cr.close_path()
+        cr.fill()
+
+        # Main sandstone facade, kept brighter than the sky so its carved shapes read in a Short.
+        facade = cairo.LinearGradient(0, h * 0.29, 0, h * 0.76)
+        facade.add_color_stop_rgb(0.0, 0.66, 0.43, 0.31)
+        facade.add_color_stop_rgb(0.48, 0.52, 0.32, 0.25)
+        facade.add_color_stop_rgb(1.0, 0.34, 0.23, 0.21)
+        cr.rectangle(-20, h * 0.31, w + 40, h * 0.45)
+        cr.set_source(facade)
+        cr.fill()
+
+        # Upper parapet, domes and a scalloped central roof line.
+        cr.set_source_rgb(0.72, 0.49, 0.33)
+        cr.rectangle(-10, h * 0.30, w + 20, h * 0.035)
+        cr.fill()
+        for x_frac, radius in ((0.18, 65), (0.50, 112), (0.82, 65)):
+            x, y = w * x_frac, h * 0.285
+            draw_ellipse(cr, x, y, radius, radius * 0.48,
+                         fill_color=(0.68, 0.44, 0.31, 1.0))
+            cr.set_source_rgb(0.80, 0.57, 0.39)
+            cr.set_line_width(8.0)
+            cr.arc(x, y + 5, radius * 0.83, math.pi, math.tau)
+            cr.stroke()
+            cr.set_source_rgb(0.73, 0.50, 0.34)
+            cr.rectangle(x - 7, y - radius * 0.76, 14, radius * 0.35)
+            cr.fill()
+            draw_ellipse(cr, x, y - radius * 0.76, 14, 14,
+                         fill_color=(0.84, 0.64, 0.40, 1.0))
+
+        # Pillars with painted shafts, broad capitals and footings create strong foreground depth.
+        for x_frac in (0.08, 0.29, 0.71, 0.92):
+            x = w * x_frac
+            shaft = cairo.LinearGradient(x - 34, 0, x + 34, 0)
+            shaft.add_color_stop_rgb(0.0, 0.30, 0.19, 0.18)
+            shaft.add_color_stop_rgb(0.35, 0.79, 0.58, 0.40)
+            shaft.add_color_stop_rgb(0.67, 0.61, 0.40, 0.30)
+            shaft.add_color_stop_rgb(1.0, 0.29, 0.18, 0.17)
+            cr.rectangle(x - 31, h * 0.35, 62, h * 0.40)
+            cr.set_source(shaft)
+            cr.fill()
+            cr.set_source_rgba(0.20, 0.12, 0.11, 0.75)
+            cr.set_line_width(5.0)
+            cr.rectangle(x - 31, h * 0.35, 62, h * 0.40)
+            cr.stroke()
+            cr.set_source_rgb(0.82, 0.60, 0.40)
+            cr.rectangle(x - 48, h * 0.345, 96, 18)
+            cr.rectangle(x - 42, h * 0.735, 84, 25)
+            cr.fill()
+            cr.set_source_rgba(0.94, 0.73, 0.48, 0.58)
+            cr.set_line_width(3.0)
+            cr.move_to(x - 19, h * 0.38)
+            cr.line_to(x - 19, h * 0.70)
+            cr.stroke()
+
+        # Three arched openings: a door for the story and two windows with warm lattice light.
+        for x_frac, width, top_frac, bottom_frac, lit in (
+            (0.18, 132, 0.405, 0.59, False),
+            (0.50, 188, 0.515, 0.745, False),
+            (0.82, 132, 0.405, 0.59, True),
+        ):
+            cx, top, bottom = w * x_frac, h * top_frac, h * bottom_frac
+            half = width * 0.5
+            cr.move_to(cx - half, bottom)
+            cr.line_to(cx - half, top + 31)
+            cr.curve_to(cx - half, top - 18, cx + half, top - 18, cx + half, top + 31)
+            cr.line_to(cx + half, bottom)
+            cr.close_path()
+            cr.set_source_rgba(0.035, 0.045, 0.08, 0.96)
+            cr.fill()
+            cr.move_to(cx - half - 11, bottom)
+            cr.line_to(cx - half - 11, top + 29)
+            cr.curve_to(cx - half - 11, top - 35, cx + half + 11, top - 35,
+                        cx + half + 11, top + 29)
+            cr.line_to(cx + half + 11, bottom)
+            cr.set_source_rgb(0.89, 0.65, 0.42)
+            cr.set_line_width(9.0)
+            cr.stroke()
+            if lit:
+                glow = cairo.RadialGradient(cx, top + (bottom - top) * 0.54, 12,
+                                            cx, top + (bottom - top) * 0.54, 180)
+                glow.add_color_stop_rgba(0, 1.0, 0.67, 0.28, 0.30)
+                glow.add_color_stop_rgba(1, 1.0, 0.56, 0.19, 0.0)
+                cr.set_source(glow)
+                cr.arc(cx, top + (bottom - top) * 0.54, 180, 0, math.tau)
+                cr.fill()
+                cr.rectangle(cx - half + 11, top + 48, width - 22, bottom - top - 56)
+                cr.set_source_rgba(1.0, 0.69, 0.31, 0.48)
+                cr.fill()
+            cr.set_source_rgba(0.92, 0.71, 0.49, 0.76)
+            cr.set_line_width(5.0)
+            cr.move_to(cx, top + 16)
+            cr.line_to(cx, bottom)
+            cr.move_to(cx - half + 4, (top + bottom) / 2)
+            cr.line_to(cx + half - 4, (top + bottom) / 2)
+            cr.stroke()
+            # Small carved rosettes above each arch.
+            draw_ellipse(cr, cx, top - 28, 10, 10,
+                         fill_color=(0.93, 0.73, 0.45, 0.90))
+
+        # Fine balcony rail across the upper gallery, above the arched windows.
+        cr.set_source_rgb(0.31, 0.18, 0.16)
+        cr.rectangle(0, h * 0.365, w, 12)
+        cr.fill()
+        cr.set_source_rgba(0.92, 0.67, 0.42, 0.74)
+        cr.set_line_width(5.0)
+        cr.move_to(0, h * 0.362)
+        cr.line_to(w, h * 0.362)
+        cr.move_to(0, h * 0.376)
+        cr.line_to(w, h * 0.376)
+        cr.stroke()
+        for x in range(24, int(w), 54):
+            cr.move_to(x, h * 0.363)
+            cr.line_to(x, h * 0.376)
+            cr.stroke()
+
+        # Courtyard tiles, perspective seams and scattered warm reflections.
+        ground = cairo.LinearGradient(0, h * 0.75, 0, h)
+        ground.add_color_stop_rgb(0, 0.34, 0.28, 0.27)
+        ground.add_color_stop_rgb(0.55, 0.23, 0.20, 0.21)
+        ground.add_color_stop_rgb(1, 0.12, 0.13, 0.18)
+        cr.rectangle(-10, h * 0.75, w + 20, h * 0.27)
+        cr.set_source(ground)
+        cr.fill()
+        cr.set_source_rgba(0.91, 0.76, 0.61, 0.22)
+        cr.set_line_width(3.0)
+        for x_frac in (0.02, 0.18, 0.35, 0.50, 0.65, 0.82, 0.98):
+            cr.move_to(w * 0.50, h * 0.75)
+            cr.line_to(w * x_frac, h * 1.03)
+            cr.stroke()
+        for y_frac in (0.79, 0.84, 0.90, 0.97):
+            half = w * (0.08 + (y_frac - 0.75) * 1.20)
+            cr.move_to(w * 0.50 - half, h * y_frac)
+            cr.line_to(w * 0.50 + half, h * y_frac)
+            cr.stroke()
+
+        # Sparse grasses and fallen leaves at the frame edge add a foreground plane.
+        cr.set_source_rgba(0.08, 0.12, 0.10, 0.80)
+        cr.set_line_width(8.0)
+        for x_frac, height in ((0.015, 84), (0.06, 116), (0.94, 105), (0.99, 72)):
+            x, y = w * x_frac, h * 0.80
+            cr.move_to(x, y + height)
+            cr.curve_to(x - 12, y + height * 0.40, x + 8, y + height * 0.20, x + 4, y)
+            cr.stroke()
+
+        cr.restore()
+
+    def _draw_folktale_details(self, name: str, cr: cairo.Context, t: float) -> None:
+        """Add original inked set dressing and restrained paper texture for Natkhat Toons.
+
+        This pass deliberately adds scenery detail around the existing locations, rather than
+        borrowing the costumes, logos, or compositions of any reference cartoon.
+        """
+        w, h = self.width, self.height
+        cr.save()
+        cr.set_line_cap(cairo.LINE_CAP_ROUND)
+        cr.set_line_join(cairo.LINE_JOIN_ROUND)
+
+        if name == "haunted_haveli":
+            # Hand-inked sandstone joints make the haveli read as a place with built surfaces.
+            cr.set_source_rgba(0.89, 0.69, 0.47, 0.15)
+            cr.set_line_width(2.5)
+            for row, y_frac in enumerate((0.375, 0.405, 0.565, 0.585, 0.715)):
+                y = h * y_frac
+                spans = [(w * 0.135, w * 0.235), (w * 0.335, w * 0.605),
+                         (w * 0.715, w * 0.865)]
+                if y_frac >= 0.585:
+                    spans = [spans[0], spans[2]]
+                for start, end in spans:
+                    shift = 14.0 if row % 2 else 0.0
+                    cr.move_to(start + shift, y)
+                    cr.line_to(end, y)
+                    cr.stroke()
+            cr.set_source_rgba(0.92, 0.72, 0.50, 0.12)
+            cr.set_line_width(3.0)
+            for x_frac in (0.145, 0.345, 0.595, 0.855):
+                cr.move_to(w * x_frac, h * 0.37)
+                cr.line_to(w * x_frac, h * 0.72)
+                cr.stroke()
+
+            # Courtyard tile seams converge toward the doorway, giving the characters a floor plane.
+            cr.set_source_rgba(0.76, 0.70, 0.63, 0.16)
+            cr.set_line_width(3.0)
+            for x_frac in (0.03, 0.22, 0.39, 0.61, 0.78, 0.97):
+                cr.move_to(w * 0.50, h * 0.735)
+                cr.line_to(w * x_frac, h * 1.02)
+                cr.stroke()
+            for y_frac in (0.79, 0.85, 0.92, 0.99):
+                half = w * (0.04 + (y_frac - 0.735) * 1.45)
+                cr.move_to(w * 0.50 - half, h * y_frac)
+                cr.line_to(w * 0.50 + half, h * y_frac)
+                cr.stroke()
+
+            # A small lotus crest over the central arch is a Natkhat folktale motif.
+            cx, cy = w * 0.50, h * 0.585
+            cr.set_source_rgba(0.91, 0.67, 0.32, 0.48)
+            cr.set_line_width(4.0)
+            cr.move_to(cx, cy + 15)
+            cr.curve_to(cx - 20, cy - 7, cx - 20, cy - 26, cx, cy - 34)
+            cr.curve_to(cx + 20, cy - 26, cx + 20, cy - 7, cx, cy + 15)
+            cr.stroke()
+            cr.move_to(cx - 22, cy + 10)
+            cr.curve_to(cx - 43, cy - 4, cx - 37, cy - 20, cx - 19, cy - 24)
+            cr.move_to(cx + 22, cy + 10)
+            cr.curve_to(cx + 43, cy - 4, cx + 37, cy - 20, cx + 19, cy - 24)
+            cr.stroke()
+
+        elif name in ("forest_path", "jungle_clearing", "village_night"):
+            # Curved edge foliage frames the scene like a storybook illustration, leaving its centre clear.
+            def leaf(x: float, y: float, rx: float, ry: float, angle: float, color) -> None:
+                cr.save()
+                cr.translate(x, y)
+                cr.rotate(angle)
+                cr.move_to(-rx, 0)
+                cr.curve_to(-rx * 0.30, -ry, rx * 0.42, -ry * 1.05, rx, 0)
+                cr.curve_to(rx * 0.35, ry * 0.90, -rx * 0.38, ry * 0.90, -rx, 0)
+                cr.close_path()
+                cr.set_source_rgba(*color, 0.88)
+                cr.fill_preserve()
+                cr.set_source_rgba(0.035, 0.065, 0.055, 0.62)
+                cr.set_line_width(3.5)
+                cr.stroke()
+                cr.set_source_rgba(0.82, 0.83, 0.50, 0.38)
+                cr.set_line_width(2.0)
+                cr.move_to(-rx * 0.72, 0)
+                cr.line_to(rx * 0.75, 0)
+                cr.stroke()
+                cr.restore()
+
+            canopy = ((0.18, 0.40, 0.20), (0.28, 0.49, 0.23), (0.39, 0.43, 0.19))
+            for side in (-1, 1):
+                base_x = w * (0.045 if side < 0 else 0.955)
+                sway = math.sin(t * 0.7 + side) * 8.0
+                cr.set_source_rgba(0.06, 0.10, 0.075, 0.62)
+                cr.set_line_width(8.0)
+                cr.move_to(base_x, h * 0.06)
+                cr.curve_to(base_x + side * 52, h * 0.20,
+                            base_x - side * 30 + sway, h * 0.31,
+                            base_x + side * 12, h * 0.42)
+                cr.stroke()
+                for index, (dx, dy, size) in enumerate(((0.02, 0.13, 1.0),
+                                                        (0.05, 0.23, 0.83),
+                                                        (0.00, 0.33, 0.92),
+                                                        (0.075, 0.38, 0.70))):
+                    x = base_x + side * w * dx + sway
+                    y = h * dy
+                    color = canopy[(index + (1 if side < 0 else 0)) % len(canopy)]
+                    leaf(x, y, 37 * size, 20 * size, side * (0.24 + index * 0.16), color)
+
+        elif name == "riverbank":
+            # Fine moonlit ripples and reed silhouettes add motion cues to the water plane.
+            cr.set_source_rgba(0.72, 0.88, 0.92, 0.22)
+            cr.set_line_width(3.0)
+            for row in range(7):
+                y = h * (0.61 + row * 0.035)
+                offset = (t * 24.0 + row * 73.0) % (w * 0.7)
+                x = w * 0.12 + offset * 0.35
+                cr.move_to(x, y)
+                cr.curve_to(x + 25, y - 8, x + 75, y - 8, x + 106, y)
+                cr.stroke()
+
+        elif name == "cave_entrance":
+            # Faceted, softly glowing crystals remain scenic clues, not frightening monsters.
+            for x_frac, y_frac, size in ((0.13, 0.72, 1.0), (0.84, 0.67, 0.75)):
+                x, y = w * x_frac, h * y_frac
+                cr.set_source_rgba(0.40, 0.85, 0.92, 0.18)
+                cr.move_to(x, y - 45 * size)
+                cr.line_to(x + 18 * size, y)
+                cr.line_to(x + 5 * size, y + 35 * size)
+                cr.line_to(x - 12 * size, y + 20 * size)
+                cr.close_path()
+                cr.fill()
+                cr.set_source_rgba(0.65, 0.94, 0.95, 0.38)
+                cr.set_line_width(3.0)
+                cr.move_to(x, y - 45 * size)
+                cr.line_to(x - 12 * size, y + 20 * size)
+                cr.stroke()
+
+        # Stable, low-contrast flecks emulate paper and painted surface grain without frame flicker.
+        for index in range(88):
+            x = (index * 193.0 + (index % 7) * 41.0) % w
+            y = (index * 317.0 + (index % 11) * 23.0) % h
+            radius = 0.9 + (index % 3) * 0.45
+            alpha = 0.025 + (index % 4) * 0.004
+            color = (0.97, 0.85, 0.64) if index % 2 else (0.04, 0.04, 0.06)
+            cr.set_source_rgba(*color, alpha)
+            cr.arc(x, y, radius, 0.0, math.tau)
+            cr.fill()
+
         cr.restore()
 
     # -------------------------------------------------------------------------

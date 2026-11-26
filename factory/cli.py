@@ -565,11 +565,12 @@ def cmd_publishing(args: argparse.Namespace) -> int:
         results.append({
             "channel": spec.slug,
             "release_time_ist": spec.publish_time_ist,
+            "production_enabled": spec.production_enabled,
             "policy": spec.publishing.as_dict(),
-            "may_upload_on_schedule": spec.publishing.may_schedule,
+            "may_upload_on_schedule": spec.production_enabled and spec.publishing.may_schedule,
             "next_release": release.describe(),
             "pending_release": pending.isoformat().replace("+00:00", "Z") if pending else None,
-            "ready": spec.publishing.may_schedule and release.scheduled,
+            "ready": spec.production_enabled and spec.publishing.may_schedule and release.scheduled,
         })
     if args.json:
         _print(results, True)

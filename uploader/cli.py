@@ -375,7 +375,7 @@ def cmd_status(args: argparse.Namespace) -> int:
         raise UploaderError(f"unknown channel: {args.channel}")
     _setup(args, args.channel)
     ledger = Ledger(args.state_root, args.channel)
-    entries = list(reversed(ledger.entries()))[: max(0, args.limit)]
+    entries = list(reversed(ledger.latest_entries()))[: max(0, args.limit)]
     result = {
         "channel_slug": args.channel,
         "summary": ledger.summary(),
@@ -387,8 +387,8 @@ def cmd_status(args: argparse.Namespace) -> int:
         print(f"{args.channel}: {result['summary']}")
         for entry in entries:
             print(
-                f"{entry['updated_at']} {entry['status']} "
-                f"{entry['job_id']} {entry['title']}"
+                f"{entry.updated_at} {entry.status} "
+                f"{entry.job_id} {entry.title}"
             )
     return 0
 

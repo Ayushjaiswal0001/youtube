@@ -13,6 +13,7 @@
     "minimum_lead_minutes": 15
   },
   "factory": {
+    "production_enabled": true,
     "language": "en",
     "format": "shorts",
     "style": "inside-out",
