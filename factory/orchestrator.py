@@ -238,34 +238,44 @@ def render_episode(
     job = JobJournal(job_id_for(spec.slug, selected_id))
     lock = JobLock(LOCK_ROOT / f"{spec.slug}_{selected_id}.lock",
                    job_id=job.job_id, ttl=3600.0)
-    # `pipeline_state` is cached across workflow runs; `build/` is not. So a re-run of the same plan lands on a
-    # journal that says READY_TO_PUBLISH with no artefact next to it, and the unconditional QUEUED transition
-    # raised `READY_TO_PUBLISH -> QUEUED is not a legal transition` (cloud run 45073494545). Re-rendering is
-    # legitimate - repairing the gate is exactly why an operator re-runs a plan - so the rewind is recorded
-    # instead of being smuggled past the state machine. A PUBLISHED episode is not rewound without `force`:
-    # re-producing something already on YouTube is how a factory publishes the same video twice.
-    previous = job.state()
-    if previous in {"READY_TO_PUBLISH", "PUBLISHING", "PUBLISHED"}:
-        if previous == "PUBLISHED" and not force:
-            raise ValueError(
-                f"{selected_id} is already published; pass --force to re-produce it"
-            )
-        job.transition("RECOVERABLE", reason=f"re-run after {previous}", requeued=True)
-    job.transition("QUEUED", channel=spec.slug, plan_id=selected_id)
+    # Acquire before inspecting or updating the shared journal. A contender that loses must not
+    # mutate the active owner's state, and a false acquisition result must never reach a renderer.
+    if not lock.acquire():
+        raise LockBusy(f"{selected_id} is already being rendered")
+
     try:
-        lock.acquire()
-    except Exception:  # noqa: BLE001 - a lock failure must be reported, not swallowed
-        job.transition("FAILED", error="could not acquire the job lock")
-        raise
-    if lock.read() is not None and not lock._held:  # pragma: no cover - defensive
-        job.transition("FAILED", error="another job holds this channel and plan")
-    try:
-        return _render_tracked(
+        # pipeline_state is cached across workflow runs; build/ is not. A rerun can therefore find a
+        # journal that says READY_TO_PUBLISH with no artifact next to it. Re-rendering is legitimate,
+        # so record the rewind rather than bypassing the state machine. Never rewind PUBLISHED without
+        # force: reproducing something already on YouTube could publish it twice.
+        previous = job.state()
+        if previous in {"READY_TO_PUBLISH", "PUBLISHING", "PUBLISHED"}:
+            if previous == "PUBLISHED" and not force:
+                raise ValueError(
+                    f"{selected_id} is already published; pass --force to re-produce it"
+                )
+            job.transition("RECOVERABLE", reason=f"re-run after {previous}", requeued=True)
+        job.transition("QUEUED", channel=spec.slug, plan_id=selected_id)
+        result = _render_tracked(
             spec, selected, selected_id, job, lock,
             force=force, only_scenes=only_scenes, demo=demo)
+        lock.assert_healthy()
+        return result
+    except BaseException as exc:
+        # A renderer, QC step, or heartbeat error must leave a recoverable journal state. Preserve the
+        # original exception if journal persistence itself is unavailable.
+        try:
+            if job.state() not in {"FAILED", "PUBLISHED"}:
+                job.transition(
+                    "FAILED",
+                    error=f"{type(exc).__name__}: {exc}",
+                )
+        except Exception as journal_error:  # noqa: BLE001
+            if hasattr(exc, "add_note"):
+                exc.add_note(f"Could not record FAILED state: {journal_error}")
+        raise
     finally:
         lock.release()
-
 
 def _render_tracked(
     spec: ChannelSpec,
@@ -312,6 +322,8 @@ def _render_tracked(
         story = {}
         _render_english(spec, script, out_dir, force=force)
 
+    # Refuse to package a render if background ownership renewal failed during the expensive work.
+    lock.assert_healthy()
     video_path = out_dir / "video.mp4"
     if not video_path.is_file():
         raise RuntimeError(f"renderer did not produce {video_path}")
@@ -423,6 +435,7 @@ def _render_tracked(
     }
     payload["manifest_path"] = str(out_dir / "manifest.json")
     payload["job_id"] = job.job_id
+    lock.assert_healthy()
     if qc["ok"]:
         job.transition("READY_TO_PUBLISH", sha256=payload["sha256"],
                        duration=qc["duration"], manifest=str(out_dir / "manifest.json"))

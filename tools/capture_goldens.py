@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import io
 import json
 import sys
 from pathlib import Path
@@ -50,12 +51,10 @@ def render_frame(character: str, pose: str, t: float, talking: bool) -> bytes:
                     timeline=timeline if talking else None)
     rig.draw(cr)
     surface.flush()
-    tmp = GOLDENS / ".tmp_pose.png"
-    surface.write_to_png(str(tmp))
-    try:
-        return tmp.read_bytes()
-    finally:
-        tmp.unlink(missing_ok=True)
+    # Keep golden frames in memory to avoid shared temporary files and Windows handle races.
+    output = io.BytesIO()
+    surface.write_to_png(output)
+    return output.getvalue()
 
 
 def build() -> dict:

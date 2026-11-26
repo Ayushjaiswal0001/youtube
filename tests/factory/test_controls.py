@@ -177,6 +177,85 @@ def test_a_rerun_rewinds_a_finished_journal_instead_of_crashing(monkeypatch, tmp
     assert states[-1] == "QUEUED" and "RECOVERABLE" in states[-2:]
 
 
+def test_a_contended_job_lock_does_not_mutate_the_owner_journal_or_render(
+    monkeypatch, tmp_path: Path,
+) -> None:
+    import factory.orchestrator as orchestrator
+    from factory import reliability
+    from factory.config import load_channel_specs
+
+    monkeypatch.setattr(reliability, "STATE_ROOT", tmp_path / "state")
+    monkeypatch.setattr(orchestrator, "LOCK_ROOT", tmp_path / "locks")
+    monkeypatch.delenv("FACTORY_PAUSED", raising=False)
+    monkeypatch.delenv("FACTORY_PAUSED_CHANNELS", raising=False)
+
+    spec = load_channel_specs()["nexus-node"]
+    plan = {"id": "nexus-data-wall", "format": "shorts",
+            "scenes": [{"n": 1, "text": "One sentence here."}]}
+    job_id = reliability.job_id_for(spec.slug, "nexus-data-wall")
+    journal = reliability.JobJournal(job_id)
+    for state in ("QUEUED", "PREFLIGHT", "GENERATING", "RENDERING"):
+        journal.transition(state)
+    before = journal.records()
+
+    class BusyLock:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def acquire(self):
+            return False
+
+    rendered: list[bool] = []
+    monkeypatch.setattr(orchestrator, "find_plan", lambda spec, plan_id: plan)
+    monkeypatch.setattr(orchestrator, "JobLock", BusyLock)
+    monkeypatch.setattr(orchestrator, "_render_tracked",
+                        lambda *a, **k: rendered.append(True))
+
+    with pytest.raises(reliability.LockBusy):
+        orchestrator.render_episode(spec, plan)
+
+    assert journal.records() == before
+    assert rendered == []
+
+
+def test_render_episode_renews_lock_during_tracked_render(monkeypatch, tmp_path: Path) -> None:
+    import time
+
+    import factory.orchestrator as orchestrator
+    from factory import reliability
+    from factory.config import load_channel_specs
+
+    monkeypatch.setattr(reliability, "STATE_ROOT", tmp_path / "state")
+    monkeypatch.setattr(orchestrator, "LOCK_ROOT", tmp_path / "locks")
+    monkeypatch.delenv("FACTORY_PAUSED", raising=False)
+    monkeypatch.delenv("FACTORY_PAUSED_CHANNELS", raising=False)
+    spec = load_channel_specs()["nexus-node"]
+    plan = {"id": "nexus-data-wall", "format": "shorts",
+            "scenes": [{"n": 1, "text": "One sentence here."}]}
+
+    def short_lock(path, *, job_id, ttl):
+        return reliability.JobLock(
+            path, job_id=job_id, ttl=0.04, heartbeat_interval=0.01,
+        )
+
+    observed = {}
+
+    def tracked(*args, **kwargs):
+        lock = args[4]
+        first = lock.read().heartbeat
+        time.sleep(0.12)
+        lock.assert_healthy()
+        observed["first"] = first
+        observed["last"] = lock.read().heartbeat
+        return {"ok": True}
+
+    monkeypatch.setattr(orchestrator, "JobLock", short_lock)
+    monkeypatch.setattr(orchestrator, "_render_tracked", tracked)
+
+    assert orchestrator.render_episode(spec, plan) == {"ok": True}
+    assert observed["last"] > observed["first"]
+
+
 def test_a_published_episode_is_not_reproduced_without_force(monkeypatch, tmp_path: Path) -> None:
     import factory.orchestrator as orchestrator
     from factory import reliability
@@ -208,6 +287,9 @@ class _NoLock:
         return True
 
     def read(self):
+        return None
+
+    def assert_healthy(self):
         return None
 
     def release(self):
