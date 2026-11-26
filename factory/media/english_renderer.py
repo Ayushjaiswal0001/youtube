@@ -1145,11 +1145,14 @@ def compose_frame(
             context_lines=lines,
         )
     animation_style = str((getattr(spec, "visual_policy", None) or {}).get("animation_style", "default"))
-    if animation_style not in {"pop-info", "evidence-board", "zine-collage"}:
+    uses_illustrated_composition = dispatcher is not None and animation_style in {
+        "pop-info", "evidence-board", "zine-collage",
+    }
+    if not uses_illustrated_composition:
         apply_camera_drift(frame, t)
         apply_light_sweep(frame, t, spec.colors["accent"])
     if geometry is not None:
-        scale = 1.0 if animation_style in {"pop-info", "evidence-board", "zine-collage"} else camera_scale(t)
+        scale = 1.0 if uses_illustrated_composition else camera_scale(t)
         geometry.update({name: _scale_rect(box, scale) for name, box in (drawn or {}).items()})
     return frame
 
