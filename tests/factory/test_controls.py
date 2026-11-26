@@ -218,6 +218,44 @@ def test_a_contended_job_lock_does_not_mutate_the_owner_journal_or_render(
     assert rendered == []
 
 
+def test_a_contended_new_job_does_not_create_a_journal_directory_or_render(
+    monkeypatch, tmp_path: Path,
+) -> None:
+    import factory.orchestrator as orchestrator
+    from factory import reliability
+    from factory.config import load_channel_specs
+
+    state_root = tmp_path / "state"
+    monkeypatch.setattr(reliability, "STATE_ROOT", state_root)
+    monkeypatch.setattr(orchestrator, "LOCK_ROOT", tmp_path / "locks")
+    monkeypatch.delenv("FACTORY_PAUSED", raising=False)
+    monkeypatch.delenv("FACTORY_PAUSED_CHANNELS", raising=False)
+
+    spec = load_channel_specs()["nexus-node"]
+    plan = {"id": "nexus-data-wall", "format": "shorts",
+            "scenes": [{"n": 1, "text": "One sentence here."}]}
+    job_id = reliability.job_id_for(spec.slug, "nexus-data-wall")
+
+    class BusyLock:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def acquire(self):
+            return False
+
+    rendered: list[bool] = []
+    monkeypatch.setattr(orchestrator, "find_plan", lambda spec, plan_id: plan)
+    monkeypatch.setattr(orchestrator, "JobLock", BusyLock)
+    monkeypatch.setattr(orchestrator, "_render_tracked",
+                        lambda *a, **k: rendered.append(True))
+
+    with pytest.raises(reliability.LockBusy):
+        orchestrator.render_episode(spec, plan)
+
+    assert not (state_root / "jobs" / job_id).exists()
+    assert rendered == []
+
+
 def test_render_episode_renews_lock_during_tracked_render(monkeypatch, tmp_path: Path) -> None:
     import time
 

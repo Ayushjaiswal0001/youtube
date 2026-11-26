@@ -235,15 +235,18 @@ def render_episode(
     ensure_allowed(spec.slug, action="render")
     selected = plan or find_plan(spec, plan_id)
     selected_id = plan_identifier(selected)
-    job = JobJournal(job_id_for(spec.slug, selected_id))
+    selected_job_id = job_id_for(spec.slug, selected_id)
     lock = JobLock(LOCK_ROOT / f"{spec.slug}_{selected_id}.lock",
-                   job_id=job.job_id, ttl=3600.0)
-    # Acquire before inspecting or updating the shared journal. A contender that loses must not
-    # mutate the active owner's state, and a false acquisition result must never reach a renderer.
+                   job_id=selected_job_id, ttl=3600.0)
+    # Acquire before constructing, inspecting, or updating the shared journal. JobJournal creates
+    # its state directory, so even that construction must happen only after ownership is confirmed.
+    # A contender that loses must not mutate state or reach a renderer.
     if not lock.acquire():
         raise LockBusy(f"{selected_id} is already being rendered")
 
+    job: JobJournal | None = None
     try:
+        job = JobJournal(selected_job_id)
         # pipeline_state is cached across workflow runs; build/ is not. A rerun can therefore find a
         # journal that says READY_TO_PUBLISH with no artifact next to it. Re-rendering is legitimate,
         # so record the rewind rather than bypassing the state machine. Never rewind PUBLISHED without
@@ -265,7 +268,7 @@ def render_episode(
         # A renderer, QC step, or heartbeat error must leave a recoverable journal state. Preserve the
         # original exception if journal persistence itself is unavailable.
         try:
-            if job.state() not in {"FAILED", "PUBLISHED"}:
+            if job is not None and job.state() not in {"FAILED", "PUBLISHED"}:
                 job.transition(
                     "FAILED",
                     error=f"{type(exc).__name__}: {exc}",
