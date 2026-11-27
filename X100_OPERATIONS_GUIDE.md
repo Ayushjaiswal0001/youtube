@@ -1,6 +1,6 @@
 # X100 Operations Guide
 
-**Live snapshot: 2026-11-27 23:47 IST.** Refreshed against `Ayushjaiswal0001/youtube`, GitHub Actions, the YouTube API, and the recorded workflow artifacts. This guide separates enabled automation from verified publishing.
+**Live snapshot: 2026-11-28 00:22 IST.** Refreshed against `Ayushjaiswal0001/youtube`, GitHub Actions, the YouTube API, and the recorded workflow artifacts. This guide separates enabled automation from verified publishing.
 
 ## Current operational status
 
@@ -8,6 +8,8 @@
 - All three daily workflows are enabled in GitHub: Academic `425309827`, Natkhat `425309829`, Nexus `425309830`.
 - Main contains the `:29` UTC triggers. These are trigger times; YouTube publication remains scheduled for noon, 18:00, and 20:00 IST.
 - **No daily `schedule` run has been observed after PR #31 merged.** The most recent real schedule event is Academic run `46012727812`, created on pre-merge main `2ea73be` at 19:35 IST on Nov 27. Rendering and technical QC passed; the publishing policy reported `release_window_missed` and skipped credential export and upload. The late-run safety window was not weakened.
+- Run `46012727812` received the scheduled wrapper inputs (`upload=true`, `release=auto`). The short and long jobs were late by 27,390s and 28,340s, respectively, exceeding the configured 90-minute grace. The policy therefore returned `ready=false` with `release_window_missed`; the reusable workflow's `ready == 1` condition skipped credential export before reading credentials, then correctly skipped identity verification and upload. This was a late scheduled event, not a missing schedule event or demonstrated credential failure. The nine expected Actions secret names exist, but their values were not inspected. Local OAuth identity checks had previously matched all three configured channels.
+- At 00:20 IST on Nov 28, all three GitHub workflow IDs remained `active`; their recent run history contained no Nov 28 schedule event yet, which is expected before today's trigger times.
 - Channel configs still have scheduled mode and `production_enabled: true`. No production gate, policy, channel setting, credential, or secret was changed during this rollout work.
 
 ## Expected next events
@@ -32,11 +34,21 @@ The read-only identity verification returned:
 | Natkhat Toons | `UC4OCY0qDwQqFnSCZw12sKxA` | `@NatkhatToons-n5` |
 | Nexus Node | `UCx9O8VivWkiEylDjs5_Zzag` | `@nexusnode012` |
 
-The only verified YouTube release is Academic Shorts video [`CPHaFFnSkuw`](https://www.youtube.com/watch?v=CPHaFFnSkuw). Manual workflow run `45949021636` (`workflow_dispatch`, older main `4fed999`) uploaded it private and read back `publishAt=2026-11-27T06:30:00Z` (12:00 IST). YouTube now reports it public with `publishedAt=2026-11-27T06:30:21Z`. This proves one scheduled Shorts release, **not** scheduled automation. No Academic long-form or Natkhat/Nexus release is verified.
+The only YouTube release with artifact evidence of an approved stored schedule is Academic Short [`CPHaFFnSkuw`](https://www.youtube.com/watch?v=CPHaFFnSkuw). Manual workflow run `45949021636` (`workflow_dispatch`, older main `4fed999`) uploaded it private and read back `publishAt=2026-11-27T06:30:00Z` (12:00 IST). YouTube now reports it public with `publishedAt=2026-11-27T06:30:21Z`; its current `publishAt` field is absent because the scheduled release completed. This proves one scheduled Shorts release, **not** scheduled automation.
 
-The run artifact records the video ID, clear duplicate check, upload, and stored schedule. The separate local uploader ledger did not contain this ID in the last reconciliation; keep that discrepancy open until the ledger is reconciled. A custom-thumbnail call returned YouTube 403 for this account. No thumbnail retry or credential change was made. Analytics access is limited; one view and zero likes are too small a sample to judge engagement.
+The run artifact records the video ID, clear duplicate check, upload, and stored schedule. The separate local uploader ledger does not contain this ID; keep that discrepancy open until the ledger is reconciled without uploading again. A custom-thumbnail call returned YouTube 403 for this account. No thumbnail retry or credential change was made. Analytics access is limited; one view and zero likes are too small a sample to judge engagement.
 
-The last live YouTube pending-state check (Nov 27, 22:18 IST) found no unexpected pending releases. The Academic video had already published. No upload or schedule has been created during this continuation.
+At 00:22 IST on Nov 28, a read-only scan paginated each channel's full uploads playlist and matched connected channel identity. It covered 64 Academic, 64 Natkhat, and 559 Nexus videos; none currently has a future `publishAt`. Recent project uploads confirmed directly with YouTube are:
+
+| Channel | Video ID | Title | Duration | Visibility | Current `publishAt` |
+| --- | --- | --- | ---: | --- | --- |
+| Academic | `CPHaFFnSkuw` | Walk After Eating | 48s | public | absent; completed schedule documented above |
+| Academic | `O2YiFi0f_Ts` | Your Brain's Night Shift | 39s | private | absent |
+| Natkhat | `derJO8hBnjo` | चीकू और गप्पू: हवेली की पहली रात | 33s | private | absent |
+| Nexus | `ZK-AMW8Lw-U` | AI Training Data: A Forecast, Not a Countdown | 46s | public | absent |
+| Nexus | `UuQKJ3jspKE` | AI Is Leaving the Chat | 39s | private | absent |
+
+All five confirmed project uploads are under one minute; no long-form release is verified for any channel. The local uploader ledger contains the other four IDs but still omits Academic ID `CPHaFFnSkuw`. No upload or schedule has been created during this continuation.
 
 ## Safe daily checks
 
