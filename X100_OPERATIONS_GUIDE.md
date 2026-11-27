@@ -174,8 +174,22 @@ secret names exist; values were not read. Local OAuth identity checks matched al
 or late-run policy was weakened.
 
 The repository is already public. The active GitHub account is the write-enabled owner `Ayushjaiswal0001`
-and it pushed PR #32. No credential value, OAuth secret, production gate, or repository permission was
+and it merged PR #32 normally. No credential value, OAuth secret, production gate, or repository permission was
 changed during this continuation.
+
+### Verified operational snapshot — 2026-11-28 01:07 IST
+
+PR #32 merged to `main` at 01:01:19 IST as `b752bf74a897582e207ca5332bc47effd85a53a6`. Post-merge
+main CI run `46057283954` and security run `46057283946` passed. GitHub still reports the three daily
+workflows as active: Academic `425309827` (`29 4 * * *`, 09:59 IST), Natkhat `425309829`
+(`29 10 * * *`, 15:59 IST), and Nexus `425309830` (`29 12 * * *`, 17:59 IST). Intended release times
+remain 12:00, 18:00, and 20:00 IST.
+
+No post-merge scheduled event had appeared in the checked run history; these Nov 28 triggers are still
+ahead. The latest read-only YouTube playlist scan was at 00:22 IST and found no future `publishAt` values.
+No production workflow was dispatched, no video was uploaded or scheduled, and no channel publishing
+setting or gate was changed. PR #32 changed creative content/rendering/tests and handover documentation;
+it did not change workflow YAML, channel publishing settings, secrets, or release policy.
 
 PR #32's fresh local Academic render (`academic-brain-wash`, 38.233s) and Nexus render
 (`nexus-data-wall`, 45.433s) passed factory QC as 1080x1920 H.264/AAC Shorts. Contact sheets show varied
