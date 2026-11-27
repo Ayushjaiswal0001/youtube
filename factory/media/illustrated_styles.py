@@ -272,6 +272,44 @@ def _draw_brand(draw: ImageDraw.ImageDraw, brand: tuple[str, str, str], label: s
     draw.text((122, 132), label, font=_font(NOTE_FONT, 26), fill=accent)
 
 
+def _draw_pop_guide(draw: ImageDraw.ImageDraw, local: float, *, hx: int, hy: int,
+                    scale: float, walking: bool) -> None:
+    """Draw the recurring Pop Info guide at a layout-specific size and position."""
+
+    def point(x: float, y: float) -> tuple[int, int]:
+        return hx + int(round(x * scale)), hy + int(round(y * scale))
+
+    def box(x1: float, y1: float, x2: float, y2: float) -> tuple[int, int, int, int]:
+        left, top = point(x1, y1)
+        right, bottom = point(x2, y2)
+        return left, top, right, bottom
+
+    width = lambda value: max(2, int(round(value * scale)))
+    bob = int(10 * math.sin(local * 4.0) * scale)
+    hy += bob
+    draw.ellipse(box(-60, -61, 60, 59), fill="#EAA870", outline="#4E382D", width=width(6))
+    draw.ellipse(box(-27, -16, -13, 1), fill="#31271F")
+    draw.ellipse(box(15, -16, 29, 1), fill="#31271F")
+    draw.arc(box(-20, -1, 23, 34), 5, 165, fill="#7E3E34", width=width(5))
+    draw.rounded_rectangle(box(-61, 52, 62, 193), radius=width(35), fill="#56B5A5",
+                           outline="#3D4139", width=width(6))
+    hand_wave = int(18 * math.sin(local * 2.8))
+    arm_y = 74 + int(12 * math.sin(local * 5.0))
+    draw.line((*point(-48, arm_y), *point(-105 + hand_wave // 2, arm_y - 62),
+               *point(-168 + hand_wave, arm_y - 110)), fill="#EAA870", width=width(24))
+    draw.ellipse(box(-179 + hand_wave, arm_y - 122, -157 + hand_wave, arm_y - 100),
+                 fill="#EAA870", outline="#4E382D", width=width(3))
+    stride = math.sin(local * 5.2) if walking else 0.0
+    left_dx, right_dx = int(stride * 22), int(-stride * 22)
+    left_up = right_up = max(0, int(abs(stride) * 10))
+    draw.line((*point(-26, 185), *point(-44 + left_dx, 243 - left_up)),
+              fill="#3A3330", width=width(22))
+    draw.line((*point(30, 185), *point(49 + right_dx, 243 - right_up)),
+              fill="#3A3330", width=width(22))
+    draw.ellipse(box(-69 + left_dx, 231 - left_up, -28 + left_dx, 253 - left_up), fill="#51443A")
+    draw.ellipse(box(30 + right_dx, 231 - right_up, 71 + right_dx, 253 - right_up), fill="#51443A")
+
+
 def _draw_pop_info(frame: Image.Image, image: Image.Image | None, line: Any,
                    local: float, span: float, index: int, total: int,
                    brand: tuple[str, str, str]) -> dict[str, Any]:
@@ -280,79 +318,79 @@ def _draw_pop_info(frame: Image.Image, image: Image.Image | None, line: Any,
     _draw_brand(draw, brand, "IDEAS IN MOTION", "#FFF8E8", "#382D25", "#E45D4F")
     progress = _progress(local, span)
     spring = min(1.08, max(.01, _ease_out(local / .44)))
+    composition = index % 3
     headline_font, rows = _fit_text(draw, line.headline or line.caption or line.text[:38],
                                     ROUNDED_FONT, 770, 78, 48, 2)
     bubble_top = 230 + int(15 * (1 - spring)) + int(5 * math.sin(local * 1.8))
     bubble = (92, bubble_top, 918, bubble_top + (174 if len(rows) == 1 else 226))
-    draw.rounded_rectangle(bubble, radius=48, fill="#FFFDF7", outline="#5E4634", width=5)
-    draw.polygon(((812, bubble[3] - 4), (856, bubble[3] - 5), (828, bubble[3] + 31)), fill="#FFFDF7")
-    draw.line((812, bubble[3] - 3, 828, bubble[3] + 31, 856, bubble[3] - 4), fill="#5E4634", width=4)
+    if composition == 1:
+        # A punchy burst card breaks the speech-bubble rhythm on every third beat.
+        draw.rounded_rectangle((bubble[0] + 7, bubble[1] + 9, bubble[2] + 7, bubble[3] + 9),
+                               radius=38, fill="#D8B453")
+        draw.rounded_rectangle(bubble, radius=38, fill="#FFD96C", outline="#5E4634", width=5)
+        draw.line((bubble[0] + 30, bubble[3] - 17, bubble[2] - 30, bubble[3] - 17),
+                  fill="#E45D4F", width=7)
+    else:
+        draw.rounded_rectangle(bubble, radius=48, fill="#FFFDF7", outline="#5E4634", width=5)
+        if composition == 0:
+            draw.polygon(((812, bubble[3] - 4), (856, bubble[3] - 5), (828, bubble[3] + 31)), fill="#FFFDF7")
+            draw.line((812, bubble[3] - 3, 828, bubble[3] + 31, 856, bubble[3] - 4), fill="#5E4634", width=4)
     row_height = headline_font.size + 2
     text_top = bubble_top + (bubble[3] - bubble_top - len(rows) * row_height) // 2 - 4
     title_boxes = []
     for row in rows:
         title_boxes.append(_centered(draw, row, headline_font, text_top, "#33291F", 126, 884))
         text_top += row_height
-    # The evidence graphic is a moving picture window inside a rounded illustrated room.
+    # The image takes a different role in each beat: wide evidence reveal, guide-led split scene,
+    # then a close illustrated prop scene. Reusing one fixed panel was making the film read as slides.
     enter = max(.04, min(1.0, spring))
     float_x = int(7 * math.sin(local * 1.35))
     float_y = int(9 * math.sin(local * 1.7))
-    target_box = (92 + float_x, 515 + int(28 * (1 - enter)) + float_y,
-                  736 + float_x, 966 + int(28 * (1 - enter)) + float_y)
-    # A pantry-like shelf slides into the scene; abstract product blocks are decoration, not labels.
-    shelf_x = 774 + int(100 * (1 - enter)) + int(4 * math.sin(local * 1.1))
-    draw.rounded_rectangle((shelf_x, 600, 1025, 1055), radius=28, fill="#E2D6BD", outline="#77614A", width=5)
-    for y in (740, 885, 1028):
-        draw.rounded_rectangle((shelf_x + 10, y, 1015, y + 15), radius=7, fill="#92795B")
-    for col, x in enumerate((shelf_x + 24, shelf_x + 88, shelf_x + 151, shelf_x + 206)):
-        for row, y in enumerate((650, 790, 934)):
-            color = ("#E98D68", "#64AFA1", "#E7C252", "#8F9FD0")[(col + row) % 4]
-            draw.rounded_rectangle((x, y, x + 38, y + 72), radius=12, fill=color, outline="#69553D", width=3)
-            draw.ellipse((x + 12, y + 8, x + 25, y + 21), fill="#FFF4D3")
+    if composition == 1:
+        target_box = (64 + float_x, 500 + int(24 * (1 - enter)) + float_y,
+                      1016 + float_x, 1330 + int(24 * (1 - enter)) + float_y)
+    elif composition == 2:
+        target_box = (370 + float_x, 520 + int(24 * (1 - enter)) + float_y,
+                      1010 + float_x, 1270 + int(24 * (1 - enter)) + float_y)
+    else:
+        target_box = (92 + float_x, 515 + int(28 * (1 - enter)) + float_y,
+                      736 + float_x, 966 + int(28 * (1 - enter)) + float_y)
+        # The prop shelf belongs only to the guide-led layout; avoiding it elsewhere opens the frame.
+        shelf_x = 774 + int(100 * (1 - enter)) + int(4 * math.sin(local * 1.1))
+        draw.rounded_rectangle((shelf_x, 600, 1025, 1055), radius=28, fill="#E2D6BD", outline="#77614A", width=5)
+        for y in (740, 885, 1028):
+            draw.rounded_rectangle((shelf_x + 10, y, 1015, y + 15), radius=7, fill="#92795B")
+        for col, x in enumerate((shelf_x + 24, shelf_x + 88, shelf_x + 151, shelf_x + 206)):
+            for row, y in enumerate((650, 790, 934)):
+                color = ("#E98D68", "#64AFA1", "#E7C252", "#8F9FD0")[(col + row) % 4]
+                draw.rounded_rectangle((x, y, x + 38, y + 72), radius=12, fill=color, outline="#69553D", width=3)
+                draw.ellipse((x + 12, y + 8, x + 25, y + 21), fill="#FFF4D3")
     _paste_pop_window(frame, image, target_box, local, span, index, total)
     draw = ImageDraw.Draw(frame)
     if "trial" in line.text.lower() and any(word in line.text.lower()
                                              for word in ("group", "adult", "participant")):
         _draw_study_group(draw, target_box, local)
-    # A dotted route grows from the guide's hand to the focus of this beat.
-    start, end = (760, 1135), (650 - int(progress * 65), 980)
-    for step in range(13):
-        phase = step / 12
-        x = (1 - phase) ** 2 * start[0] + 2 * (1 - phase) * phase * 650 + phase ** 2 * end[0]
-        y = (1 - phase) ** 2 * start[1] + 2 * (1 - phase) * phase * 1020 + phase ** 2 * end[1]
-        if phase <= progress:
-            draw.ellipse((x - 5, y - 5, x + 5, y + 5), fill="#E45D4F")
-    # A bright bead keeps following the route after it has been drawn, so the beat stays in motion.
-    bead = (local * .48) % 1.0
-    bead_x = (1 - bead) ** 2 * start[0] + 2 * (1 - bead) * bead * 650 + bead ** 2 * end[0]
-    bead_y = (1 - bead) ** 2 * start[1] + 2 * (1 - bead) * bead * 1020 + bead ** 2 * end[1]
-    draw.ellipse((bead_x - 10, bead_y - 10, bead_x + 10, bead_y + 10),
-                 fill="#F4D36E", outline="#5E4634", width=3)
-    # Small friendly guide with a changing pointing arm and a springy idle motion.
-    bob = int(10 * math.sin(local * 4.0))
-    hx, hy = 868, 1045 + bob
-    draw.ellipse((hx - 60, hy - 61, hx + 60, hy + 59), fill="#EAA870", outline="#4E382D", width=6)
-    draw.ellipse((hx - 27, hy - 16, hx - 13, hy + 1), fill="#31271F")
-    draw.ellipse((hx + 15, hy - 16, hx + 29, hy + 1), fill="#31271F")
-    draw.arc((hx - 20, hy - 1, hx + 23, hy + 34), 5, 165, fill="#7E3E34", width=5)
-    draw.rounded_rectangle((hx - 61, hy + 52, hx + 62, hy + 193), radius=35, fill="#56B5A5", outline="#3D4139", width=6)
-    hand_wave = int(18 * math.sin(local * 2.8))
-    arm_y = hy + 74 + int(12 * math.sin(local * 5.0))
-    draw.line((hx - 48, arm_y, hx - 105 + hand_wave // 2, arm_y - 62,
-               hx - 168 + hand_wave, arm_y - 110), fill="#EAA870", width=24)
-    draw.ellipse((hx - 179 + hand_wave, arm_y - 122, hx - 157 + hand_wave, arm_y - 100),
-                 fill="#EAA870", outline="#4E382D", width=3)
-    if line.visual == "walk":
-        stride = math.sin(local * 5.2)
-        left_dx, right_dx = int(stride * 22), int(-stride * 22)
-        left_up, right_up = max(0, int(abs(stride) * 10)), max(0, int(abs(stride) * 10))
-    else:
-        left_dx = right_dx = left_up = right_up = 0
-    draw.line((hx - 26, hy + 185, hx - 44 + left_dx, hy + 243 - left_up), fill="#3A3330", width=22)
-    draw.line((hx + 30, hy + 185, hx + 49 + right_dx, hy + 243 - right_up), fill="#3A3330", width=22)
-    draw.ellipse((hx - 69 + left_dx, hy + 231 - left_up, hx - 28 + left_dx, hy + 253 - left_up), fill="#51443A")
-    draw.ellipse((hx + 30 + right_dx, hy + 231 - right_up, hx + 71 + right_dx, hy + 253 - right_up), fill="#51443A")
-    _draw_pop_prop(draw, line.visual, local)
+    # In the middle beat the illustration fills the screen; the guide returns on the side beat only.
+    if composition != 1:
+        hx, hy, guide_scale = (868, 1045, 1.0) if composition == 0 else (205, 1035, .72)
+        _draw_pop_guide(draw, local, hx=hx, hy=hy, scale=guide_scale,
+                        walking=line.visual == "walk")
+        if composition == 0:
+            _draw_pop_prop(draw, line.visual, local)
+        start = (760, 1135) if composition == 0 else (310, 1140)
+        end = (650 - int(progress * 65), 980) if composition == 0 else (430, 900)
+        control = (650, 1020) if composition == 0 else (360, 1000)
+        for step in range(13):
+            phase = step / 12
+            x = (1 - phase) ** 2 * start[0] + 2 * (1 - phase) * phase * control[0] + phase ** 2 * end[0]
+            y = (1 - phase) ** 2 * start[1] + 2 * (1 - phase) * phase * control[1] + phase ** 2 * end[1]
+            if phase <= progress:
+                draw.ellipse((x - 5, y - 5, x + 5, y + 5), fill="#E45D4F")
+        bead = (local * .48) % 1.0
+        bead_x = (1 - bead) ** 2 * start[0] + 2 * (1 - bead) * bead * control[0] + bead ** 2 * end[0]
+        bead_y = (1 - bead) ** 2 * start[1] + 2 * (1 - bead) * bead * control[1] + bead ** 2 * end[1]
+        draw.ellipse((bead_x - 10, bead_y - 10, bead_x + 10, bead_y + 10),
+                     fill="#F4D36E", outline="#5E4634", width=3)
     # Beat count is a sequence marker, not a scientific quantity.
     draw.ellipse((936, 420, 1024, 508), fill="#FFD96C", outline="#513C2C", width=4)
     count = max(1, min(index + 1, int(math.ceil((index + 1) * max(progress, .18)))))
@@ -407,9 +445,15 @@ def _draw_evidence_board(frame: Image.Image, image: Image.Image | None, line: An
     frame.paste(_paper_background("board"))
     draw = ImageDraw.Draw(frame)
     _draw_brand(draw, brand, "FIELD NOTES  •  CLAIMS AND CONTEXT", "#F2E4C8", "#3B281D", "#B82F2C")
-    # Leave previous beats pinned at the edge so the board grows with the story.
+    # Three editorial framings keep the evidence-board motif while changing the shot size and balance.
+    composition = index % 3
     older = context_lines[max(0, index - 2):index]
-    note_boxes = [(66, 335, 344, 500), (736, 345, 1014, 510)]
+    if composition == 2:
+        note_boxes = [(60, 335, 310, 515), (60, 790, 310, 970)]
+    elif composition == 1:
+        note_boxes = [(66, 320, 344, 445), (736, 320, 1014, 445)]
+    else:
+        note_boxes = [(66, 335, 344, 500), (736, 345, 1014, 510)]
     note_colors = ("#E8D77A", "#D7E8D8")
     note_pins = []
     for offset, previous in enumerate(older):
@@ -419,13 +463,19 @@ def _draw_evidence_board(frame: Image.Image, image: Image.Image | None, line: An
     enter = max(.02, min(1.06, _ease_out(local / .42)))
     scale = .92 + .08 * enter
     scale += .008 * math.sin(local * 1.8)
-    card_w, card_h = int(790 * scale), int(825 * scale)
-    card_x = int(540 - card_w / 2 + 16 * math.sin(local * 1.25))
-    card_y = int(470 + 18 * (1 - enter) - 14 * progress + 8 * math.sin(local * 1.6))
+    if composition == 1:
+        base_w, base_h, base_x, base_y, picture_h, title_offset = 940, 860, 70, 465, 510, 585
+    elif composition == 2:
+        base_w, base_h, base_x, base_y, picture_h, title_offset = 690, 900, 350, 425, 495, 565
+    else:
+        base_w, base_h, base_x, base_y, picture_h, title_offset = 790, 825, 145, 470, 490, 575
+    card_w, card_h = int(base_w * scale), int(base_h * scale)
+    card_x = int(base_x + (base_w - card_w) / 2 + 16 * math.sin(local * 1.25))
+    card_y = int(base_y + 18 * (1 - enter) - 14 * progress + 8 * math.sin(local * 1.6))
     # Curved red string is drawn in stages and tied to the moving scene pin.
-    target_pin = (536.0, card_y + 6.0)
+    target_pin = (card_x + card_w / 2, card_y + 6.0)
     for offset, pin in enumerate(note_pins):
-        path = _bezier((pin[0], pin[1]), (520 + (offset - .5) * 180, 470), target_pin,
+        path = _bezier((pin[0], pin[1]), (card_x + card_w / 2 + (offset - .5) * 180, 470), target_pin,
                        min(1.0, progress * 1.65 + offset * .08))
         if len(path) > 1:
             draw.line(path, fill="#B5252A", width=6)
@@ -440,26 +490,39 @@ def _draw_evidence_board(frame: Image.Image, image: Image.Image | None, line: An
     draw.rounded_rectangle((card_x + 14, card_y + 18, card_x + card_w + 14, card_y + card_h + 18),
                            radius=8, fill="#573922")
     draw.rectangle((card_x, card_y, card_x + card_w, card_y + card_h), fill="#F7F1E1", outline="#4D3829", width=5)
-    picture = _fit_pan(image, (card_w - 82, 490), progress)
+    picture_h = int(picture_h * scale)
+    picture = _fit_pan(image, (card_w - 82, picture_h), progress)
     frame.paste(picture, (card_x + 41, card_y + 42))
     image_left, image_top = card_x + 41, card_y + 42
     image_right = card_x + card_w - 41
-    draw.rectangle((image_left, image_top, image_right, card_y + 532), outline="#594538", width=3)
-    # A hand-held magnifier scans the evidence photo, giving the board a continuous action beat.
+    image_bottom = image_top + picture_h
+    draw.rectangle((image_left, image_top, image_right, image_bottom), outline="#594538", width=3)
     sweep = .5 + .5 * math.sin(local * 1.25)
-    lens_x = image_left + 66 + int(sweep * max(0, image_right - image_left - 132))
-    lens_y = image_top + 212 + int(18 * math.sin(local * 1.9))
-    draw.line((lens_x + 34, lens_y + 34, lens_x + 108, lens_y + 108), fill="#49372B", width=19)
-    draw.line((lens_x + 32, lens_y + 32, lens_x + 105, lens_y + 105), fill="#D6AE55", width=12)
-    draw.ellipse((lens_x - 58, lens_y - 58, lens_x + 58, lens_y + 58),
-                 outline="#49372B", width=18)
-    draw.ellipse((lens_x - 51, lens_y - 51, lens_x + 51, lens_y + 51),
-                 outline="#F1D276", width=8)
-    draw.arc((lens_x - 37, lens_y - 39, lens_x + 5, lens_y + 3), 200, 315,
-             fill="#FFF7D9", width=7)
+    if composition == 1:
+        # A moving scan rule and corner marks make this a wide exhibit shot instead of another card.
+        scan_x = image_left + int(sweep * max(0, image_right - image_left))
+        draw.line((scan_x, image_top + 8, scan_x, image_bottom - 8), fill="#B82F2C", width=5)
+        arm = 34
+        for x, y, dx, dy in ((image_left, image_top, 1, 1), (image_right, image_top, -1, 1),
+                             (image_left, image_bottom, 1, -1), (image_right, image_bottom, -1, -1)):
+            draw.line((x, y, x + arm * dx, y), fill="#F1D276", width=7)
+            draw.line((x, y, x, y + arm * dy), fill="#F1D276", width=7)
+    else:
+        # The magnifier is reserved for the close-up and classic shots, rather than every beat.
+        lens_x = image_left + 58 + int(sweep * max(0, image_right - image_left - 116))
+        lens_y = image_top + picture_h // 2 + int(18 * math.sin(local * 1.9))
+        radius = min(58, picture_h // 5)
+        draw.line((lens_x + 30, lens_y + 30, lens_x + 96, lens_y + 96), fill="#49372B", width=19)
+        draw.line((lens_x + 28, lens_y + 28, lens_x + 93, lens_y + 93), fill="#D6AE55", width=12)
+        draw.ellipse((lens_x - radius, lens_y - radius, lens_x + radius, lens_y + radius),
+                     outline="#49372B", width=18)
+        draw.ellipse((lens_x - radius + 7, lens_y - radius + 7,
+                      lens_x + radius - 7, lens_y + radius - 7), outline="#F1D276", width=8)
+        draw.arc((lens_x - radius + 13, lens_y - radius + 12,
+                  lens_x + 5, lens_y + 3), 200, 315, fill="#FFF7D9", width=7)
     title_font, rows = _fit_text(draw, line.headline or line.caption or line.text[:48], NOTE_FONT,
                                  card_w - 76, 46, 34, 2)
-    title_y = card_y + 575
+    title_y = card_y + int(title_offset * scale)
     title_boxes = []
     for row in rows:
         title_boxes.append((card_x + 42, title_y,
@@ -467,7 +530,7 @@ def _draw_evidence_board(frame: Image.Image, image: Image.Image | None, line: An
         draw.text((card_x + 42, title_y), row, font=title_font, fill="#312820")
         title_y += title_font.size + 6
     # A moving pointer and a tiny pin glint make the evidence photo feel handled, not pasted in.
-    pin_x, pin_y = 536, card_y + 6
+    pin_x, pin_y = card_x + card_w // 2, card_y + 6
     draw.ellipse((pin_x - 21, pin_y - 22, pin_x + 21, pin_y + 20), fill="#B8282E", outline="#64201F", width=3)
     draw.ellipse((pin_x - 11, pin_y - 14, pin_x - 1, pin_y - 5), fill="#F5B6A4")
     draw.polygon(((card_x + 95, card_y - 11), (card_x + 288, card_y - 5),

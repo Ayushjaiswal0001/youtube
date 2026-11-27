@@ -20,7 +20,7 @@ import pytest
 
 from factory import manifesting
 from factory.config import load_channel_specs
-from factory.content.script import build_hindi_script
+from factory.content.script import build_hindi_script, story_packet
 from factory.media import landscape_stage
 from factory.media.landscape_stage import build_script as build_stage_script
 from factory.media.landscape_stage import plan_scenes
@@ -144,6 +144,29 @@ def test_a_scene_text_that_is_not_a_string_is_rejected(specs) -> None:
     plan["scenes"][0]["dialogue"] = {"text": "not a string"}
     with pytest.raises(ValueError):
         build_hindi_script(specs["natkhat-toons"], plan)
+
+
+def test_portrait_story_packet_keeps_only_supported_animation_cues(specs) -> None:
+    plan = _portrait_plan()
+    plan["series"] = "natkhat-haveli"
+    plan["series_title"] = "हवेली का रहस्य"
+    plan["scenes"][0].update({
+        "chiku_motion": "walk_in",
+        "gappu_motion": "point",
+        "prop": "brass_key",
+        "prop_holder": "chiku",
+        "lighting": "moonlight",
+        "pickup": {"object": "brass_key", "holder": "chiku", "surface": "table"},
+        "untrusted_extra": "must not enter renderer packet",
+    })
+    story = story_packet(build_hindi_script(specs["natkhat-toons"], plan), specs["natkhat-toons"])
+    scene = story["scenes"][0]
+    assert scene["chiku_motion"] == "walk_in"
+    assert scene["gappu_motion"] == "point"
+    assert scene["prop"] == "brass_key" and scene["prop_holder"] == "chiku"
+    assert scene["lighting"] == "moonlight"
+    assert scene["pickup"]["surface"] == "table"
+    assert "untrusted_extra" not in scene
 
 
 # ------------------------------------------------------------------ structure is preserved

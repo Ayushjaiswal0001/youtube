@@ -1,202 +1,80 @@
-# X100 operations guide
+# X100 Operations Guide
 
-How to run, check, recover and publish this factory without reading the source. Every command below was
-executed in this session unless marked otherwise.
+**Live snapshot: 2026-11-27 23:47 IST.** Refreshed against `Ayushjaiswal0001/youtube`, GitHub Actions, the YouTube API, and the recorded workflow artifacts. This guide separates enabled automation from verified publishing.
 
----
+## Current operational status
 
-## 1. Environment
+- Repository visibility is already **public**; no visibility change was needed. Main is `3fa3c981a1dbfc0248730a9a558b0d5da212948b` (PR #31). Post-merge CI run `46033672111` and security run `46033672255` passed.
+- All three daily workflows are enabled in GitHub: Academic `425309827`, Natkhat `425309829`, Nexus `425309830`.
+- Main contains the `:29` UTC triggers. These are trigger times; YouTube publication remains scheduled for noon, 18:00, and 20:00 IST.
+- **No daily `schedule` run has been observed after PR #31 merged.** The most recent real schedule event is Academic run `46012727812`, created on pre-merge main `2ea73be` at 19:35 IST on Nov 27. Rendering and technical QC passed; the publishing policy reported `release_window_missed` and skipped credential export and upload. The late-run safety window was not weakened.
+- Channel configs still have scheduled mode and `production_enabled: true`. No production gate, policy, channel setting, credential, or secret was changed during this rollout work.
 
-```bash
-cd <repo>
-export PYTHONIOENCODING=utf-8        # mandatory on Windows: plates contain ₹, Devanagari, arrows
-export PYTHONPATH="$PWD"
-python -m pip install -r requirements.txt
+## Expected next events
+
+**Saturday, November 28, 2026** (assuming GitHub delivers each scheduled event on time):
+
+| Channel | Workflow trigger | Intended YouTube release |
+| --- | ---: | ---: |
+| Academic Biohacker | 09:59 IST | 12:00 IST |
+| Natkhat Toons | 15:59 IST | 18:00 IST |
+| Nexus Node | 17:59 IST | 20:00 IST |
+
+A workflow marked enabled is not proof that its next scheduled event ran. Check for `event=schedule`, `head_branch=main`, and both independent format jobs. Do not use `workflow_dispatch` as a substitute when a scheduled event is delayed; inspect the event time and release-policy decision first.
+
+## Channel identity and YouTube evidence
+
+The read-only identity verification returned:
+
+| Channel | YouTube channel ID | Handle |
+| --- | --- | --- |
+| Academic Biohacker | `UCr8jSmLa_o2BwNh8HuyZHAQ` | `@academicbiohacker` |
+| Natkhat Toons | `UC4OCY0qDwQqFnSCZw12sKxA` | `@NatkhatToons-n5` |
+| Nexus Node | `UCx9O8VivWkiEylDjs5_Zzag` | `@nexusnode012` |
+
+The only verified YouTube release is Academic Shorts video [`CPHaFFnSkuw`](https://www.youtube.com/watch?v=CPHaFFnSkuw). Manual workflow run `45949021636` (`workflow_dispatch`, older main `4fed999`) uploaded it private and read back `publishAt=2026-11-27T06:30:00Z` (12:00 IST). YouTube now reports it public with `publishedAt=2026-11-27T06:30:21Z`. This proves one scheduled Shorts release, **not** scheduled automation. No Academic long-form or Natkhat/Nexus release is verified.
+
+The run artifact records the video ID, clear duplicate check, upload, and stored schedule. The separate local uploader ledger did not contain this ID in the last reconciliation; keep that discrepancy open until the ledger is reconciled. A custom-thumbnail call returned YouTube 403 for this account. No thumbnail retry or credential change was made. Analytics access is limited; one view and zero likes are too small a sample to judge engagement.
+
+The last live YouTube pending-state check (Nov 27, 22:18 IST) found no unexpected pending releases. The Academic video had already published. No upload or schedule has been created during this continuation.
+
+## Safe daily checks
+
+From `D:\X100-youtube`:
+
+```powershell
+python -m factory.cli preflight --channel <slug> --json
+python -m factory.cli plans --channel <slug>
+python -m factory.cli status --channel <slug>
+python -m factory.cli gate --channel <slug> --plan-id <plan>
+python -m uploader.cli verify --json
+python -m factory.cli pause
 ```
 
-Absolute paths break FFmpeg on some platforms; keep `FACTORY_BUILD_DIR` and `FACTORY_ASSET_CACHE`
-relative or use a Windows-style path with a drive letter, never `C:/…` inside an FFmpeg filter.
+Use `pause` for the emergency stop. A pause blocks new work; it does not cancel a `publishAt` already stored at YouTube. Keep scheduled videos private until YouTube releases them at their approved time. Never print or copy OAuth credentials.
 
-| variable | default | purpose |
-|---|---|---|
-| `FACTORY_BUILD_DIR` | `build/` | episode artifacts (video, captions, manifests) |
-| `FACTORY_ASSET_CACHE` | `x100_asset_cache/` | generated plates and charts |
-| `FACTORY_STATE_DIR` | `pipeline_state/` | job journals, locks, run history |
-| `FACTORY_LOG_DIR` | `build/logs/` | structured logs |
-| `FACTORY_ASSET_LIBRARY` | `assets/library/` | optional licensed stills |
-| `FACTORY_NOTIFY_WEBHOOK` | unset | failure notification (a no-op when unset) |
+## Creative pipeline findings
 
-## 2. Daily commands
+A reviewed Academic Short used scene planning and passed technical QC, but its contact sheet repeated the same fixed guide, shelf, and small image window, so it read like narrated slides. The previous Natkhat Short similarly reused one dark haveli background across its five story beats. The renderer already supports scene motion and expressive character rigs, but the Hindi story adapter discarded authored movement and prop cues.
 
-```bash
-# what exists
-python -m factory.cli plans
+The current unmerged rollout branch changes Pop Info and Evidence Board to use three beat framings, restores a safe allow-list of supported Natkhat animation cues, and gives the next authored haveli Short a brass-key action and a rooftop-night cut. Focused tests passed (72 adapter/continuity/handoff tests; 113 content, workflow-shape, policy, QC, and integration tests). `natkhat-haveli-e4` has now been rendered locally as a 31.667-second 1080x1920 H.264/AAC Short; factory QC passed and five sampled frames were inspected. The key prop, character pose changes, and rooftop-night setting are visible. It remains a local preview; the simple 2D rigs, subjective audio review, and owner editorial approval are still limitations. No YouTube upload or schedule was made.
 
-# one episode, forced (re-render even if a cached build exists)
-python -m factory.cli render --channel nexus-node --plan-id nexus-small-models --force
+## Public-repository security and usage
 
-# one episode, idempotent (skips in ~5 s when the build is current)
-python -m factory.cli render --channel nexus-node --plan-id nexus-small-models
+- GitHub reports the repository public; the merged CI/security checks passed. A high-confidence tracked-file scan found no private-key, GitHub-token, Google API-key, or OpenAI project-key patterns.
+- The current GitHub API identity reports `push: false`, and Actions secrets/settings endpoints are not available to it. Secret names/values were not read, printed, modified, or rotated. Do not commit credentials to work around the permission limit.
+- No Actions quota, runner, or billing failure appears in the inspected run history. Changing repository visibility would not fix the observed late scheduled event; the repository is already public.
 
-# the same plan in 16:9 as well
-python -m factory.cli render --channel nexus-node --plan-id nexus-small-models --formats shorts,long
+## Release verification checklist
 
-# the next authored long-form episode for a channel (selection only, writes nothing)
-python -m factory.cli plan new --channel academic-biohacker --format long --no-write
+For **each channel and each format**, record separately:
 
-# render the long-form episode that selection returns
-python -m factory.cli resume --channel academic-biohacker   --plan-id long-academic-study-protocol --format long
+1. `schedule` event on `main` and the exact workflow run ID.
+2. Both short and long-form job outcomes, including content availability and gate decision.
+3. Rendered video, audio, captions, and visual contact-sheet review.
+4. Correct channel identity and returned YouTube video ID.
+5. YouTube read-back of title, visibility, and actual `publishAt`.
+6. Upload ledger entry and duplicate check.
+7. Recovery behavior, emergency pause, and any remaining channel-specific limitation.
 
-# storage report; deletion needs --apply and only ever touches released, valid, idle, old builds
-python -m factory.cli cleanup --channel all
-python -m factory.cli cleanup --channel all --apply --keep-days 14
-
-# QC only, on an existing build
-python -m factory.cli qc --channel nexus-node --plan-id nexus-small-models
-
-# the publishing gate, no upload
-python -m factory.cli gate --channel nexus-node --plan-id nexus-small-models
-
-# what the uploader would send, without sending it
-python -m factory.cli publish --channel nexus-node --plan-id nexus-small-models
-
-# job state and history
-python -m factory.cli status --channel nexus-node
-python -m factory.cli ops
-```
-
-`publish` without `--execute` is the dry run and is the only form that should be used until the owner
-authorises uploads. It prints `status: dry_run_ok`, `upload_performed: false`, the metadata payload, the
-identity proof and the gate result.
-
-## 3. Reading an episode's artifacts
-
-Every episode directory contains:
-
-| file | what it is |
-|---|---|
-| `video.mp4` | the finished video |
-| `script.json` | the lines with timings |
-| `scenes.json` | the scene plan, each scene's resolution, entities and plate fingerprint |
-| `captions.srt` | captions from the same timeline as the audio |
-| `qc.json` | 25 technical checks with the measured detail for each |
-| `creative.json` | 21 creative checks (composition runs, distinct plates, figures, provenance) |
-| `render.json` | duration, size, streams, renderer |
-| `manifest.json` | every artifact with its sha256 |
-| `thumbnail.jpg` | the thumbnail that would be uploaded |
-
-`python tools/report_episode_qc.py` regenerates `X100_EPISODE_QC_REPORTS.md` from these files, so the
-report can never drift from the artifacts.
-
-## 4. Reading a gate failure
-
-```
-gate: False 23/24  blockers: ['creative_quality']
- FAIL creative_quality error :: 6 scenes, 6 distinct visuals, compositions=panels,statement;
-      failed: ['no_repeated_composition_runs']
-```
-
-The blocker names the check and the check names the measurement. Do not lower the threshold: a repeated
-composition is a real visual defect, and the fix belongs in the composition rules (this is exactly how
-defects 3, 4 and 5 in the audit were found).
-
-## 5. Recovery
-
-The state machine journals every transition to
-`$FACTORY_STATE_DIR/jobs/<channel>_<plan>_<YYYYMMDD>/journal.jsonl`, and holds a lock per plan.
-
-**If a render dies:**
-
-```bash
-python -m factory.cli resume --channel nexus-node --plan-id <plan>
-```
-
-`resume` reclaims a stale lock (the lock records its pid and host) and continues to
-`READY_TO_PUBLISH`. Verified by killing a render 22 s in and resuming it.
-
-**If a build directory is corrupt:** re-render with `--force`. Nothing in `build/` is a source of truth;
-`content/`, `channels/` and `pipeline_state/` are.
-
-**If a lock is held by a live process:** do not delete it; find the pid in
-`$FACTORY_STATE_DIR/locks/<channel>_<plan>.lock` and stop that process first.
-
-## 6. Publishing
-
-The safest order, and the only order that should be used:
-
-1. `python -m factory.cli publish --channel <slug> --plan-id <plan>` — dry run, read the payload.
-2. `python -m factory.cli gate --channel <slug> --plan-id <plan>` — confirm `24/24` (en) or `23/23` (hi).
-3. Owner-only: `--execute --confirm-channel <slug>` with `UPLOAD_ENABLED=true`.
-
-Guards that hold regardless of flags:
-
-- private by default; `--allow-public` is required for anything else;
-- `made_for_kids` is forced true for `natkhat-toons`;
-- a channel's token is refused unless its channel ID matches the channel config;
-- a duplicate upload is refused from the local ledger;
-- `--schedule` needs `SCHEDULED_PUBLISHING_ENABLED=true`.
-
-## 7. Schedules and cloud runs
-
-| workflow | trigger | jobs | state |
-|---|---|---|---|
-| `ci.yml` | push, PR | `uploader`, `factory` | active |
-| `security.yml` | push, PR, weekly | `secrets`, `gitleaks`, `dependencies`, `workflow-audit` | active |
-| `produce.yml` | called by the others | `produce` (one episode) | active |
-| `production (manual)` | `workflow_dispatch` | one job per channel | active |
-| `academic-biohacker daily` | cron `29 4 * * *` (09:59 IST start, 12:00 release) | `short` (60 min), `long` (120 min) | **active** |
-| `natkhat-toons daily` | cron `29 10 * * *` (15:59 IST start, 18:00 release) | `short` (60 min), `long` (120 min) | **active** |
-| `nexus-node daily` | cron `29 12 * * *` (17:59 IST start, 20:00 release) | `short` (60 min), `long` (120 min) | **active** |
-
-GitHub Actions currently reports all three daily workflows as active (enabled). Each channel's publishing
-policy and production gate still determine whether a scheduled run may upload.
-
-Each channel's nightly workflow runs **two independent jobs**: a Short (format `shorts`, 60-minute budget)
-and a long-form episode (format `long`, 120-minute budget). They share nothing but the channel: separate
-concurrency groups (`produce-<channel>-<format>`), separate state-cache keys, no `needs:` between them, so
-a slow or failing long-form render never blocks the Short. Measured on the development machine:
-Short ≈166 s; long-form 3,090 s (51 min 30 s) for `long-academic-study-protocol` and 3,008 s
-(50 min 8 s) for `long-nexus-power-grid`. That is why the two budgets differ, and the 120-minute
-budget is 2.3× the measured render.
-
-A long-form run picks its episode from `content/longform/<channel>.json` through
-`plan new --format long`: file order, skipping anything already uploaded, re-selecting a rendered but
-unpublished episode so a failed upload resumes the validated video instead of rendering another.
-
-For a manual run that may upload (owner-authorized only), the manual workflow is one job per channel, so
-each job receives only that channel's three secrets:
-
-```bash
-env -u GITHUB_TOKEN gh workflow run "production (manual)"   --repo Ayushjaiswal0001/youtube   -f channel=natkhat-toons -f format=long -f mode=render+validate -f upload=true
-```
-
-To run one channel in the cloud without waiting for the cron:
-
-```bash
-env -u GITHUB_TOKEN gh workflow run "production (manual)" \
-  --repo Ayushjaiswal0001/youtube \
-  -f channel=nexus-node -f mode=render+validate -f upload=false
-```
-
-Never run `gh` with the ambient `GITHUB_TOKEN` on this machine: it is bound to a different account.
-Always `env -u GITHUB_TOKEN gh …`.
-
-## 8. Troubleshooting
-
-| symptom | cause | action |
-|---|---|---|
-| `plan '<x>' not found` | the id is not in this channel's `content/batch_*.json` or topic bank | `python -m factory.cli plans` |
-| `UnicodeDecodeError` on `₹` in `tools/secret_scan.py --staged` | known Windows bug in staged-diff reading | use the tree scan; CI's gitleaks covers the staged case |
-| `creative_quality` blocked | a composition repeat or a figure that is not stated | read the check detail; never edit the threshold |
-| `audio_loudness` fails | encoded true peak above −1.0 dBTP | the peak guard now retries automatically; if it still fails, inspect `audio/narration.*` |
-| a render sits in `GENERATING` for a long time | long-form card render is slow (≈4.4 s per output second) | check `video_work/` growth before assuming a hang |
-| stale lock after a crash | process killed | `resume` reclaims it |
-
-## 9. What not to do
-
-- Do not push to `main`, force-push, or rewrite history.
-- Do not enable the daily crons or scheduled publishing without the owner.
-- Do not print, copy or rotate the `YT_*` secrets.
-- Do not raise a QC threshold to make an episode pass. Fix the episode or fix the rule.
-- Do not run `git add .`; stage explicit paths so `pipeline_state/` never sneaks in.
-- Do not trust a chip in a log: read `qc.json`, `creative.json` and the frames.
+Do not call X100 production-ready until this evidence exists for all six channel/format combinations and subsequent daily schedule events continue to run.
