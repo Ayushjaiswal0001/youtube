@@ -2,29 +2,29 @@
 
 Audit date: 2026-11-28
 Repository: Ayushjaiswal0001/youtube, checkout D:\X100-youtube
-Main SHA: 3fa3c981a1dbfc0248730a9a558b0d5da212948b
+Main SHA: b752bf74a897582e207ca5332bc47effd85a53a6
 Focused source/content commits: 7d6ffe07c59300d52fa6d1d07d221c67d32b6c97 and 528ec22943c896a2626b4877ddaaa1f035480534 on codex/fix-joblock-ownership
-This report records the live operational snapshot as of 2026-11-28 00:39 IST, with the YouTube playlist scan timestamped separately at 00:22 IST. PR #32 (`codex/launch-rollout`) carries the creative changes and reconciliation of this report with documentation commit `e38ff36`. No post-merge scheduled event has occurred yet, so final production acceptance is still pending.
+This report records the live operational snapshot as of 2026-11-28 01:07 IST, with the YouTube playlist scan timestamped separately at 00:22 IST. PR #32 (`codex/launch-rollout`) merged as `b752bf74a897582e207ca5332bc47effd85a53a6`; its post-merge CI and security checks passed. No post-merge scheduled event has occurred yet, so final production acceptance is still pending.
 
 ## A. Executive summary
 
-PR #23 and PR #31 are merged. PR #31 added the one-minute schedule lead and corrected the operations-guide workflow state; main is `3fa3c981a1dbfc0248730a9a558b0d5da212948b`. Post-merge main CI run `46033672111` and security run `46033672255` both passed. All three daily GitHub Actions workflows are active, and the three channel JSON files were not changed by PR #31. PR #32 is open for the creative changes, relevant regression-test update, and reconciled handover docs; merge is pending the latest normal PR checks.
+PRs #23, #31, and #32 are merged. PR #31 added the one-minute schedule lead; PR #32 improved the illustrated and Natkhat animation and reconciled the handover docs. Main is `b752bf74a897582e207ca5332bc47effd85a53a6`. Post-merge main CI run `46057283954` and security run `46057283946` passed. All three daily GitHub Actions workflows are active. PR #32 did not change workflow YAML, channel publishing settings, production gates, publishing policy, OAuth credentials, or secrets.
 
-The three YouTube channel identities were verified through read-only API calls. The uploads playlists were fully paginated, and no future `publishAt` values are currently pending. Existing videos are present, but the latest scheduled Academic run was on the pre-merge SHA, arrived about 9 hours 35 minutes late, and skipped uploads for both formats. There are no post-merge schedule runs yet. The next triggers are Saturday, 2026-11-28; successful scheduled production and YouTube release evidence remain unverified.
+At 00:22 IST, a read-only YouTube API check matched all three channel identities, fully paginated their uploads playlists, and found no future `publishAt` values. Existing videos are present, but the latest scheduled Academic run was on the pre-merge SHA, arrived about 9 hours 35 minutes late, and skipped uploads for both formats. There were no post-merge schedule runs in the run history checked after PR #32 merged. The next triggers are Saturday, 2026-11-28; successful scheduled production and YouTube release evidence remain unverified.
 
 ## B. Repository and main SHA
 
-Repository verified as Ayushjaiswal0001/youtube at D:\X100-youtube. Remote main is `3fa3c981a1dbfc0248730a9a558b0d5da212948b`, the merge commit for PR #31. PR #23 is also merged. The prior JobLock and content-audit commits remain part of the repository history. The unrelated D:\animated checkout was not modified; its pre-existing working-tree changes were left untouched.
+Repository verified as Ayushjaiswal0001/youtube at D:\X100-youtube. Remote main is `b752bf74a897582e207ca5332bc47effd85a53a6`, the squash merge commit for PR #32; its parent is PR #31 merge `3fa3c981a1dbfc0248730a9a558b0d5da212948b`. The prior JobLock and content-audit commits remain part of the repository history. The unrelated D:\animated checkout was not modified; its pre-existing working-tree changes were left untouched.
 
 ## C. PR and merge history
 
-PR #22 merged on 2026-11-25 as `b16c4b5`. PR #23 merged on 2026-11-26 as `4c2a687e3da24ae142d42139a7f29df8052d1f31`. PR #31 merged on 2026-11-27 as `3fa3c981a1dbfc0248730a9a558b0d5da212948b`. PR #31 changed the three scheduled crons, the schedule-shape/readiness tests, and directly related documentation. It did not modify channel JSON, production gates, publishing policy, OAuth credentials, or secrets. PR #2 remains open on its older base and was not modified.
+PR #22 merged on 2026-11-25 as `b16c4b5`. PR #23 merged on 2026-11-26 as `4c2a687e3da24ae142d42139a7f29df8052d1f31`. PR #31 merged on 2026-11-27 as `3fa3c981a1dbfc0248730a9a558b0d5da212948b`; it changed the three scheduled crons, schedule-shape/readiness tests, and directly related documentation. PR #32 merged on 2026-11-28 at 01:01 IST as `b752bf74a897582e207ca5332bc47effd85a53a6`; it changed illustrated/Natkhat creative code and content, related tests, and these handover docs. It did not modify workflow YAML, channel publishing settings, production gates, publishing policy, OAuth credentials, or secrets. PR #2 remains open on its older base and was not modified.
 
 PR #2 remains open at head 2a810f08de4d3a50ff4a7da20d8357268f6a3744, based on older SHA 567e63c0c957d42dee4c17156bc7cc89db6f095b. No changes were made to it. Its owner should decide separately whether to refresh or retire it. The handover-only commit `e38ff36b4f98ab51695de2af46290f89b95c4a89` was on local branch `codex/x100-verified-handover`; its nonduplicate operational details are reconciled into PR #32 and updated below against fresh evidence.
 
 ## D. CI status
 
-Post-merge main CI run `46033672111` passed on `3fa3c981a1dbfc0248730a9a558b0d5da212948b`; uploader Python 3.11/3.12 and the factory suite passed. Post-merge security run `46033672255` passed all jobs, including dependency audit, Gitleaks, workflow permissions, and secret scanning. PR #31 was merged after its branch checks passed.
+Post-merge main CI run `46057283954` passed on `b752bf74a897582e207ca5332bc47effd85a53a6`; uploader Python 3.11/3.12 and the factory suite passed. Post-merge security run `46057283946` passed all jobs, including dependency audit, Gitleaks, workflow permissions, and secret scanning. PR #32 was merged normally after its branch CI and security checks passed.
 
 ## E. Full test results
 
@@ -118,7 +118,7 @@ The seven preserved artifact trees total 133,280,859 bytes. The two corrected de
 
 ### Main branch and workflow state
 
-PR #31 merged on 2026-11-27 at 16:26:44 UTC as `3fa3c981a1dbfc0248730a9a558b0d5da212948b`. Main CI `46033672111` and security `46033672255` passed. GitHub reports these workflow IDs as `active`:
+PR #31 merged on 2026-11-27 at 16:26:44 UTC as `3fa3c981a1dbfc0248730a9a558b0d5da212948b`. PR #32 merged on 2026-11-28 at 01:01:19 IST as `b752bf74a897582e207ca5332bc47effd85a53a6`; post-merge CI `46057283954` and security `46057283946` passed. GitHub reports these workflow IDs as `active`:
 
 | Channel | Workflow ID | Main cron (UTC) | Trigger (IST) | Intended release (IST) | Current config |
 | --- | ---: | --- | --- | --- | --- |
@@ -126,11 +126,11 @@ PR #31 merged on 2026-11-27 at 16:26:44 UTC as `3fa3c981a1dbfc0248730a9a558b0d5d
 | Natkhat Toons | 425309829 | `29 10 * * *` | 15:59 | 18:00 | scheduled; enabled |
 | Nexus Node | 425309830 | `29 12 * * *` | 17:59 | 20:00 | scheduled; enabled |
 
-The PR diff contained no `channels/*.json` changes. On main, each channel still has `production_enabled: true`, `mode: scheduled`, `scheduled_upload: true`, and its intended publication time.
+The PR #31 and #32 diffs contained no production `channels/*.json` changes. PR #32 changed Natkhat story content only. On main, each channel still has `production_enabled: true`, `mode: scheduled`, `scheduled_upload: true`, and its intended publication time.
 
 ### Scheduled-run evidence
 
-There were no post-merge `schedule` events for any of the three workflows in the run history checked at 00:39 IST on Nov 28. The next expected triggers are today: Academic at 09:59 IST, Natkhat at 15:59 IST, and Nexus at 17:59 IST. Their associated release times are 12:00, 18:00, and 20:00 IST.
+There were no post-merge `schedule` events for any of the three workflows in the run history checked at 01:02 IST after PR #32 merged. The next expected triggers today are Academic at 09:59 IST, Natkhat at 15:59 IST, and Nexus at 17:59 IST. Their associated release times are 12:00, 18:00, and 20:00 IST.
 
 The most recent scheduled event was Academic run `46012727812` on main SHA `2ea73be1568a4cbaa188fa6abce06607010ecb7f`, before PR #31 merged. It was created at `2026-11-27T14:05:15Z` (19:35:15 IST), about 9 hours 35 minutes after its 09:59 IST trigger. The scheduled wrapper passed the correct inputs (`upload=true`, `release=auto`). Its Short job `140552042262` was late by 27,390 seconds and its long job `140552042653` by 28,340 seconds, both beyond the configured 90-minute grace. The policy returned `release_window_missed`, `publish_at: null`, and `ready: false`. Because the reusable workflow exports credentials only when policy readiness is true, credential export was skipped before reading any credential values; identity verification and upload were then skipped. This is a late scheduled event and correct fail-closed behavior, not missing schedule inputs or proven credential failure. All nine expected Actions secret names exist; values were not inspected. Local OAuth identity checks matched all three channels. No gate or late-run policy was weakened. Do not manually dispatch a production workflow to replace a delayed schedule.
 
@@ -156,17 +156,17 @@ At 00:22 IST, the uploads playlists were fully paginated: 64 Academic, 64 Natkha
 | Nexus Node | `ZK-AMW8Lw-U` | AI Training Data: A Forecast, Not a Countdown | 46s | public | absent | `2026-11-26T14:30:10Z`; ledger present |
 | Nexus Node | `UuQKJ3jspKE` | AI Is Leaving the Chat | 39s | private | absent | `2026-11-25T13:50:48Z`; ledger present |
 
-The current API response did not return a `publishAt` field for these already-uploaded records. It cannot recover historical `publishAt` after a video becomes public; only the earlier GitHub artifact documents the Academic timestamp. These records do not prove the next scheduled run or long-form production.
+The 00:22 IST API response did not return a `publishAt` field for these already-uploaded records. It cannot recover historical `publishAt` after a video becomes public; only the earlier GitHub artifact documents the Academic timestamp. These records do not prove the next scheduled run or long-form production.
 
 ### Acceptance status
 
-Main workflow configuration, enabled state, channel identity, prior main CI/security, and current pending-schedule state are verified. PR #32's latest reconciliation commit is awaiting its CI/security rerun. Scheduled post-merge runs, per-format release verification, all six stored YouTube `publishAt` values, and ongoing reliability are pending. Do not call X100 production-ready until each channel completes both independently scheduled formats and the actual YouTube upload and release time are verified.
+Main workflow configuration, enabled state, channel identity, PR #32 post-merge CI/security, and the YouTube preflight snapshot at 00:22 IST are verified. Scheduled post-merge runs, per-format release verification, all six stored YouTube `publishAt` values, and ongoing reliability are pending. Do not call X100 production-ready until each channel completes both independently scheduled formats and the actual YouTube upload and release time are verified.
 
 No workflow was dispatched during this verification. No video was uploaded or scheduled, and no activation setting or channel publishing gate was changed.
 
 ## P. Known limitations
 
-- PR #23 merged on 2026-11-26 as `4c2a687e3da24ae142d42139a7f29df8052d1f31`; PR #31 merged on 2026-11-27 as `3fa3c981a1dbfc0248730a9a558b0d5da212948b`.
+- PR #23 merged on 2026-11-26 as `4c2a687e3da24ae142d42139a7f29df8052d1f31`; PR #31 merged on 2026-11-27 as `3fa3c981a1dbfc0248730a9a558b0d5da212948b`; PR #32 merged on 2026-11-28 as `b752bf74a897582e207ca5332bc47effd85a53a6`.
 - POSIX lock coverage, physical restart, and shared network filesystem semantics remain unverified here.
 - The two preserved originals remain stale and must not be released. Corrected derivatives and PR #32 local previews exist and passed automated/sample visual QC. The new audio was checked with technical QC and Whisper base transcription, but human listening and owner release review remain pending; Whisper rendered the name “Epoch AI” as “EPIC AI.”
 - Visual review used five sampled frames for Academic/Nexus and a one-second Natkhat timeline sheet; it is not a complete per-frame review or studio-animation assessment.
@@ -225,4 +225,4 @@ Use the matching workflow name for Academic or Natkhat. Cancel an active Actions
 
 **NOT YET PRODUCTION-READY — POST-MERGE SCHEDULED EVIDENCE PENDING**
 
-PR #31 is merged; all three daily workflows are active with the requested crons; main CI/security passed; channel identities and the full current YouTube pending-schedule state are verified. Academic run `46012727812` was a genuine pre-merge schedule event, but GitHub delivered it about 9 hours 35 minutes late and the 90-minute policy grace correctly skipped credential export and both uploads. No post-merge scheduled event or full six-format release cycle has been verified. Keep the verdict **NOT YET PRODUCTION-READY** until the Nov 28 schedules produce six actual YouTube uploads with verified channel IDs and publication timestamps, followed by a subsequent-day reliability cycle.
+PR #32 is merged as `b752bf74a897582e207ca5332bc47effd85a53a6`; all three daily workflows are active with the requested crons; post-merge main CI/security passed. The latest YouTube preflight at 00:22 IST found no future `publishAt` schedule. Academic run `46012727812` was a genuine pre-merge schedule event, but GitHub delivered it about 9 hours 35 minutes late and the 90-minute policy grace correctly skipped credential export and both uploads. No post-merge scheduled event or full six-format release cycle has been verified. Keep the verdict **NOT YET PRODUCTION-READY** until the Nov 28 schedules produce six actual YouTube uploads with verified channel IDs and publication timestamps, followed by a subsequent-day reliability cycle.
