@@ -83,15 +83,26 @@ class FilterTests(unittest.TestCase):
 
 
 class ContentTests(unittest.TestCase):
-    def test_the_bundled_episode_only_fades_at_the_two_ends(self):
+    def test_the_bundled_episode_fades_at_the_ends_and_location_changes(self):
         series = json.loads(Path("content/series/natkhat-toons.json").read_text(encoding="utf-8"))
         scenes = series["series"][0]["episodes"][0]["scenes"]
         plan = plan_transitions(scenes)
-        self.assertEqual(plan[0][0], OPENING)
-        self.assertEqual(plan[-1][1], CLOSING)
-        for fade_in, fade_out in plan[1:-1]:
-            self.assertEqual((fade_in, fade_out), (0.0, 0.0),
-                             "one location must not fade between its own beats")
+        for index, (fade_in, fade_out) in enumerate(plan):
+            expected_in = (
+                OPENING if index == 0
+                else TRANSITION if scenes[index - 1].get("bg") != scenes[index].get("bg")
+                else 0.0
+            )
+            expected_out = (
+                CLOSING if index == len(scenes) - 1
+                else TRANSITION if scenes[index].get("bg") != scenes[index + 1].get("bg")
+                else 0.0
+            )
+            self.assertEqual(
+                (fade_in, fade_out),
+                (expected_in, expected_out),
+                "scene transitions should follow location boundaries, while same-location beats cut directly",
+            )
 
 
 if __name__ == "__main__":

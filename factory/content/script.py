@@ -270,23 +270,35 @@ def build_hindi_script(spec: ChannelSpec, plan: dict[str, Any]) -> Script:
 def story_packet(script: Script, spec: ChannelSpec) -> dict[str, Any]:
     if not script.series or not script.episode:
         raise ValueError("story_packet requires a series and episode")
+    # The short-form studio already supports these cues (walks, expressive faces, props, pickups,
+    # interactions, and fades), but the packet adapter used to discard them. Keep this an explicit
+    # allow-list so authored scene metadata cannot inject arbitrary fields into the renderer.
+    animation_fields = (
+        "chiku_motion", "gappu_motion",
+        "chiku_expression", "gappu_expression",
+        "chiku_listening_expression", "gappu_listening_expression",
+        "chiku_expressions", "gappu_expressions",
+        "interaction", "prop", "prop_holder", "prop_side",
+        "prop_handoff_to", "prop_handoff_side", "prop_handoff_at", "prop_handoff_duration",
+        "pickup", "lighting", "fade_in", "fade_out", "cuts",
+    )
     scenes: list[dict[str, Any]] = []
     for index, (line, raw) in enumerate(zip(script.lines, script.metadata.get("scenes", [])), 1):
-        scenes.append(
-            {
-                "scene_num": index,
-                "speaker": str(raw.get("speaker", "narrator")),
-                "dialogue": line.text,
-                "chiku_pose": str(raw.get("chiku_pose", "idle")),
-                "gappu_pose": str(raw.get("gappu_pose", "idle")),
-                "camera": str(raw.get("camera", "medium_pan")),
-                "bg": str(raw.get("bg", "haunted_haveli")),
-                "visual_style": spec.visual_style,
-                "sfx": str(raw.get("sfx", "whoosh")),
-                "subtitle_png": str(raw.get("subtitle_png", "")),
-                "title_png": str(raw.get("title_png", "")),
-            }
-        )
+        scene = {
+            "scene_num": index,
+            "speaker": str(raw.get("speaker", "narrator")),
+            "dialogue": line.text,
+            "chiku_pose": str(raw.get("chiku_pose", "idle")),
+            "gappu_pose": str(raw.get("gappu_pose", "idle")),
+            "camera": str(raw.get("camera", "medium_pan")),
+            "bg": str(raw.get("bg", "haunted_haveli")),
+            "visual_style": spec.visual_style,
+            "sfx": str(raw.get("sfx", "whoosh")),
+            "subtitle_png": str(raw.get("subtitle_png", "")),
+            "title_png": str(raw.get("title_png", "")),
+        }
+        scene.update({key: raw[key] for key in animation_fields if key in raw})
+        scenes.append(scene)
     plan_id = str(script.metadata.get("plan_id") or f"{script.series}_e{script.episode:02d}")
     story_id = f"{spec.slug}_{slugify(plan_id)}"
     return {

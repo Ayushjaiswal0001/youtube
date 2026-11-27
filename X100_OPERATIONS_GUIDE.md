@@ -1,7 +1,7 @@
 # X100 operations guide
 
-How to run, check, recover and publish this factory without reading the source. Every command below was
-executed in this session unless marked otherwise.
+How to run, check, recover and publish this factory without reading the source. Commands below are
+runbook examples; read their inline safety notes before use.
 
 ---
 
@@ -126,7 +126,7 @@ The safest order, and the only order that should be used:
 
 1. `python -m factory.cli publish --channel <slug> --plan-id <plan>` — dry run, read the payload.
 2. `python -m factory.cli gate --channel <slug> --plan-id <plan>` — confirm `24/24` (en) or `23/23` (hi).
-3. Owner-only: `--execute --confirm-channel <slug>` with `UPLOAD_ENABLED=true`.
+3. Owner-only: `--execute --confirm-channel <slug>` with `FACTORY_ALLOW_UPLOAD=1`; scheduled releases also require `FACTORY_ALLOW_SCHEDULE=1`.
 
 Guards that hold regardless of flags:
 
@@ -134,7 +134,7 @@ Guards that hold regardless of flags:
 - `made_for_kids` is forced true for `natkhat-toons`;
 - a channel's token is refused unless its channel ID matches the channel config;
 - a duplicate upload is refused from the local ledger;
-- `--schedule` needs `SCHEDULED_PUBLISHING_ENABLED=true`.
+- `--schedule` needs `FACTORY_ALLOW_SCHEDULE=1`; the reusable GitHub workflow independently keeps `UPLOAD_ENABLED` and `SCHEDULED_PUBLISHING_ENABLED` as wrapper gates.
 
 ## 7. Schedules and cloud runs
 
@@ -151,6 +151,43 @@ Guards that hold regardless of flags:
 GitHub Actions currently reports all three daily workflows as active (enabled). Each channel's publishing
 policy and production gate still determine whether a scheduled run may upload.
 
+### Verified operational snapshot — 2026-11-28 00:39 IST
+
+PR #31 is merged as `3fa3c981a1dbfc0248730a9a558b0d5da212948b`. Main CI run `46033672111` and security run
+`46033672255` passed. A read-only YouTube check verified all three channel identities and fully scanned
+their uploads playlists; no future `publishAt` schedule was present. Existing video IDs and current API
+visibility are recorded in `X100_FINAL_PROJECT_COMPLETION_REPORT.md`, section O.
+
+No post-merge scheduled event has run yet as of 00:39 IST. The next expected triggers are Saturday,
+November 28: Academic 09:59 IST, Natkhat 15:59 IST, and Nexus 17:59 IST. The latest earlier scheduled
+event was Academic run `46012727812` on pre-merge main SHA `2ea73be1568a4cbaa188fa6abce06607010ecb7f`;
+it started at 19:35 IST. If a new schedule is delayed, inspect its event, branch, workflow, job logs, and
+publishing decision before taking action. Do not manually dispatch as a replacement.
+
+The scheduled wrapper sent the correct inputs (`upload=true`, `release=auto`). Short and long policy
+checks were late by 27,390s and 28,340s, beyond the configured 90-minute grace, and returned
+`release_window_missed` with `ready=false`. The reusable workflow only exports channel credentials when
+policy readiness is true, so credential export was skipped before reading a credential value; identity
+verification and upload were then skipped. This is a late GitHub scheduled event and correct fail-closed
+behavior, not missing schedule inputs or demonstrated credential failure. All nine expected Actions
+secret names exist; values were not read. Local OAuth identity checks matched all three channels. No gate
+or late-run policy was weakened.
+
+The repository is already public. The active GitHub account is the write-enabled owner `Ayushjaiswal0001`
+and it pushed PR #32. No credential value, OAuth secret, production gate, or repository permission was
+changed during this continuation.
+
+PR #32's fresh local Academic render (`academic-brain-wash`, 38.233s) and Nexus render
+(`nexus-data-wall`, 45.433s) passed factory QC as 1080x1920 H.264/AAC Shorts. Contact sheets show varied
+Pop Info character-guide/callout frames and an Evidence Board with pinned cards, red-string connections,
+a scanning magnifier, and varied framing. Audio QC reported -14.5 LUFS/-2.46 dBTP with 0.013s AV length
+delta for Academic, and -14.2 LUFS/-2.40 dBTP with 0.003s delta for Nexus. The local Natkhat
+`natkhat-haveli-e4` render is 31.667s, passed factory QC, and its one-second timeline sheet shows the
+brass-key action, expressive poses, and rooftop-night cut. Whisper base recovered the key Hindi story
+points from its narration and subtitles. These are local-only previews; no upload or schedule was made.
+Automated transcription/measurements do not replace a human listening pass, and characters use simple 2D
+rigs.
+
 Each channel's nightly workflow runs **two independent jobs**: a Short (format `shorts`, 60-minute budget)
 and a long-form episode (format `long`, 120-minute budget). They share nothing but the channel: separate
 concurrency groups (`produce-<channel>-<format>`), separate state-cache keys, no `needs:` between them, so
@@ -163,8 +200,9 @@ A long-form run picks its episode from `content/longform/<channel>.json` through
 `plan new --format long`: file order, skipping anything already uploaded, re-selecting a rendered but
 unpublished episode so a failed upload resumes the validated video instead of rendering another.
 
-For a manual run that may upload (owner-authorized only), the manual workflow is one job per channel, so
-each job receives only that channel's three secrets:
+The manual workflow has one job per channel, so each job receives only that channel's three secrets. It
+is not a substitute for verifying scheduled automation. A manual run that may upload is owner-authorized
+only; never use one to replace a delayed schedule:
 
 ```bash
 env -u GITHUB_TOKEN gh workflow run "production (manual)"   --repo Ayushjaiswal0001/youtube   -f channel=natkhat-toons -f format=long -f mode=render+validate -f upload=true

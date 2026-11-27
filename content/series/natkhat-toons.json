@@ -30,6 +30,10 @@
               "gappu_pose": "observing",
               "camera": "medium_pan",
               "bg": "haunted_haveli",
+              "chiku_motion": "turn",
+              "gappu_motion": "walk_in",
+              "prop": "brass_key",
+              "prop_holder": "chiku",
               "sfx": "whoosh"
             },
             {
@@ -39,6 +43,10 @@
               "gappu_pose": "skeptical_eyebrow",
               "camera": "close_up_chiku",
               "bg": "haunted_haveli",
+              "chiku_motion": "point",
+              "gappu_motion": "shake_head",
+              "prop": "brass_key",
+              "prop_holder": "chiku",
               "sfx": "pop"
             },
             {
@@ -48,6 +56,10 @@
               "gappu_pose": "observing",
               "camera": "two_shot_zoom",
               "bg": "haunted_haveli",
+              "chiku_motion": "turn",
+              "gappu_motion": "point",
+              "prop": "brass_key",
+              "prop_holder": "chiku",
               "sfx": "twinkle"
             },
             {
@@ -56,7 +68,9 @@
               "chiku_pose": "observing",
               "gappu_pose": "observing",
               "camera": "wide_finish",
-              "bg": "haunted_haveli",
+              "bg": "village_night",
+              "chiku_motion": "walk_in",
+              "gappu_motion": "walk_in",
               "sfx": "whoosh"
             },
             {
@@ -65,7 +79,9 @@
               "chiku_pose": "excited_jump",
               "gappu_pose": "observing",
               "camera": "wide_finish",
-              "bg": "haunted_haveli",
+              "bg": "village_night",
+              "chiku_motion": "wave",
+              "gappu_motion": "wave",
               "sfx": "pop"
             }
           ]

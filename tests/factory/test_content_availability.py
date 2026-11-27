@@ -96,6 +96,17 @@ def test_a_fresh_series_channel_can_start(state):
     assert plan["plan_id"] == "natkhat-haveli-e4"
 
 
+def test_next_haveli_short_has_character_actions_and_a_rooftop_cut(state):
+    from factory.content.plans import generate_plan
+
+    plan = generate_plan(load_channel_specs()["natkhat-toons"], write=False)["plan"]
+    assert plan["scenes"][0]["prop"] == "brass_key"
+    assert plan["scenes"][0]["chiku_motion"] == "turn"
+    assert plan["scenes"][2]["gappu_motion"] == "point"
+    assert plan["scenes"][3]["bg"] == "village_night"
+    assert plan["scenes"][4]["chiku_motion"] == "wave"
+
+
 def test_an_episode_the_factory_rendered_but_did_not_publish_still_blocks(state):
     """The guard must keep working for episodes the factory *did* produce."""
 
