@@ -114,7 +114,8 @@ permissions:
 concurrency:
   # One production run per channel *and format*, and never cancel a render in progress: a half-written
   # episode is worse than a queued one. This keeps a horizontal render and a Short independent.
-  group: produce-${{ inputs.channel }}-${{ inputs.format || 'native' }}
+  # Manual and scheduled callers share this lock after resolving the channel's native format.
+  group: produce-${{ inputs.channel }}-${{ inputs.format || 'shorts' }}
   cancel-in-progress: false
 
 env:
