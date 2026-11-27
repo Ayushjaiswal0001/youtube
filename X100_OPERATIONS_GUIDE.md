@@ -1,6 +1,6 @@
 # X100 Operations Guide
 
-**Live snapshot: 2026-11-28 00:22 IST.** Refreshed against `Ayushjaiswal0001/youtube`, GitHub Actions, the YouTube API, and the recorded workflow artifacts. This guide separates enabled automation from verified publishing.
+**Live snapshot: 2026-11-28 00:39 IST.** Refreshed against `Ayushjaiswal0001/youtube`, GitHub Actions, the YouTube API, and the recorded workflow artifacts. This guide separates enabled automation from verified publishing.
 
 ## Current operational status
 
@@ -69,12 +69,14 @@ Use `pause` for the emergency stop. A pause blocks new work; it does not cancel 
 
 A reviewed Academic Short used scene planning and passed technical QC, but its contact sheet repeated the same fixed guide, shelf, and small image window, so it read like narrated slides. The previous Natkhat Short similarly reused one dark haveli background across its five story beats. The renderer already supports scene motion and expressive character rigs, but the Hindi story adapter discarded authored movement and prop cues.
 
-The current unmerged rollout branch changes Pop Info and Evidence Board to use three beat framings, restores a safe allow-list of supported Natkhat animation cues, and gives the next authored haveli Short a brass-key action and a rooftop-night cut. Focused tests passed (72 adapter/continuity/handoff tests; 113 content, workflow-shape, policy, QC, and integration tests). `natkhat-haveli-e4` has now been rendered locally as a 31.667-second 1080x1920 H.264/AAC Short; factory QC passed and five sampled frames were inspected. The key prop, character pose changes, and rooftop-night setting are visible. It remains a local preview; the simple 2D rigs, subjective audio review, and owner editorial approval are still limitations. No YouTube upload or schedule was made.
+PR #32 varies Pop Info and Evidence Board framing across beats, restores a safe allow-list of authored Natkhat motion and prop cues, and gives the next Haveli Short a brass-key action and rooftop-night cut. Fresh local Academic (`academic-brain-wash`, 38.233 seconds) and Nexus (`nexus-data-wall`, 45.433 seconds) renders both passed factory QC as 1080x1920 H.264/AAC Shorts. Five-frame contact sheets show changing Pop Info callouts and character-guide framing for Academic and a pinned corkboard, red-string links, magnifier, and varied evidence cards for Nexus. Their audio QC reported -14.5 LUFS/-2.46 dBTP with 0.013s AV length delta and -14.2 LUFS/-2.40 dBTP with 0.003s delta, respectively. Both are local previews.
+
+The local Natkhat `natkhat-haveli-e4` preview is 31.667 seconds, 1080x1920 H.264/AAC, and passed factory QC. A one-second timeline contact sheet shows the brass-key action, expressive pose changes, and rooftop-night cut; all ten Hindi subtitle beats are represented, and a local Whisper base transcription recovered the key story points. Automated transcription and audio metrics do not replace a human listening pass. Characters still use simple 2D rigs. No YouTube upload or schedule was made.
 
 ## Public-repository security and usage
 
 - GitHub reports the repository public; the merged CI/security checks passed. A high-confidence tracked-file scan found no private-key, GitHub-token, Google API-key, or OpenAI project-key patterns.
-- The current GitHub API identity reports `push: false`, and Actions secrets/settings endpoints are not available to it. Secret names/values were not read, printed, modified, or rotated. Do not commit credentials to work around the permission limit.
+- The active GitHub account is the write-enabled repository owner `Ayushjaiswal0001`; it pushed PR #32. All nine expected per-channel Actions secret names exist. Secret values were not read or printed, and no secret, OAuth credential, permission, or production setting was changed.
 - No Actions quota, runner, or billing failure appears in the inspected run history. Changing repository visibility would not fix the observed late scheduled event; the repository is already public.
 
 ## Release verification checklist
