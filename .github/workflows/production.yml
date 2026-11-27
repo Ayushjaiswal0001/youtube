@@ -56,10 +56,7 @@ on:
 permissions:
   contents: read
 
-concurrency:
-  group: production-${{ inputs.channel }}-${{ inputs.format || 'native' }}
-  cancel-in-progress: false
-
+# The reusable producer owns the per-channel/format lock shared with scheduled runs.
 jobs:
   nexus-node:
     if: ${{ inputs.channel == 'nexus-node' }}
@@ -69,7 +66,7 @@ jobs:
       secret_prefix: NEXUS_NODE
       mode: ${{ inputs.mode }}
       plan_id: ${{ inputs.plan_id }}
-      format: ${{ inputs.format }}
+      format: ${{ inputs.format || 'shorts' }}
       upload: ${{ inputs.upload }}
       release: ${{ inputs.release }}
       # A long-form episode took 3,008 s measured; 120 minutes is the budget for one, 60 for a Short.
@@ -87,7 +84,7 @@ jobs:
       secret_prefix: ACADEMIC_BIOHACKER
       mode: ${{ inputs.mode }}
       plan_id: ${{ inputs.plan_id }}
-      format: ${{ inputs.format }}
+      format: ${{ inputs.format || 'shorts' }}
       upload: ${{ inputs.upload }}
       release: ${{ inputs.release }}
       timeout_minutes: ${{ inputs.format == 'long' && 120 || 60 }}
@@ -104,7 +101,7 @@ jobs:
       secret_prefix: NATKHAT_TOONS
       mode: ${{ inputs.mode }}
       plan_id: ${{ inputs.plan_id }}
-      format: ${{ inputs.format }}
+      format: ${{ inputs.format || 'shorts' }}
       upload: ${{ inputs.upload }}
       release: ${{ inputs.release }}
       timeout_minutes: ${{ inputs.format == 'long' && 120 || 60 }}
