@@ -151,6 +151,19 @@ Guards that hold regardless of flags:
 GitHub Actions currently reports all three daily workflows as active (enabled). Each channel's publishing
 policy and production gate still determine whether a scheduled run may upload.
 
+### Verified operational snapshot — 2026-11-27 22:18 IST
+
+PR #31 is merged as `3fa3c981a1dbfc0248730a9a558b0d5da212948b`. Main CI run `46033672111` and security run
+`46033672255` passed. A read-only YouTube check verified all three channel identities and fully scanned
+their uploads playlists; no future `publishAt` schedule was present. Existing video IDs and current API
+visibility are recorded in `X100_FINAL_PROJECT_COMPLETION_REPORT.md`, section O.
+
+No post-merge scheduled event has run yet. The next expected triggers are Saturday, November 28: Academic
+09:59 IST, Natkhat 15:59 IST, and Nexus 17:59 IST. The latest earlier scheduled event was Academic run
+`46012727812` on the pre-merge main SHA; it started at 19:35 IST, and both Short and long-form upload steps
+were skipped. If a new schedule is delayed, inspect the event, branch, workflow, job logs, and publishing
+decision before taking action. Do not use a manual dispatch as a replacement.
+
 Each channel's nightly workflow runs **two independent jobs**: a Short (format `shorts`, 60-minute budget)
 and a long-form episode (format `long`, 120-minute budget). They share nothing but the channel: separate
 concurrency groups (`produce-<channel>-<format>`), separate state-cache keys, no `needs:` between them, so

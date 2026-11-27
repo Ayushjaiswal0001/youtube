@@ -1,30 +1,30 @@
 # X100 final project completion report
 
-Audit date: 2026-11-26
+Audit date: 2026-11-27
 Repository: Ayushjaiswal0001/youtube, checkout D:\X100-youtube
-Protected main SHA: b16c4b5fd0d8cd6731d11dde40fc3a7d49b52d8f
+Main SHA: 3fa3c981a1dbfc0248730a9a558b0d5da212948b
 Focused source/content commits: 7d6ffe07c59300d52fa6d1d07d221c67d32b6c97 and 528ec22943c896a2626b4877ddaaa1f035480534 on codex/fix-joblock-ownership
-This report records verified evidence and stops at owner-controlled review/activation.
+This report records a current operational snapshot as of 2026-11-27 22:18 IST. The next post-merge scheduled runs are in the future, so final production acceptance is still pending.
 
 ## A. Executive summary
 
-PR #22 is merged and main CI/security are green. The JobLock single-owner repair and a final journal-isolation correction are on the focused PR #23 branch with real process-based regression coverage. The full local suite and current focused Windows tests pass; evidence-backed content corrections pass their focused suite; security checks pass. Seven preserved media samples plus two corrected local derivatives were re-probed, decoded, and measured.
+PR #23 and PR #31 are merged. PR #31 added the one-minute schedule lead and corrected the operations-guide workflow state; main is `3fa3c981a1dbfc0248730a9a558b0d5da212948b`. Post-merge main CI run `46033672111` and security run `46033672255` both passed. All three daily GitHub Actions workflows are active, and the three channel JSON files were not changed by PR #31.
 
-The candidate is not on main. PR #23 is open at `https://github.com/Ayushjaiswal0001/youtube/pull/23`. The initial HTTP 403 was traced to an injected read-only `GITHUB_TOKEN` identity; an already-authenticated owner keyring identity had repository `push:true`, and the focused branch was published without creating credentials or exposing token values. At 11:26 IST, all CI and security runs passed on verified branch head `d1edea4` (PR CI `45763722304`, push CI `45763714737`, PR security `45763722267`, push security `45763714758`), including Ubuntu factory coverage. The preserved Academic and Nexus originals remain stale; corrected local derivatives exist and await owner editorial review. No production workflow was enabled or dispatched, and no YouTube upload or schedule was made.
+The three YouTube channel identities were verified through read-only API calls. The uploads playlists were fully paginated, and no future `publishAt` values are currently pending. Existing videos are present, but the latest scheduled Academic run was on the pre-merge SHA, arrived about 9 hours 35 minutes late, and skipped uploads for both formats. There are no post-merge schedule runs yet. The next triggers are Saturday, 2026-11-28; successful scheduled production and YouTube release evidence remain unverified.
 
 ## B. Repository and main SHA
 
-Repository verified as Ayushjaiswal0001/youtube at D:\X100-youtube. Remote main was verified as b16c4b5fd0d8cd6731d11dde40fc3a7d49b52d8f. Work is isolated on branch codex/fix-joblock-ownership; final local source follow-up is 528ec22943c896a2626b4877ddaaa1f035480534. The unrelated D:\animated checkout was not modified; its pre-existing working-tree changes were left untouched.
+Repository verified as Ayushjaiswal0001/youtube at D:\X100-youtube. Remote main is `3fa3c981a1dbfc0248730a9a558b0d5da212948b`, the merge commit for PR #31. PR #23 is also merged. The prior JobLock and content-audit commits remain part of the repository history. The unrelated D:\animated checkout was not modified; its pre-existing working-tree changes were left untouched.
 
 ## C. PR and merge history
 
-PR #22, head 6c52d38ac48963f9a37d1aadd5139e0e3453d768, merged on 2026-11-25 as b16c4b5. PR #20 and #21 are prior project history. Focused PR #23 is open from codex/fix-joblock-ownership to main. Its source candidate includes commit 7d6ffe07c59300d52fa6d1d07d221c67d32b6c97 and follow-up 528ec22943c896a2626b4877ddaaa1f035480534, plus the release reports. The branch was published after diagnosing the token identity mismatch. PR #2 remains open on its older base and was not modified.
+PR #22 merged on 2026-11-25 as `b16c4b5`. PR #23 merged on 2026-11-26 as `4c2a687e3da24ae142d42139a7f29df8052d1f31`. PR #31 merged on 2026-11-27 as `3fa3c981a1dbfc0248730a9a558b0d5da212948b`. PR #31 changed the three scheduled crons, the schedule-shape/readiness tests, and directly related documentation. It did not modify channel JSON, production gates, publishing policy, OAuth credentials, or secrets. PR #2 remains open on its older base and was not modified.
 
 PR #2 remains open at head 2a810f08de4d3a50ff4a7da20d8357268f6a3744, based on older SHA 567e63c0c957d42dee4c17156bc7cc89db6f095b. No changes were made to it. Its owner should decide separately whether to refresh or retire it.
 
 ## D. CI status
 
-Latest main CI run 45705546332 and security run 45705546316 both completed successfully on b16c4b5. On earlier PR head c653cfa, CI run 45760740043 and security run 45760740015 passed. Final source head 528ec22943c896a2626b4877ddaaa1f035480534 passed PR CI run 45762197044 and push CI run 45762192360, including Ubuntu factory and uploader Python 3.11/3.12. PR security run 45762198015 and push security run 45762192359 passed all four jobs. Latest verified docs head `d1edea4cd9d43867f2d4519fa4a77865c500919f` also passed PR CI `45763722304`, push CI `45763714737`, PR security `45763722267`, and push security `45763714758`. Verify any newer PR head before merge.
+Post-merge main CI run `46033672111` passed on `3fa3c981a1dbfc0248730a9a558b0d5da212948b`; uploader Python 3.11/3.12 and the factory suite passed. Post-merge security run `46033672255` passed all jobs, including dependency audit, Gitleaks, workflow permissions, and secret scanning. PR #31 was merged after its branch checks passed.
 
 ## E. Full test results
 
@@ -58,7 +58,7 @@ Real multiprocess tests cover two stale reclaimers, replacement during reclamati
 - Python compilation and whitespace checks passed.
 - Main security run 45705546316 passed all four security jobs, including Gitleaks and tree/history secret scanning.
 
-No OAuth value was read, printed, rotated, or changed. The candidate's CI security jobs remain pending.
+The post-merge security run `46033672255` passed all jobs. The read-only YouTube identity checks used the existing local credential store; no OAuth value was printed, rotated, or changed.
 
 ## I. Visual QC
 
@@ -94,11 +94,13 @@ Primary sources used include [the post-meal walking crossover trial](https://pub
 
 All six channel/format combinations returned an available plan in isolated local state. This is not proof of GitHub cache reservations, live duplicate state, or YouTube status.
 
+The counts below are the 2026-11-26 local plan snapshot; they do not establish content availability for the 2026-11-28 scheduled events.
+
 | Channel | Daily workflow | Unused Shorts | Horizontal plans | Seven-day bank minimum at one Short + one horizontal daily |
 | --- | --- | ---: | ---: | --- |
-| Nexus Node | nexus-node daily, disabled_manually | 4 | 1 | +3 Shorts, +6 horizontal |
-| Academic Biohacker | academic-biohacker daily, disabled_manually | 2 | 1 | +5 Shorts, +6 horizontal |
-| Natkhat Toons | natkhat-toons daily, disabled_manually | 6 across Haveli/Jungle | 1 | +1 Short, +6 horizontal; current 64.5-second sample needs expansion |
+| Nexus Node | nexus-node daily, active | 4 | 1 | +3 Shorts, +6 horizontal |
+| Academic Biohacker | academic-biohacker daily, active | 2 | 1 | +5 Shorts, +6 horizontal |
+| Natkhat Toons | natkhat-toons daily, active | 6 across Haveli/Jungle | 1 | +1 Short, +6 horizontal; current 64.5-second sample needs expansion |
 
 The additional content counts are minimum arithmetic coverage, not a request to generate content now.
 
@@ -108,36 +110,71 @@ The 60-minute Short and 120-minute horizontal workflow budgets remain. Historica
 
 The seven preserved artifact trees total 133,280,859 bytes. The two corrected derivative MP4 files total 19,688,365 bytes. Machine snapshot during the audit: 7.88 GiB total RAM, 1.70 GiB free, D: 24.04 GiB free of 30.66 GiB. Peak per-render CPU/memory, lock contention latency, and exact recovery time were not captured. No visual-quality tradeoff was made for speed.
 
-## O. Publishing and scheduling verification
+## O. Post-merge workflow and publishing verification
 
-GitHub shows the three daily workflows disabled_manually and production (manual) active but idle. Current Actions runs are PR #23 CI/security only; no production run is active. Local pause state is paused=false, scope=none. The owner CLI query returned no repository Actions variables; account-wide pause and live YouTube status remain owner-dependent. The connected-app variables request earlier returned 403.
+### Main branch and workflow state
 
-Cron and calculated times:
+PR #31 merged on 2026-11-27 at 16:26:44 UTC as `3fa3c981a1dbfc0248730a9a558b0d5da212948b`. Main CI `46033672111` and security `46033672255` passed. GitHub reports these workflow IDs as `active`:
 
-| Channel | Cron UTC | Start IST | Calculated release IST |
-| --- | --- | --- | --- |
-| Nexus Node | 30 12 * * * | 18:00 | 20:00 |
-| Academic Biohacker | 30 4 * * * | 10:00 | 12:00 |
-| Natkhat Toons | 30 10 * * * | 16:00 | 18:00 |
+| Channel | Workflow ID | Main cron (UTC) | Trigger (IST) | Intended release (IST) | Current config |
+| --- | ---: | --- | --- | --- | --- |
+| Academic Biohacker | 425309827 | `29 4 * * *` | 09:59 | 12:00 | scheduled; enabled |
+| Natkhat Toons | 425309829 | `29 10 * * *` | 15:59 | 18:00 | scheduled; enabled |
+| Nexus Node | 425309830 | `29 12 * * *` | 17:59 | 20:00 | scheduled; enabled |
 
-Because the daily workflows are disabled, there is no actual next run. The next nominal occurrence if enabled is 2026-11-27. Manual run 45625058307 skipped upload. No live channel identity, YouTube video status, stored publishAt, or pending-release read-back was checked. A computed timestamp is not proof of a schedule.
+The PR diff contained no `channels/*.json` changes. On main, each channel still has `production_enabled: true`, `mode: scheduled`, `scheduled_upload: true`, and its intended publication time.
+
+### Scheduled-run evidence
+
+There are no post-merge `schedule` events for any of the three workflows yet. The next expected triggers are Saturday, 2026-11-28: Academic at 09:59 IST, Natkhat at 15:59 IST, and Nexus at 17:59 IST. Their associated release times are 12:00, 18:00, and 20:00 IST.
+
+The most recent scheduled event was Academic run `46012727812` on main SHA `2ea73be1568a4cbaa188fa6abce06607010ecb7f`, before PR #31 merged. It was created at `2026-11-27T14:05:15Z` (19:35:15 IST), about 9 hours 35 minutes after the old 10:00 IST trigger. Its Short job `140552042262` and long-form job `140552042653` both passed content availability, plan resolution, rendering, QA, publishing gate, and policy steps, but both credential export and upload steps were skipped. This was not a YouTube release. Do not manually dispatch a production workflow to replace a delayed schedule; investigate the scheduler and the run first.
+
+No scheduled event exists yet for post-merge verification of either format on any channel. Therefore independent Short/long start, post-merge rendering and QC, publishing-gate decision, upload-ledger update, and recovery behavior remain unverified.
+
+### Live YouTube identity and current video state
+
+Read-only identity verification matched each OAuth identity to its configured channel:
+
+| Channel | Verified YouTube channel ID |
+| --- | --- |
+| Academic Biohacker | `UCr8jSmLa_o2BwNh8HuyZHAQ` |
+| Natkhat Toons | `UC4OCY0qDwQqFnSCZw12sKxA` |
+| Nexus Node | `UCx9O8VivWkiEylDjs5_Zzag` |
+
+The uploads playlists were fully paginated: 61 Academic, 64 Natkhat, and 559 Nexus videos. Every uploaded ID in the local uploader ledger was found on its expected channel. No future `publishAt` schedule was present in any playlist at the time of verification; no video ID was shared across the three channel lists.
+
+| Channel | Existing ledger video ID | Title | YouTube visibility/status | Current `publishAt` | YouTube `publishedAt` |
+| --- | --- | --- | --- | --- | --- |
+| Academic Biohacker | `O2YiFi0f_Ts` | Your Brain's Night Shift | private / processed | not returned | `2026-11-25T13:52:23Z` |
+| Natkhat Toons | `derJO8hBnjo` | चीकू और गप्पू: हवेली की पहली रात | private / processed | not returned | `2026-11-25T13:53:12Z` |
+| Nexus Node | `ZK-AMW8Lw-U` | AI Training Data: A Forecast, Not a Countdown | public / processed | not returned | `2026-11-26T14:30:10Z` |
+| Nexus Node | `UuQKJ3jspKE` | AI Is Leaving the Chat | private / processed | not returned | `2026-11-25T13:50:48Z` |
+
+The current API response did not return a `publishAt` field for these records. This does not recover a historical `publishAt` value after a video has gone public. These existing records are not evidence of the next scheduled run, and their format is not recorded in the uploader ledger. The delayed Academic run above produced no upload for either format.
+
+### Acceptance status
+
+Workflow configuration, main CI/security, and account identity are verified. Scheduled post-merge runs, per-format release verification, stored YouTube `publishAt`, and ongoing reliability are pending. Do not call X100 production-ready until each of the three channels completes both independently scheduled formats and the actual YouTube upload and release time are verified.
+
+No workflow was dispatched during this verification. No video was uploaded or scheduled, and no activation setting or channel publishing gate was changed.
 
 ## P. Known limitations
 
-- Candidate JobLock fix is on open PR #23 and unmerged. CI/security passed on source head 528ec22 and verified docs head `d1edea4`; independent review is still required before merge. Verify any newer PR head.
+- PR #23 merged on 2026-11-26 as `4c2a687e3da24ae142d42139a7f29df8052d1f31`; PR #31 merged on 2026-11-27 as `3fa3c981a1dbfc0248730a9a558b0d5da212948b`.
 - POSIX lock coverage, physical restart, and shared network filesystem semantics remain unverified here.
 - The two preserved originals remain stale and must not be released. Corrected local derivatives exist and passed automated/sample visual QC; owner editorial review is pending.
 - Subjective audio listening and complete frame-by-frame review were unavailable.
 - No formal Natkhat child-safety certification was performed.
 - Content banks cannot sustain a daily two-format schedule.
-- YouTube account identity, channel pause, pending releases, and live schedule metadata remain owner-dependent.
+- All three YouTube channel identities and current pending-release state were verified read-only. Future scheduled-run behavior and its stored release metadata remain unverified until the next scheduled events occur.
 - Free-tier usage and external service availability do not guarantee a permanent ₹0/month operation.
 
 See X100_KNOWN_LIMITATIONS.md for the full list.
 
 ## Q. Documentation completed
 
-Updated:
+Updated in the earlier engineering audit:
 
 - X100_FINAL_SYSTEM_ARCHITECTURE.md
 - X100_FINAL_QUALITY_AUDIT.md
@@ -154,16 +191,16 @@ Created:
 
 Preserved original media and recovery state were not altered or staged. The two new corrected derivatives and contact sheets remain untracked under `audit-artifacts/corrected-2026-11-26/` for owner review.
 
+The 2026-11-27 operational verification also updated `X100_OPERATIONS_GUIDE.md` and this report with PR #31, main workflow state, current YouTube identity/video evidence, and unresolved scheduled-run acceptance.
+
 ## R. Exact remaining owner actions
 
-1. Request an independent eligible reviewer for PR #23; none is currently assigned, and only the author/owner appears in the collaborator list.
-2. Wait for passing checks on the latest PR head, including Ubuntu/POSIX factory coverage and all security jobs. Inspect the exact final diff.
-3. Merge PR #23 only through the normal GitHub PR process after independent approval; verify the resulting main SHA and main CI/security.
-4. Review the corrected local Academic post-meal and Nexus data-wall outputs in `audit-artifacts/corrected-2026-11-26/build/academic-biohacker/academic-post-meal-walk/` and `audit-artifacts/corrected-2026-11-26/build/nexus-node/nexus-data-wall/`; do not use the preserved older versions.
-5. Run a fresh non-secret runtime preflight for pause, channel identity, plan/duplicate state, upload ledger, policy, and live YouTube pending schedules. The owner CLI query found no repository Actions variables; live YouTube state remains unverified.
-6. Explicitly approve Nexus activation only after those checks. Verify the actual YouTube metadata before considering Academic, then Natkhat.
-
-No merge or activation was done.
+1. For the Nov 28 schedule events, verify `event=schedule`, `head_branch=main`, correct workflow, independent Short/long jobs, content availability, policy/gate result, rendering/QC, and completion. Do not substitute a manual dispatch for a delayed schedule.
+2. For every uploaded Short and long-form video, verify channel ID, video ID, title, visibility, YouTube-returned `publishAt`, intended IST release, upload ledger, duplicates, and pending schedules.
+3. Record content gaps instead of claiming a release when a channel has no usable content.
+4. Record run IDs, video IDs, actual `publishAt`, and unresolved errors in this report after each scheduled event.
+5. Keep the production-ready verdict pending until all three channels independently pass both formats and YouTube schedule verification.
+6. Preserve existing production gates and channel settings; do not manually dispatch or change activation merely to force a test result.
 
 ## S. Emergency stop instructions
 
@@ -181,6 +218,6 @@ Use the matching workflow name for Academic or Natkhat. Cancel an active Actions
 
 ## T. Final production verdict
 
-**B. ENGINEERING COMPLETE — OWNER ACTIONS REQUIRED**
+**NOT YET PRODUCTION-READY — POST-MERGE SCHEDULED EVIDENCE PENDING**
 
-The reliability correction is on PR #23 and remains unmerged. CI/security passed on the latest verified docs head `d1edea4`; an independent reviewer is not currently available in the repository collaborator list. Owner editorial review of the corrected media derivatives, live account preflight, and explicit Nexus activation approval also remain. Production workflows remain disabled and no owner-controlled activation was attempted. Verify checks on any newer PR head before merge.
+PR #31 is merged; all three daily workflows are enabled with the requested crons; main CI/security passed; the channel identities and current YouTube pending-schedule state are verified. The only recent scheduled event ran before the merge, arrived about 9 hours 35 minutes late, and skipped uploads for both formats. No post-merge scheduled event or actual release has been verified. Keep this verdict open until the Nov 28 runs complete and each format's actual YouTube video and publication metadata are checked.
