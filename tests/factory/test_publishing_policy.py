@@ -308,9 +308,9 @@ def test_publish_looks_up_the_release_for_its_own_plan(monkeypatch):
 def test_every_channel_cron_starts_before_its_release_time():
     """A cron that fires *at* the release instant can never be on time; it is always late by definition.
 
-    Today's crons fire at 20:00 / 12:00 / 18:00 IST, which is the release instant itself, so the resolver's
-    `on_time` branch is unreachable in production and every video is published `minimum_lead_minutes` late.
-    A cron must start early enough for the render to finish first.
+    The channel crons now fire at 17:59 / 09:59 / 15:59 IST for their 20:00 / 12:00 / 18:00 IST releases.
+    The one-minute margin preserves the intended release times while keeping the resolver's `on_time` path
+    available when a run starts at its scheduled instant.
     """
 
     import re
