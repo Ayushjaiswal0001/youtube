@@ -25,8 +25,8 @@ name: natkhat-toons daily
 
 on:
   schedule:
-    # 16:00 IST, so the release at 18:00 IST can actually be scheduled.
-    - cron: "30 10 * * *"
+    # 15:59 IST, so the release at 18:00 IST can actually be scheduled.
+    - cron: "29 10 * * *"
   workflow_dispatch:
     inputs:
       episode:

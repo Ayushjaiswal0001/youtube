@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from pathlib import Path
 
 from factory.config import load_channel_specs
@@ -20,9 +21,24 @@ def test_activation_order_enables_verified_channels(tmp_path: Path) -> None:
     assert natkhat.paused is False
 
 
-def test_academic_is_ready_for_scheduled_publishing(capsys) -> None:
+def _freeze_release_window(monkeypatch) -> None:
+    """Keep readiness checks independent of the wall clock and configured release hour."""
+
+    from factory import cli
+    from factory.publishing import resolve_release
+
+    now = datetime(2026, 11, 25, tzinfo=timezone.utc)
+    monkeypatch.setattr(
+        cli,
+        "resolve_release",
+        lambda spec: resolve_release(spec, now=now, run_started=now),
+    )
+
+
+def test_academic_is_ready_for_scheduled_publishing(capsys, monkeypatch) -> None:
     from factory.cli import main
 
+    _freeze_release_window(monkeypatch)
     result = main(["publishing", "--channel", "academic-biohacker", "--json"])
 
     assert result == 0
@@ -32,9 +48,10 @@ def test_academic_is_ready_for_scheduled_publishing(capsys) -> None:
     assert '"ready": true' in output
 
 
-def test_natkhat_is_ready_for_scheduled_publishing(capsys) -> None:
+def test_natkhat_is_ready_for_scheduled_publishing(capsys, monkeypatch) -> None:
     from factory.cli import main
 
+    _freeze_release_window(monkeypatch)
     result = main(["publishing", "--channel", "natkhat-toons", "--json"])
 
     assert result == 0

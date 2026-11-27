@@ -25,8 +25,8 @@ name: academic-biohacker daily
 
 on:
   schedule:
-    # 10:00 IST, so the release at 12:00 IST can actually be scheduled.
-    - cron: "30 4 * * *"
+    # 09:59 IST, so the release at 12:00 IST can actually be scheduled.
+    - cron: "29 4 * * *"
   workflow_dispatch:
     inputs:
       episode:
