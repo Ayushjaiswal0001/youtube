@@ -144,9 +144,12 @@ Guards that hold regardless of flags:
 | `security.yml` | push, PR, weekly | `secrets`, `gitleaks`, `dependencies`, `workflow-audit` | active |
 | `produce.yml` | called by the others | `produce` (one episode) | active |
 | `production (manual)` | `workflow_dispatch` | one job per channel | active |
-| `academic-biohacker daily` | cron `29 4 * * *` (09:59 IST start, 12:00 release) | `short` (60 min), `long` (120 min) | **disabled_manually** |
-| `natkhat-toons daily` | cron `29 10 * * *` (15:59 IST start, 18:00 release) | `short` (60 min), `long` (120 min) | **disabled_manually** |
-| `nexus-node daily` | cron `29 12 * * *` (17:59 IST start, 20:00 release) | `short` (60 min), `long` (120 min) | **disabled_manually** |
+| `academic-biohacker daily` | cron `29 4 * * *` (09:59 IST start, 12:00 release) | `short` (60 min), `long` (120 min) | **active** |
+| `natkhat-toons daily` | cron `29 10 * * *` (15:59 IST start, 18:00 release) | `short` (60 min), `long` (120 min) | **active** |
+| `nexus-node daily` | cron `29 12 * * *` (17:59 IST start, 20:00 release) | `short` (60 min), `long` (120 min) | **active** |
+
+GitHub Actions currently reports all three daily workflows as active (enabled). Each channel's publishing
+policy and production gate still determine whether a scheduled run may upload.
 
 Each channel's nightly workflow runs **two independent jobs**: a Short (format `shorts`, 60-minute budget)
 and a long-form episode (format `long`, 120-minute budget). They share nothing but the channel: separate
